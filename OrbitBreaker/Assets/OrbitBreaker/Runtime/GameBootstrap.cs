@@ -15,6 +15,7 @@ namespace OrbitBreaker
         private OrbitCameraRig cameraRig;
         private OrbitHud hud;
         private OrbitFeedback feedback;
+        private SpaceBackground spaceBackground;
         private int bestScore;
         private int anchorsCaptured;
         private int distanceScore;
@@ -29,6 +30,7 @@ namespace OrbitBreaker
         private void Awake()
         {
             Application.targetFrameRate = 60;
+            GamePreferences.ApplyRuntime();
             Screen.sleepTimeout = SleepTimeout.NeverSleep;
             Screen.orientation = ScreenOrientation.Portrait;
             QualitySettings.vSyncCount = 0;
@@ -45,6 +47,9 @@ namespace OrbitBreaker
             cameraRig = mainCamera.GetComponent<OrbitCameraRig>();
             if (cameraRig == null) cameraRig = mainCamera.gameObject.AddComponent<OrbitCameraRig>();
             cameraRig.Initialize(mainCamera);
+
+            spaceBackground = CreateSystem<SpaceBackground>("Space Background");
+            spaceBackground.Initialize(mainCamera);
 
             world = CreateSystem<OrbitWorld>("World");
             player = CreateSystem<OrbitPlayer>("Player");
@@ -88,6 +93,7 @@ namespace OrbitBreaker
                 feedback.UpdateCharge(player.FlightMultiplier, player.State == PlayerOrbitState.Flying);
                 Vector2 anchorPosition = player.CurrentAnchor != null ? player.CurrentAnchor.transform.position : player.transform.position + (Vector3)player.Velocity.normalized * 2f;
                 cameraRig.SetTarget(player.transform.position, anchorPosition);
+                cameraRig.SetFlightShake(player.FlightDanger01, player.State == PlayerOrbitState.Flying);
                 world.RecycleBehind(cameraRig.CameraY, player.LastSequence);
             }
             else if (!hud.SettingsOpen && Time.unscaledTime >= restartAvailableAt && WasGameplayPressedThisFrame())
@@ -147,6 +153,7 @@ namespace OrbitBreaker
             world.EnsureAhead(furthestSequence);
             int rewardedSkips = !revisited && !result.IsBacktrack ? result.SkippedAnchors : 0;
             feedback.Capture(player.transform.position, result.Multiplier >= 2f, rewardedSkips);
+            cameraRig.ShakeCapture();
             UpdateBestScore(distanceScore);
             hud.ShowLanding(distanceScore, bestScore, scoreDelta, result.Multiplier, rewardedSkips, result.IsBacktrack, revisited && !result.IsBacktrack);
         }
@@ -157,6 +164,8 @@ namespace OrbitBreaker
             runActive = false;
             restartAvailableAt = Time.unscaledTime + 0.55f;
             feedback.Death(player.transform.position, reason);
+            if (reason == DeathReason.Breaker) cameraRig.ShakeExplosion();
+            cameraRig.SetFlightShake(0f, false);
             feedback.UpdateCharge(1f, false);
             PlayerPrefs.Save();
             hud.ShowGameOver(distanceScore, bestScore, anchorsCaptured, reason);

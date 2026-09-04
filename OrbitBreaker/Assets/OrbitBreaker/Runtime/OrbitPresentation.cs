@@ -6,12 +6,90 @@ using UnityEngine.UI;
 
 namespace OrbitBreaker
 {
+    public sealed class SpaceBackground : MonoBehaviour
+    {
+        private const float TileSize = 14.6f;
+        private const float StarSpan = 17f;
+        private Camera targetCamera;
+        private readonly SpriteRenderer[] nebulaTiles = new SpriteRenderer[3];
+        private readonly Transform[] stars = new Transform[52];
+        private readonly float[] starSeedX = new float[52];
+        private readonly float[] starSeedY = new float[52];
+
+        public void Initialize(Camera camera)
+        {
+            targetCamera = camera;
+            for (int i = 0; i < nebulaTiles.Length; i++)
+            {
+                var tile = new GameObject("Nebula Tile " + (i + 1));
+                tile.transform.SetParent(transform, false);
+                tile.transform.localScale = Vector3.one * TileSize;
+                nebulaTiles[i] = tile.AddComponent<SpriteRenderer>();
+                nebulaTiles[i].sprite = RuntimeAssets.SpaceBackgroundSprite;
+                nebulaTiles[i].color = new Color(0.72f, 0.78f, 0.92f, 0.72f);
+                nebulaTiles[i].sortingOrder = -100;
+            }
+
+            var random = new System.Random(7319);
+            for (int i = 0; i < stars.Length; i++)
+            {
+                var star = new GameObject("Parallax Star " + (i + 1));
+                star.transform.SetParent(transform, false);
+                float scale = Mathf.Lerp(0.018f, 0.052f, (float)random.NextDouble());
+                star.transform.localScale = Vector3.one * scale;
+                SpriteRenderer renderer = star.AddComponent<SpriteRenderer>();
+                renderer.sprite = RuntimeAssets.CircleSprite;
+                renderer.color = i % 5 == 0
+                    ? new Color(0.72f, 0.42f, 1f, 0.78f)
+                    : new Color(0.42f, 0.9f, 1f, 0.68f);
+                renderer.sortingOrder = -90;
+                stars[i] = star.transform;
+                starSeedX[i] = Mathf.Lerp(-3.5f, 3.5f, (float)random.NextDouble());
+                starSeedY[i] = Mathf.Lerp(-StarSpan * 0.5f, StarSpan * 0.5f, (float)random.NextDouble());
+                star.transform.localPosition = new Vector3(starSeedX[i], starSeedY[i], 0f);
+            }
+            RefreshPositions();
+        }
+
+        private void LateUpdate()
+        {
+            RefreshPositions();
+        }
+
+        private void RefreshPositions()
+        {
+            if (targetCamera == null) return;
+            float cameraY = targetCamera.transform.position.y;
+            float cameraX = targetCamera.transform.position.x;
+            float nebulaOffset = GamePreferences.DynamicBackground
+                ? Mathf.Repeat(cameraY * 0.2f + TileSize * 0.5f, TileSize) - TileSize * 0.5f
+                : 0f;
+            for (int i = 0; i < nebulaTiles.Length; i++)
+            {
+                nebulaTiles[i].transform.position = new Vector3(cameraX * 0.88f, cameraY + (i - 1) * TileSize - nebulaOffset, 2f);
+            }
+
+            for (int i = 0; i < stars.Length; i++)
+            {
+                stars[i].gameObject.SetActive(GamePreferences.EnhancedEffects);
+                float drift = GamePreferences.DynamicBackground ? cameraY * 0.48f : 0f;
+                float relativeY = Mathf.Repeat(starSeedY[i] - drift + StarSpan * 0.5f, StarSpan) - StarSpan * 0.5f;
+                stars[i].position = new Vector3(cameraX + starSeedX[i], cameraY + relativeY, 1f);
+            }
+        }
+    }
+
     public sealed class OrbitCameraRig : MonoBehaviour
     {
         private Camera targetCamera;
         private Vector3 velocity;
+        private Vector3 basePosition;
         private float targetY;
         private float targetX;
+        private float impactShakeRemaining;
+        private float impactShakeDuration;
+        private float impactShakeStrength;
+        private float flightShakeStrength;
 
         public float CameraY => targetCamera != null ? targetCamera.transform.position.y : 0f;
 
@@ -29,22 +107,115 @@ namespace OrbitBreaker
         {
             targetY = Mathf.Max(0f, focus.y + 2.25f);
             targetX = focus.x * 0.12f;
-            targetCamera.transform.position = new Vector3(targetX, targetY, -10f);
+            basePosition = new Vector3(targetX, targetY, -10f);
+            targetCamera.transform.position = basePosition;
             velocity = Vector3.zero;
+            impactShakeRemaining = 0f;
+            flightShakeStrength = 0f;
         }
 
         public void SetTarget(Vector2 playerPosition, Vector2 anchorPosition)
         {
+            if (GamePreferences.FixedCamera)
+            {
+                // Stable mode keeps the playfield readable: vertical tracking remains
+                // essential in an endless game, while lateral movement and shake are removed.
+                float stableY = Mathf.Max(0f, playerPosition.y + 2.15f);
+                targetY = Mathf.MoveTowards(targetY, stableY, 4.25f * Time.deltaTime);
+                targetX = Mathf.MoveTowards(targetX, 0f, 2.5f * Time.deltaTime);
+                return;
+            }
             float desiredY = Mathf.Max(0f, Mathf.Max(playerPosition.y, anchorPosition.y) + 2.15f);
             targetY = desiredY >= targetY ? desiredY : Mathf.MoveTowards(targetY, desiredY, 5.5f * Time.deltaTime);
             targetX = Mathf.Lerp(playerPosition.x, anchorPosition.x, 0.65f) * 0.12f;
+        }
+
+        public void ShakeCapture()
+        {
+            if (!GamePreferences.FixedCamera && GamePreferences.CaptureShake) TriggerImpactShake(0.13f, 0.065f);
+        }
+
+        public void ShakeExplosion()
+        {
+            if (!GamePreferences.FixedCamera && GamePreferences.ExplosionShake) TriggerImpactShake(0.38f, 0.19f);
+        }
+
+        public void SetFlightShake(float danger01, bool flying)
+        {
+            float desired = !GamePreferences.FixedCamera && GamePreferences.FlightShake && flying
+                ? Mathf.InverseLerp(0.42f, 1f, danger01) * 0.045f
+                : 0f;
+            flightShakeStrength = Mathf.MoveTowards(flightShakeStrength, desired, Time.unscaledDeltaTime * 0.12f);
+        }
+
+        private void TriggerImpactShake(float duration, float strength)
+        {
+            impactShakeDuration = duration;
+            impactShakeRemaining = duration;
+            impactShakeStrength = strength;
         }
 
         private void LateUpdate()
         {
             if (targetCamera == null) return;
             Vector3 destination = new Vector3(targetX, targetY, -10f);
-            targetCamera.transform.position = Vector3.SmoothDamp(targetCamera.transform.position, destination, ref velocity, 0.28f, 18f, Time.unscaledDeltaTime);
+            float smoothTime = GamePreferences.FixedCamera ? 0.42f : 0.28f;
+            basePosition = Vector3.SmoothDamp(basePosition, destination, ref velocity, smoothTime, 18f, Time.unscaledDeltaTime);
+            float impact = 0f;
+            if (impactShakeRemaining > 0f)
+            {
+                impactShakeRemaining = Mathf.Max(0f, impactShakeRemaining - Time.unscaledDeltaTime);
+                impact = impactShakeStrength * (impactShakeRemaining / Mathf.Max(0.01f, impactShakeDuration));
+            }
+
+            float strength = GamePreferences.FixedCamera ? 0f : impact + flightShakeStrength;
+            float time = Time.unscaledTime;
+            Vector3 shakeOffset = new Vector3(
+                (Mathf.PerlinNoise(time * 31f, 2.7f) - 0.5f) * 2f,
+                (Mathf.PerlinNoise(7.1f, time * 37f) - 0.5f) * 2f,
+                0f) * strength;
+            targetCamera.transform.position = basePosition + shakeOffset;
+        }
+    }
+
+    public sealed class ToggleSwitchVisual : MonoBehaviour
+    {
+        private static readonly Color OffColor = new Color(0.06f, 0.16f, 0.24f, 1f);
+        private static readonly Color OnColor = new Color(0.08f, 0.62f, 0.72f, 1f);
+        private Image track;
+        private RectTransform knob;
+        private float position;
+        private float target;
+
+        public void Initialize(Image trackImage, RectTransform knobTransform, bool isOn)
+        {
+            track = trackImage;
+            knob = knobTransform;
+            position = target = isOn ? 1f : 0f;
+            Apply();
+        }
+
+        public void SetValue(bool isOn)
+        {
+            target = isOn ? 1f : 0f;
+        }
+
+        private void Update()
+        {
+            if (Mathf.Approximately(position, target)) return;
+            position = Mathf.MoveTowards(position, target, Time.unscaledDeltaTime * 7.5f);
+            Apply();
+        }
+
+        private void Apply()
+        {
+            if (track == null || knob == null) return;
+            float center = Mathf.Lerp(0.27f, 0.73f, position);
+            knob.anchorMin = new Vector2(center - 0.19f, 0.12f);
+            knob.anchorMax = new Vector2(center + 0.19f, 0.88f);
+            knob.offsetMin = Vector2.zero;
+            knob.offsetMax = Vector2.zero;
+            track.color = Color.Lerp(OffColor, OnColor, position);
         }
     }
 
@@ -96,6 +267,13 @@ namespace OrbitBreaker
         private GameObject gameOverPanel;
         private GameObject settingsPanel;
         private GameObject settingsButton;
+        private GameObject infoButton;
+        private GameObject creditsPanel;
+        private GameObject settingsAudioPage;
+        private GameObject settingsGameplayPage;
+        private GameObject settingsVideoPage;
+        private Image[] settingsTabImages;
+        private Image[] frameRateButtonImages;
         private GameObject pauseButton;
         private GameObject pausePanel;
         private GameObject tutorialTips;
@@ -105,7 +283,7 @@ namespace OrbitBreaker
         private bool gameOverVisible;
         private float stuntShownAt = -10f;
 
-        public bool SettingsOpen => settingsPanel != null && settingsPanel.activeSelf;
+        public bool SettingsOpen => (settingsPanel != null && settingsPanel.activeSelf) || (creditsPanel != null && creditsPanel.activeSelf);
         public bool IsPaused => pausePanel != null && pausePanel.activeSelf;
 
         public void Initialize(OrbitFeedback audio)
@@ -172,6 +350,10 @@ namespace OrbitBreaker
             stuntText = CreateText(floatingHud, "Stunt", string.Empty, 34, TextAnchor.MiddleLeft, FontStyle.Bold);
             stuntText.color = new Color(1f, 0.72f, 0.24f, 1f);
             stuntText.gameObject.AddComponent<Outline>().effectColor = new Color(0.03f, 0.08f, 0.15f, 1f);
+            stuntText.horizontalOverflow = HorizontalWrapMode.Overflow;
+            stuntText.resizeTextForBestFit = true;
+            stuntText.resizeTextMinSize = 18;
+            stuntText.resizeTextMaxSize = 34;
             SetRect(stuntText.rectTransform, new Vector2(0.88f, 0.25f), new Vector2(1.85f, 0.72f), new Vector2(16f, 0f), Vector2.zero);
 
             titleText = CreateText(safe, "Title", "ORBIT\nBREAKER", 78, TextAnchor.MiddleCenter, FontStyle.Bold);
@@ -230,6 +412,9 @@ namespace OrbitBreaker
             settingsButton = CreateIconButton(safe, "Settings Button", RuntimeAssets.SettingsIcon, ToggleSettings);
             SetRect(settingsButton.GetComponent<RectTransform>(), new Vector2(0.855f, 0.465f), new Vector2(0.965f, 0.535f), Vector2.zero, Vector2.zero);
 
+            infoButton = CreateRoundTextButton(safe, "Credits Button", "i", ToggleCredits);
+            SetRect(infoButton.GetComponent<RectTransform>(), new Vector2(0.035f, 0.475f), new Vector2(0.105f, 0.525f), Vector2.zero, Vector2.zero);
+
             pauseButton = CreateIconButton(safe, "Pause Button", RuntimeAssets.PauseIcon, PauseGame);
             SetRect(pauseButton.GetComponent<RectTransform>(), new Vector2(0.045f, 0.89f), new Vector2(0.145f, 0.95f), Vector2.zero, Vector2.zero);
             pauseButton.SetActive(false);
@@ -239,6 +424,8 @@ namespace OrbitBreaker
 
             settingsPanel = CreateSettingsPanel(safe, audio);
             settingsPanel.SetActive(false);
+            creditsPanel = CreateCreditsPanel(safe);
+            creditsPanel.SetActive(false);
         }
 
         public void ShowPlaying(int distance, int best, bool tutorial)
@@ -249,8 +436,10 @@ namespace OrbitBreaker
             hintGroup.gameObject.SetActive(tutorial);
             tutorialTips.SetActive(tutorial);
             settingsButton.SetActive(tutorial);
+            infoButton.SetActive(tutorial);
             pauseButton.SetActive(!tutorial);
             settingsPanel.SetActive(false);
+            creditsPanel.SetActive(false);
             gameOverPanel.SetActive(false);
             gameOverVisible = false;
         }
@@ -264,7 +453,7 @@ namespace OrbitBreaker
 
         public void UpdateFlightDisplay(Vector3 worldPosition, float multiplier, float danger01, bool flying)
         {
-            multiplierBadge.SetActive(flying);
+            multiplierBadge.SetActive(flying && GamePreferences.FlightGauges);
             if (safeRect != null && Camera.main != null)
             {
                 Vector2 screen = Camera.main.WorldToScreenPoint(worldPosition);
@@ -315,7 +504,9 @@ namespace OrbitBreaker
             hintGroup.gameObject.SetActive(false);
             tutorialTips.SetActive(false);
             settingsButton.SetActive(false);
+            infoButton.SetActive(false);
             settingsPanel.SetActive(false);
+            creditsPanel.SetActive(false);
             pauseButton.SetActive(true);
         }
 
@@ -331,6 +522,7 @@ namespace OrbitBreaker
             gameOverTitle.color = reason == DeathReason.Breaker ? new Color(1f, 0.28f, 0.38f) : new Color(0.45f, 0.82f, 1f);
             gameOverPanel.SetActive(true);
             settingsButton.SetActive(true);
+            infoButton.SetActive(true);
             pauseButton.SetActive(false);
             gameOverVisible = true;
         }
@@ -344,7 +536,17 @@ namespace OrbitBreaker
         private void ToggleSettings()
         {
             bool opening = !settingsPanel.activeSelf;
+            creditsPanel.SetActive(false);
             settingsPanel.SetActive(opening);
+            if (opening) ShowSettingsTab(0);
+            gameOverPanel.SetActive(!opening && gameOverVisible);
+        }
+
+        private void ToggleCredits()
+        {
+            bool opening = !creditsPanel.activeSelf;
+            settingsPanel.SetActive(false);
+            creditsPanel.SetActive(opening);
             gameOverPanel.SetActive(!opening && gameOverVisible);
         }
 
@@ -391,23 +593,149 @@ namespace OrbitBreaker
             return panel;
         }
 
+        private GameObject CreateCreditsPanel(Transform safe)
+        {
+            var panel = new GameObject("Credits Panel", typeof(RectTransform), typeof(Image));
+            panel.transform.SetParent(safe, false);
+            SetRect(panel.GetComponent<RectTransform>(), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            Image veil = panel.GetComponent<Image>();
+            veil.color = new Color(0.008f, 0.02f, 0.055f, 0.88f);
+
+            Image card = CreateImage(panel.transform, "Credits Card", new Color(0.025f, 0.075f, 0.14f, 0.98f));
+            ApplyRounded(card);
+            SetRect(card.rectTransform, new Vector2(0.11f, 0.27f), new Vector2(0.89f, 0.72f), Vector2.zero, Vector2.zero);
+
+            Text title = CreateText(card.transform, "Credits Title", "ORBIT BREAKER", 48, TextAnchor.MiddleCenter, FontStyle.Bold);
+            title.color = new Color(0.72f, 0.97f, 1f, 1f);
+            SetRect(title.rectTransform, new Vector2(0.08f, 0.72f), new Vector2(0.92f, 0.94f), Vector2.zero, Vector2.zero);
+
+            Text author = CreateText(card.transform, "Author", "UN JEU DE JEANEDOUART © 2026", 28, TextAnchor.MiddleCenter, FontStyle.Bold);
+            author.color = new Color(1f, 0.72f, 0.24f, 1f);
+            SetRect(author.rectTransform, new Vector2(0.08f, 0.53f), new Vector2(0.92f, 0.72f), Vector2.zero, Vector2.zero);
+
+            Text details = CreateText(card.transform, "Credits Details", "CONCEPTION & DÉVELOPPEMENT\nJEANEDOUART\n\nL'INTELLIGENCE ARTIFICIELLE A ÉTÉ UTILISÉE\nCOMME OUTIL D'ASSISTANCE AU DÉVELOPPEMENT.", 22, TextAnchor.MiddleCenter, FontStyle.Normal);
+            details.color = new Color(0.67f, 0.84f, 0.95f, 0.95f);
+            details.lineSpacing = 1.15f;
+            details.resizeTextForBestFit = true;
+            details.resizeTextMinSize = 16;
+            details.resizeTextMaxSize = 22;
+            SetRect(details.rectTransform, new Vector2(0.08f, 0.20f), new Vector2(0.92f, 0.56f), Vector2.zero, Vector2.zero);
+
+            GameObject close = CreateButton(card.transform, "Close Credits", "FERMER", new Color(0.12f, 0.48f, 0.58f, 0.95f), ToggleCredits);
+            SetRect(close.GetComponent<RectTransform>(), new Vector2(0.25f, 0.055f), new Vector2(0.75f, 0.18f), Vector2.zero, Vector2.zero);
+            return panel;
+        }
+
         private GameObject CreateSettingsPanel(Transform safe, OrbitFeedback audio)
         {
             var panel = new GameObject("Settings Panel", typeof(RectTransform), typeof(Image));
             panel.transform.SetParent(safe, false);
-            SetRect(panel.GetComponent<RectTransform>(), new Vector2(0.08f, 0.16f), new Vector2(0.92f, 0.8f), Vector2.zero, Vector2.zero);
+            SetRect(panel.GetComponent<RectTransform>(), new Vector2(0.045f, 0.08f), new Vector2(0.955f, 0.9f), Vector2.zero, Vector2.zero);
             panel.GetComponent<Image>().color = new Color(0.025f, 0.065f, 0.12f, 0.98f);
             ApplyRounded(panel.GetComponent<Image>());
 
-            Text heading = CreateText(panel.transform, "Settings Title", "AUDIO", 54, TextAnchor.MiddleCenter, FontStyle.Bold);
-            SetRect(heading.rectTransform, new Vector2(0.1f, 0.79f), new Vector2(0.9f, 0.96f), Vector2.zero, Vector2.zero);
-            CreateVolumeRow(panel.transform, "GLOBAL", 0.62f, audio.MasterVolume, audio.SetMasterVolume);
-            CreateVolumeRow(panel.transform, "MUSIQUE", 0.43f, audio.MusicVolume, audio.SetMusicVolume);
-            CreateVolumeRow(panel.transform, "EFFETS", 0.24f, audio.EffectsVolume, audio.SetEffectsVolume);
+            Text heading = CreateText(panel.transform, "Settings Title", "RÉGLAGES", 48, TextAnchor.MiddleCenter, FontStyle.Bold);
+            heading.color = new Color(0.76f, 0.98f, 1f, 1f);
+            SetRect(heading.rectTransform, new Vector2(0.1f, 0.86f), new Vector2(0.9f, 0.98f), Vector2.zero, Vector2.zero);
+
+            GameObject soundTab = CreateButton(panel.transform, "Sound Tab", "SON", new Color(0.08f, 0.3f, 0.42f, 1f), () => ShowSettingsTab(0));
+            GameObject gameplayTab = CreateButton(panel.transform, "Gameplay Tab", "GAMEPLAY", new Color(0.055f, 0.16f, 0.25f, 1f), () => ShowSettingsTab(1));
+            GameObject videoTab = CreateButton(panel.transform, "Video Tab", "VIDÉO", new Color(0.055f, 0.16f, 0.25f, 1f), () => ShowSettingsTab(2));
+            SetRect(soundTab.GetComponent<RectTransform>(), new Vector2(0.07f, 0.76f), new Vector2(0.34f, 0.84f), Vector2.zero, Vector2.zero);
+            SetRect(gameplayTab.GetComponent<RectTransform>(), new Vector2(0.365f, 0.76f), new Vector2(0.635f, 0.84f), Vector2.zero, Vector2.zero);
+            SetRect(videoTab.GetComponent<RectTransform>(), new Vector2(0.66f, 0.76f), new Vector2(0.93f, 0.84f), Vector2.zero, Vector2.zero);
+            settingsTabImages = new[] { soundTab.GetComponent<Image>(), gameplayTab.GetComponent<Image>(), videoTab.GetComponent<Image>() };
+
+            settingsAudioPage = CreateSettingsPage(panel.transform, "Sound Page");
+            CreateVolumeRow(settingsAudioPage.transform, "GLOBAL", 0.68f, audio.MasterVolume, audio.SetMasterVolume);
+            CreateVolumeRow(settingsAudioPage.transform, "MUSIQUE", 0.44f, audio.MusicVolume, audio.SetMusicVolume);
+            CreateVolumeRow(settingsAudioPage.transform, "EFFETS", 0.2f, audio.EffectsVolume, audio.SetEffectsVolume);
+
+            settingsGameplayPage = CreateSettingsPage(panel.transform, "Gameplay Page");
+            Text gameplayNote = CreateText(settingsGameplayPage.transform, "Visual Options Note", "MASQUER UNE AIDE NE CHANGE PAS LE GAMEPLAY NI LES COLLISIONS", 16, TextAnchor.MiddleCenter, FontStyle.Bold);
+            gameplayNote.color = new Color(1f, 0.72f, 0.18f, 0.95f);
+            gameplayNote.resizeTextForBestFit = true;
+            gameplayNote.resizeTextMinSize = 11;
+            gameplayNote.resizeTextMaxSize = 16;
+            SetRect(gameplayNote.rectTransform, new Vector2(0.04f, 0.89f), new Vector2(0.96f, 1f), Vector2.zero, Vector2.zero);
+            CreateToggleRow(settingsGameplayPage.transform, "GUIDES DE ROTATION", 0.71f, GamePreferences.RotationGuides, GamePreferences.SetRotationGuides);
+            CreateToggleRow(settingsGameplayPage.transform, "ANNEAUX D'ORBITE", 0.535f, GamePreferences.OrbitRings, GamePreferences.SetOrbitRings);
+            CreateToggleRow(settingsGameplayPage.transform, "JAUGES DE VOL", 0.36f, GamePreferences.FlightGauges, GamePreferences.SetFlightGauges);
+            CreateToggleRow(settingsGameplayPage.transform, "BOUCLIER D'IMMUNITÉ", 0.185f, GamePreferences.Shield, GamePreferences.SetShield);
+            CreateToggleRow(settingsGameplayPage.transform, "VIBRATIONS", 0.01f, GamePreferences.Haptics, GamePreferences.SetHaptics);
+
+            settingsVideoPage = CreateSettingsPage(panel.transform, "Video Page");
+            CreateFrameRateSelector(settingsVideoPage.transform);
+            CreateToggleRow(settingsVideoPage.transform, "FOND DYNAMIQUE", 0.60f, GamePreferences.DynamicBackground, GamePreferences.SetDynamicBackground);
+            CreateToggleRow(settingsVideoPage.transform, "EFFETS RENFORCÉS", 0.48f, GamePreferences.EnhancedEffects, GamePreferences.SetEnhancedEffects);
+            CreateToggleRow(settingsVideoPage.transform, "SECOUSSE À LA CAPTURE", 0.36f, GamePreferences.CaptureShake, GamePreferences.SetCaptureShake);
+            CreateToggleRow(settingsVideoPage.transform, "SECOUSSE D'EXPLOSION", 0.24f, GamePreferences.ExplosionShake, GamePreferences.SetExplosionShake);
+            CreateToggleRow(settingsVideoPage.transform, "TREMBLEMENT EN VOL", 0.12f, GamePreferences.FlightShake, GamePreferences.SetFlightShake);
+            CreateToggleRow(settingsVideoPage.transform, "CAMÉRA STABLE", 0f, GamePreferences.FixedCamera, GamePreferences.SetFixedCamera);
 
             GameObject close = CreateButton(panel.transform, "Close Settings", "FERMER", new Color(0.12f, 0.48f, 0.58f, 0.95f), ToggleSettings);
-            SetRect(close.GetComponent<RectTransform>(), new Vector2(0.25f, 0.05f), new Vector2(0.75f, 0.15f), Vector2.zero, Vector2.zero);
+            SetRect(close.GetComponent<RectTransform>(), new Vector2(0.27f, 0.035f), new Vector2(0.73f, 0.105f), Vector2.zero, Vector2.zero);
+            ShowSettingsTab(0);
             return panel;
+        }
+
+        private static GameObject CreateSettingsPage(Transform parent, string name)
+        {
+            var page = new GameObject(name, typeof(RectTransform));
+            page.transform.SetParent(parent, false);
+            SetRect(page.GetComponent<RectTransform>(), new Vector2(0.055f, 0.13f), new Vector2(0.945f, 0.735f), Vector2.zero, Vector2.zero);
+            return page;
+        }
+
+        private void ShowSettingsTab(int index)
+        {
+            if (settingsAudioPage == null) return;
+            settingsAudioPage.SetActive(index == 0);
+            settingsGameplayPage.SetActive(index == 1);
+            settingsVideoPage.SetActive(index == 2);
+            for (int i = 0; i < settingsTabImages.Length; i++)
+            {
+                settingsTabImages[i].color = i == index
+                    ? new Color(0.08f, 0.42f, 0.56f, 1f)
+                    : new Color(0.045f, 0.13f, 0.22f, 1f);
+            }
+        }
+
+        private void CreateFrameRateSelector(Transform parent)
+        {
+            Text label = CreateText(parent, "Frame Rate Label", "FRÉQUENCE D'AFFICHAGE", 20, TextAnchor.MiddleCenter, FontStyle.Bold);
+            label.color = new Color(0.72f, 0.9f, 1f, 1f);
+            SetRect(label.rectTransform, new Vector2(0.06f, 0.88f), new Vector2(0.94f, 0.99f), Vector2.zero, Vector2.zero);
+
+            int[] rates = { 30, 60, 120 };
+            frameRateButtonImages = new Image[rates.Length];
+            for (int i = 0; i < rates.Length; i++)
+            {
+                int rate = rates[i];
+                GameObject button = CreateButton(parent, rate + " FPS", rate.ToString(), new Color(0.045f, 0.13f, 0.22f, 1f), () => SelectFrameRate(rate));
+                float left = 0.12f + i * 0.265f;
+                SetRect(button.GetComponent<RectTransform>(), new Vector2(left, 0.75f), new Vector2(left + 0.23f, 0.865f), Vector2.zero, Vector2.zero);
+                frameRateButtonImages[i] = button.GetComponent<Image>();
+            }
+            RefreshFrameRateSelector();
+        }
+
+        private void SelectFrameRate(int frameRate)
+        {
+            GamePreferences.SetTargetFrameRate(frameRate);
+            RefreshFrameRateSelector();
+        }
+
+        private void RefreshFrameRateSelector()
+        {
+            if (frameRateButtonImages == null) return;
+            int selected = GamePreferences.TargetFrameRate >= 120 ? 2 : GamePreferences.TargetFrameRate >= 60 ? 1 : 0;
+            for (int i = 0; i < frameRateButtonImages.Length; i++)
+            {
+                frameRateButtonImages[i].color = i == selected
+                    ? new Color(0.08f, 0.62f, 0.72f, 1f)
+                    : new Color(0.045f, 0.13f, 0.22f, 1f);
+            }
         }
 
         private static void CreateVolumeRow(Transform parent, string label, float centerY, float value, UnityEngine.Events.UnityAction<float> callback)
@@ -436,6 +764,34 @@ namespace OrbitBreaker
             slider.targetGraphic = handle;
             slider.value = value;
             slider.onValueChanged.AddListener(callback);
+        }
+
+        private static void CreateToggleRow(Transform parent, string label, float bottom, bool value, UnityEngine.Events.UnityAction<bool> callback)
+        {
+            Text text = CreateText(parent, label + " Label", label, 22, TextAnchor.MiddleLeft, FontStyle.Bold);
+            text.color = new Color(0.72f, 0.9f, 1f, 1f);
+            SetRect(text.rectTransform, new Vector2(0.06f, bottom), new Vector2(0.72f, bottom + 0.12f), Vector2.zero, Vector2.zero);
+
+            var toggleObject = new GameObject(label + " Toggle", typeof(RectTransform), typeof(Image), typeof(Toggle));
+            toggleObject.transform.SetParent(parent, false);
+            SetRect(toggleObject.GetComponent<RectTransform>(), new Vector2(0.76f, bottom + 0.025f), new Vector2(0.94f, bottom + 0.095f), Vector2.zero, Vector2.zero);
+            Image background = toggleObject.GetComponent<Image>();
+            background.sprite = RuntimeAssets.RoundedRectSprite;
+            background.type = Image.Type.Sliced;
+            background.color = new Color(0.06f, 0.16f, 0.24f, 1f);
+
+            Image check = CreateImage(toggleObject.transform, "Knob", new Color(0.9f, 1f, 1f, 1f));
+            check.sprite = RuntimeAssets.CircleSprite;
+            check.preserveAspect = true;
+            check.raycastTarget = false;
+            Toggle toggle = toggleObject.GetComponent<Toggle>();
+            toggle.targetGraphic = background;
+            toggle.transition = Selectable.Transition.None;
+            toggle.SetIsOnWithoutNotify(value);
+            ToggleSwitchVisual visual = toggleObject.AddComponent<ToggleSwitchVisual>();
+            visual.Initialize(background, check.rectTransform, value);
+            toggle.onValueChanged.AddListener(visual.SetValue);
+            toggle.onValueChanged.AddListener(callback);
         }
 
         private static GameObject CreateButton(Transform parent, string name, string label, Color color, UnityEngine.Events.UnityAction callback)
@@ -471,6 +827,25 @@ namespace OrbitBreaker
             icon.preserveAspect = true;
             icon.raycastTarget = false;
             SetRect(icon.rectTransform, new Vector2(0.22f, 0.22f), new Vector2(0.78f, 0.78f), Vector2.zero, Vector2.zero);
+            return instance;
+        }
+
+        private static GameObject CreateRoundTextButton(Transform parent, string name, string label, UnityEngine.Events.UnityAction callback)
+        {
+            var instance = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button), typeof(Outline));
+            instance.transform.SetParent(parent, false);
+            Image background = instance.GetComponent<Image>();
+            background.sprite = RuntimeAssets.CircleSprite;
+            background.color = new Color(0.025f, 0.18f, 0.26f, 0.82f);
+            Outline outline = instance.GetComponent<Outline>();
+            outline.effectColor = new Color(0.2f, 0.85f, 1f, 0.7f);
+            outline.effectDistance = new Vector2(2f, -2f);
+            Button button = instance.GetComponent<Button>();
+            button.targetGraphic = background;
+            button.onClick.AddListener(callback);
+            Text text = CreateText(instance.transform, "Label", label, 34, TextAnchor.MiddleCenter, FontStyle.BoldAndItalic);
+            text.color = new Color(0.78f, 0.98f, 1f, 1f);
+            SetRect(text.rectTransform, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0f, 2f));
             return instance;
         }
 
@@ -669,6 +1044,7 @@ namespace OrbitBreaker
 
         private static void TriggerHaptic(long durationMilliseconds, int amplitude)
         {
+            if (!GamePreferences.Haptics) return;
 #if UNITY_ANDROID && !UNITY_EDITOR
             try
             {
@@ -707,7 +1083,7 @@ namespace OrbitBreaker
 
         private IEnumerator Explosion(Vector2 position)
         {
-            const int count = 12;
+            int count = GamePreferences.EnhancedEffects ? 12 : 6;
             var shards = new GameObject[count];
             var renderers = new SpriteRenderer[count];
             for (int i = 0; i < count; i++)

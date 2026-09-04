@@ -30,6 +30,7 @@ namespace OrbitBreaker
             markerPhase = UnityEngine.Random.value;
             IsVisited = false;
             EnsureVisuals();
+            core.sprite = RuntimeAssets.GetPlanetSprite(sequence);
             DrawRing();
             SetCurrent(false);
         }
@@ -40,13 +41,13 @@ namespace OrbitBreaker
             if (ring == null) return;
 
             Color color = current
-                ? new Color(0.18f, 0.94f, 1f, 0.94f)
-                : IsVisited ? new Color(0.58f, 0.4f, 1f, 0.68f) : new Color(0.24f, 0.47f, 0.68f, 0.48f);
+                ? new Color(0.18f, 0.94f, 1f, 0.38f)
+                : IsVisited ? new Color(0.58f, 0.4f, 1f, 0.3f) : new Color(0.24f, 0.47f, 0.68f, 0.24f);
             ring.startColor = color;
             ring.endColor = color;
             ring.widthMultiplier = current ? 0.075f : 0.045f;
             core.color = current ? new Color(0.78f, 1f, 1f, 1f) : IsVisited ? new Color(0.72f, 0.55f, 1f, 0.9f) : new Color(0.35f, 0.66f, 0.83f, 0.82f);
-            core.transform.localScale = Vector3.one * (current ? 0.27f : 0.19f);
+            core.transform.localScale = Vector3.one * (current ? 1.02f : 0.88f);
             for (int i = 0; i < directionMarkers.Count; i++)
             {
                 directionMarkers[i].color = current
@@ -64,6 +65,7 @@ namespace OrbitBreaker
         private void Update()
         {
             if (ring == null) return;
+            ring.enabled = GamePreferences.OrbitRings;
             float pulse = 1f + Mathf.Sin(Time.unscaledTime * 2.4f + pulseOffset) * (IsCurrent ? 0.018f : 0.008f);
             ring.transform.localScale = Vector3.one * pulse;
             markerPhase = Mathf.Repeat(markerPhase + Direction * Time.deltaTime * (IsCurrent ? 0.28f : 0.17f), 1f);
@@ -72,6 +74,7 @@ namespace OrbitBreaker
                 float progress = Mathf.Repeat(markerPhase - i * 0.075f * Direction, 1f);
                 float angle = progress * Mathf.PI * 2f;
                 Transform marker = directionMarkers[i].transform;
+                directionMarkers[i].enabled = GamePreferences.OrbitRings && GamePreferences.RotationGuides;
                 marker.localPosition = new Vector3(Mathf.Cos(angle) * Radius, Mathf.Sin(angle) * Radius, 0f);
                 float tangentAngle = angle * Mathf.Rad2Deg + (Direction > 0 ? 90f : -90f);
                 marker.localRotation = Quaternion.Euler(0f, 0f, tangentAngle - 45f);
@@ -151,6 +154,7 @@ namespace OrbitBreaker
             CollisionRadius = GameTuning.HazardCollisionRadius(Sequence);
             activationTime = Time.time + 0.8f;
             EnsureVisuals();
+            diamond.sprite = RuntimeAssets.GetDebrisSprite(Sequence);
         }
 
         private void Update()
@@ -159,10 +163,10 @@ namespace OrbitBreaker
             orbitAngle += anchor.Direction * Mathf.Lerp(24f, 42f, GameTuning.Difficulty01(Sequence)) * Mathf.Deg2Rad * Time.deltaTime;
             transform.position = PositionOnOrbit();
             float activation = Mathf.Clamp01((Time.time - activationTime) / 0.45f);
-            float scale = (CollisionRadius * 1.45f + Mathf.Sin(Time.time * 4.5f + phase) * 0.025f) * Mathf.Lerp(0.35f, 1f, activation);
+            float scale = (CollisionRadius * 4.1f + Mathf.Sin(Time.time * 4.5f + phase) * 0.055f) * Mathf.Lerp(0.35f, 1f, activation);
             transform.localScale = Vector3.one * scale;
             transform.Rotate(0f, 0f, 46f * Time.deltaTime);
-            diamond.color = new Color(1f, 0.18f, 0.38f, Mathf.Lerp(0.25f, 0.9f, activation));
+            diamond.color = new Color(1f, Mathf.Lerp(0.55f, 1f, activation), Mathf.Lerp(0.62f, 1f, activation), Mathf.Lerp(0.25f, 1f, activation));
         }
 
         private Vector2 PositionOnOrbit()
@@ -174,8 +178,8 @@ namespace OrbitBreaker
         {
             if (diamond != null) return;
             diamond = gameObject.AddComponent<SpriteRenderer>();
-            diamond.sprite = RuntimeAssets.SquareSprite;
-            diamond.color = new Color(1f, 0.18f, 0.38f, 0.9f);
+            diamond.sprite = RuntimeAssets.GetDebrisSprite(Sequence);
+            diamond.color = Color.white;
             diamond.sortingOrder = 3;
 
             var outlineObject = new GameObject("Warning Outline");
@@ -189,6 +193,7 @@ namespace OrbitBreaker
             outline.startColor = new Color(1f, 0.65f, 0.2f, 0.95f);
             outline.endColor = outline.startColor;
             outline.sortingOrder = 4;
+            outline.enabled = false;
             outline.SetPosition(0, new Vector3(-0.7f, -0.7f));
             outline.SetPosition(1, new Vector3(-0.7f, 0.7f));
             outline.SetPosition(2, new Vector3(0.7f, 0.7f));

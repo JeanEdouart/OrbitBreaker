@@ -11,17 +11,23 @@ Le joueur tourne automatiquement autour d'une ancre. Une pression le propulse se
 - Recyclage des ancres et obstacles par *object pooling*
 - Score unique en mètres, validé uniquement à l'arrivée sur une orbite
 - Multiplicateur de distance croissant pendant chaque vol, particulièrement rentable lors des skips
+- Retour tactique vers les orbites visitées avec restauration du checkpoint de score
+- Fusée animée avec propulseur progressif et jauge de carburant intégrée
+- Six planètes et six variantes de débris spatiaux sélectionnées de façon déterministe
+- Fond spatial dynamique avec nébuleuse et étoiles en parallaxe réversible
 - Indicateurs animés montrant le sens de rotation de chaque orbite
 - Dangers mobiles déterministes, télégraphiés et introduits progressivement
 - Musique chiptune originale en boucle et mixage séparé général/musique/effets
 - Menu audio accessible depuis l'accueil et l'écran de fin
+- Réglages persistants par onglets : son, aides visuelles, vibrations, modes 30/60/120 FPS, caméra stable et secousses indépendantes
+- Écran de crédits intégré : création JeanEdouart © 2026 et transparence sur l'assistance IA au développement
 - Mise en pause tactile avec reprise immédiate
 - Interface adaptée aux zones sûres des appareils mobiles
-- Effets visuels, traînée, sons synthétisés et vibration à la défaite
+- Effets visuels, explosion, traînée, sons synthétisés et retours haptiques différenciés
 - Contrôles tactiles, souris et clavier
 - Build Android portrait avec IL2CPP
 - Tests EditMode du réglage de difficulté et du calcul du score
-- Aucun asset graphique ou audio externe requis
+- Kit graphique original stocké dans `Assets/OrbitBreaker/Resources/Art`
 
 ## Contrôles
 
@@ -47,7 +53,7 @@ Une pression pendant une orbite libère la bille. Pendant le vol, le multiplicat
 3. Vérifier que la cible active est Android dans **File > Build Profiles**.
 4. Entrer en mode Play.
 
-La scène contient volontairement peu d'objets persistants. `GameBootstrap` instancie les systèmes et les éléments visuels au lancement afin que le prototype reste reproductible sans prefab ni asset binaire supplémentaire.
+La scène contient volontairement peu d'objets persistants. `GameBootstrap` instancie les systèmes et les éléments visuels au lancement ; les sprites originaux sont chargés depuis `Resources/Art`.
 
 ## Architecture
 

@@ -37,13 +37,18 @@ namespace OrbitBreaker
     public sealed class OrbitPlayer : MonoBehaviour
     {
         private SpriteRenderer body;
-        private SpriteRenderer glow;
+        private LineRenderer shield;
         private TrailRenderer trail;
+        private SpriteRenderer outerFlame;
+        private SpriteRenderer innerFlame;
+        private SpriteRenderer fuelTrack;
+        private SpriteRenderer fuelFill;
         private float angleRadians;
         private Vector2 velocity;
         private float flightTime;
         private int score;
         private float capturedAt;
+        private float shieldEndsAt;
         private readonly HashSet<int> visitedSequences = new HashSet<int>();
 
         public PlayerOrbitState State { get; private set; }
@@ -74,7 +79,11 @@ namespace OrbitBreaker
             trail.Clear();
             trail.emitting = false;
             body.color = Color.white;
-            glow.color = new Color(0.2f, 0.95f, 1f, 0.24f);
+            body.enabled = true;
+            fuelTrack.enabled = true;
+            fuelFill.enabled = true;
+            SetEngine(false);
+            SetFuel(1f);
             Capture(anchor);
         }
 
@@ -98,6 +107,9 @@ namespace OrbitBreaker
             flightTime = 0f;
             State = PlayerOrbitState.Flying;
             trail.emitting = true;
+            transform.up = velocity.normalized;
+            SetEngine(true);
+            SetShield(false);
             return true;
         }
 
@@ -113,6 +125,8 @@ namespace OrbitBreaker
             {
                 TickFlight(deltaTime, anchors);
             }
+
+            UpdateShield();
 
             if (CheckHazards(hazards))
             {
@@ -141,14 +155,18 @@ namespace OrbitBreaker
             angleRadians += CurrentAnchor.Direction * speedRadians * deltaTime;
             Vector2 radial = new Vector2(Mathf.Cos(angleRadians), Mathf.Sin(angleRadians));
             transform.position = (Vector2)CurrentAnchor.transform.position + radial * CurrentAnchor.Radius;
-            transform.Rotate(0f, 0f, -CurrentAnchor.Direction * 190f * deltaTime);
+            Vector2 tangent = CurrentAnchor.Direction > 0 ? new Vector2(-radial.y, radial.x) : new Vector2(radial.y, -radial.x);
+            transform.up = tangent;
+            SetEngine(false);
+            SetFuel(1f);
         }
 
         private void TickFlight(float deltaTime, IReadOnlyList<OrbitAnchor> anchors)
         {
             flightTime += deltaTime;
             transform.position += (Vector3)(velocity * deltaTime);
-            transform.Rotate(0f, 0f, -320f * deltaTime);
+            if (velocity.sqrMagnitude > 0.01f) transform.up = velocity.normalized;
+            UpdateFlightVisuals();
 
             OrbitAnchor best = null;
             float bestError = float.MaxValue;
@@ -199,7 +217,11 @@ namespace OrbitBreaker
             flightTime = 0f;
             State = PlayerOrbitState.Orbiting;
             capturedAt = Time.time;
+            shieldEndsAt = capturedAt + GameTuning.CaptureGraceDuration(anchor.Sequence);
+            SetShield(true);
             trail.emitting = false;
+            SetEngine(false);
+            SetFuel(1f);
         }
 
         private bool CheckHazards(IReadOnlyList<OrbitHazard> hazards)
@@ -222,8 +244,16 @@ namespace OrbitBreaker
             State = PlayerOrbitState.Dead;
             velocity = Vector2.zero;
             trail.emitting = false;
+            SetEngine(false);
+            SetShield(false);
+            SetFuel(0f);
             body.color = new Color(1f, 0.22f, 0.38f, 1f);
-            glow.color = new Color(1f, 0.1f, 0.2f, 0.32f);
+            if (reason == DeathReason.Breaker)
+            {
+                body.enabled = false;
+                fuelTrack.enabled = false;
+                fuelFill.enabled = false;
+            }
             Died?.Invoke(reason);
         }
 
@@ -231,18 +261,26 @@ namespace OrbitBreaker
         {
             body = gameObject.GetComponent<SpriteRenderer>();
             if (body == null) body = gameObject.AddComponent<SpriteRenderer>();
-            body.sprite = RuntimeAssets.CircleSprite;
+            body.sprite = RuntimeAssets.RocketSprite;
             body.color = Color.white;
             body.sortingOrder = 12;
-            transform.localScale = Vector3.one * 0.38f;
+            transform.localScale = Vector3.one * 0.72f;
 
-            var glowObject = new GameObject("Glow");
-            glowObject.transform.SetParent(transform, false);
-            glowObject.transform.localScale = Vector3.one * 2.2f;
-            glow = glowObject.AddComponent<SpriteRenderer>();
-            glow.sprite = RuntimeAssets.CircleSprite;
-            glow.color = new Color(0.2f, 0.95f, 1f, 0.24f);
-            glow.sortingOrder = 11;
+            var shieldObject = new GameObject("Capture Shield");
+            shieldObject.transform.SetParent(transform, false);
+            shield = shieldObject.AddComponent<LineRenderer>();
+            shield.useWorldSpace = false;
+            shield.loop = true;
+            shield.positionCount = 48;
+            shield.widthMultiplier = 0.055f;
+            shield.sharedMaterial = RuntimeAssets.SpriteMaterial;
+            shield.sortingOrder = 16;
+            for (int i = 0; i < shield.positionCount; i++)
+            {
+                float angle = i / (float)shield.positionCount * Mathf.PI * 2f;
+                shield.SetPosition(i, new Vector3(Mathf.Cos(angle), Mathf.Sin(angle)) * 0.58f);
+            }
+            SetShield(false);
 
             trail = gameObject.AddComponent<TrailRenderer>();
             trail.time = 0.34f;
@@ -255,6 +293,96 @@ namespace OrbitBreaker
             trail.endColor = new Color(0.25f, 0.45f, 1f, 0f);
             trail.sortingOrder = 10;
             trail.emitting = false;
+
+            var outerFlameObject = new GameObject("Outer Engine Flame");
+            outerFlameObject.transform.SetParent(transform, false);
+            outerFlameObject.transform.localPosition = new Vector3(0f, -0.58f, 0f);
+            outerFlame = outerFlameObject.AddComponent<SpriteRenderer>();
+            outerFlame.sprite = RuntimeAssets.FlameSprite;
+            outerFlame.color = new Color(0.15f, 0.9f, 1f, 0.92f);
+            outerFlame.sortingOrder = 11;
+
+            var innerFlameObject = new GameObject("Inner Engine Flame");
+            innerFlameObject.transform.SetParent(outerFlameObject.transform, false);
+            innerFlameObject.transform.localPosition = new Vector3(0f, 0.13f, 0f);
+            innerFlame = innerFlameObject.AddComponent<SpriteRenderer>();
+            innerFlame.sprite = RuntimeAssets.FlameSprite;
+            innerFlame.color = new Color(1f, 0.78f, 0.2f, 1f);
+            innerFlame.sortingOrder = 12;
+
+            var fuelTrackObject = new GameObject("Fuel Gauge Track");
+            fuelTrackObject.transform.SetParent(transform, false);
+            fuelTrackObject.transform.localPosition = new Vector3(0.2f, 0.02f, 0f);
+            fuelTrackObject.transform.localScale = new Vector3(0.075f, 0.46f, 1f);
+            fuelTrack = fuelTrackObject.AddComponent<SpriteRenderer>();
+            fuelTrack.sprite = RuntimeAssets.SquareSprite;
+            fuelTrack.color = new Color(0.015f, 0.04f, 0.08f, 0.92f);
+            fuelTrack.sortingOrder = 14;
+
+            var fuelFillObject = new GameObject("Fuel Gauge Fill");
+            fuelFillObject.transform.SetParent(transform, false);
+            fuelFill = fuelFillObject.AddComponent<SpriteRenderer>();
+            fuelFill.sprite = RuntimeAssets.SquareSprite;
+            fuelFill.sortingOrder = 15;
+            SetEngine(false);
+            SetFuel(1f);
+        }
+
+        private void UpdateFlightVisuals()
+        {
+            float danger = GameTuning.FlightDanger01(flightTime);
+            float multiplier01 = Mathf.InverseLerp(1f, GameTuning.MaxDistanceMultiplier, FlightMultiplier);
+            float flicker = 1f + Mathf.Sin(Time.unscaledTime * 42f) * 0.09f;
+            outerFlame.transform.localScale = new Vector3(0.24f, Mathf.Lerp(0.38f, 0.9f, multiplier01) * flicker, 1f);
+            innerFlame.transform.localScale = new Vector3(0.52f, 0.62f, 1f);
+            outerFlame.color = Color.Lerp(new Color(0.18f, 0.92f, 1f, 0.9f), new Color(1f, 0.2f, 0.62f, 0.96f), multiplier01);
+            SetFuel(1f - danger);
+        }
+
+        private void SetEngine(bool active)
+        {
+            if (outerFlame != null) outerFlame.gameObject.SetActive(active);
+        }
+
+        private void SetFuel(float amount)
+        {
+            if (fuelFill == null) return;
+            bool visible = GamePreferences.FlightGauges && State != PlayerOrbitState.Dead;
+            fuelTrack.enabled = visible;
+            fuelFill.enabled = visible;
+            float fuel = Mathf.Clamp01(amount);
+            const float height = 0.42f;
+            float filledHeight = Mathf.Max(0.015f, height * fuel);
+            fuelFill.transform.localScale = new Vector3(0.045f, filledHeight, 1f);
+            fuelFill.transform.localPosition = new Vector3(0.2f, -0.21f + filledHeight * 0.5f, 0f);
+            fuelFill.color = Color.Lerp(new Color(1f, 0.2f, 0.38f, 1f), new Color(0.2f, 1f, 0.78f, 1f), fuel);
+        }
+
+        private void UpdateShield()
+        {
+            if (shield == null) return;
+            float remaining = shieldEndsAt - Time.time;
+            if (!GamePreferences.Shield || remaining <= 0f || State != PlayerOrbitState.Orbiting)
+            {
+                SetShield(false);
+                return;
+            }
+            shield.enabled = true;
+
+            float alpha = remaining <= 0.36f
+                ? Mathf.Lerp(0.08f, 0.9f, (Mathf.Sin(Time.unscaledTime * 38f) + 1f) * 0.5f)
+                : 0.68f;
+            Color color = new Color(0.2f, 0.96f, 1f, alpha);
+            shield.startColor = color;
+            shield.endColor = color;
+            shield.transform.localScale = Vector3.one * (1f + Mathf.Sin(Time.unscaledTime * 7f) * 0.035f);
+
+        }
+
+        private void SetShield(bool active)
+        {
+            if (shield == null) return;
+            shield.enabled = active && GamePreferences.Shield;
         }
     }
 }

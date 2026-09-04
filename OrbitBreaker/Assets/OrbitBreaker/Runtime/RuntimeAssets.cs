@@ -14,6 +14,11 @@ namespace OrbitBreaker
         private static Sprite locationIcon;
         private static Sprite planetIcon;
         private static Sprite trophyIcon;
+        private static Sprite rocketSprite;
+        private static Sprite flameSprite;
+        private static Sprite[] planetSprites;
+        private static Sprite[] debrisSprites;
+        private static Sprite spaceBackgroundSprite;
 
         public static Sprite CircleSprite
         {
@@ -153,8 +158,8 @@ namespace OrbitBreaker
 
         public static Sprite PlanetIcon => planetIcon != null ? planetIcon : planetIcon = CreateIcon("PlanetIcon", (x, y) =>
         {
-            x *= 1.25f;
-            y *= 1.25f;
+            x *= 1.6f;
+            y *= 1.6f;
             float body = Mathf.Sqrt(x * x + y * y);
             float ring = Mathf.Abs((x * 0.72f + y * 0.28f) * (x * 0.72f + y * 0.28f) / 0.25f + (-x * 0.28f + y * 0.72f) * (-x * 0.28f + y * 0.72f) / 0.035f - 1f);
             return body < 0.28f || (ring < 0.22f && body > 0.24f);
@@ -168,6 +173,56 @@ namespace OrbitBreaker
             bool basePlate = y > -0.4f && y < -0.28f && Mathf.Abs(x) < 0.27f;
             return cup || handles || stem || basePlate;
         });
+
+        public static Sprite RocketSprite => rocketSprite != null ? rocketSprite : rocketSprite = LoadSingleSprite("Art/rocket", "Player Rocket");
+        public static Sprite SpaceBackgroundSprite => spaceBackgroundSprite != null ? spaceBackgroundSprite : spaceBackgroundSprite = LoadSingleSprite("Art/space-background", "Space Background");
+
+        public static Sprite FlameSprite => flameSprite != null ? flameSprite : flameSprite = CreateIcon("Engine Flame", (x, y) =>
+        {
+            float width = Mathf.Lerp(0.08f, 0.3f, Mathf.Clamp01(y + 0.5f));
+            return y > -0.48f && y < 0.46f && Mathf.Abs(x) < width;
+        });
+
+        public static Sprite GetPlanetSprite(int sequence)
+        {
+            if (planetSprites == null) planetSprites = LoadGridSprites("Art/planets-sheet", 3, 2, "Planet");
+            return planetSprites.Length > 0 ? planetSprites[Mathf.Abs(sequence) % planetSprites.Length] : CircleSprite;
+        }
+
+        public static Sprite GetDebrisSprite(int sequence)
+        {
+            if (debrisSprites == null) debrisSprites = LoadGridSprites("Art/debris-sheet", 3, 2, "Debris");
+            return debrisSprites.Length > 0 ? debrisSprites[Mathf.Abs(sequence * 5 + 3) % debrisSprites.Length] : SquareSprite;
+        }
+
+        private static Sprite LoadSingleSprite(string resourcePath, string name)
+        {
+            Texture2D texture = Resources.Load<Texture2D>(resourcePath);
+            if (texture == null) return CircleSprite;
+            Sprite sprite = Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), Vector2.one * 0.5f, texture.height, 0, SpriteMeshType.FullRect);
+            sprite.name = name;
+            return sprite;
+        }
+
+        private static Sprite[] LoadGridSprites(string resourcePath, int columns, int rows, string prefix)
+        {
+            Texture2D texture = Resources.Load<Texture2D>(resourcePath);
+            if (texture == null) return Array.Empty<Sprite>();
+            float cellWidth = texture.width / (float)columns;
+            float cellHeight = texture.height / (float)rows;
+            var sprites = new Sprite[columns * rows];
+            for (int row = 0; row < rows; row++)
+            {
+                for (int column = 0; column < columns; column++)
+                {
+                    int index = row * columns + column;
+                    Rect rect = new Rect(column * cellWidth, row * cellHeight, cellWidth, cellHeight);
+                    sprites[index] = Sprite.Create(texture, rect, Vector2.one * 0.5f, cellHeight, 0, SpriteMeshType.FullRect);
+                    sprites[index].name = prefix + " " + index;
+                }
+            }
+            return sprites;
+        }
 
         private static Sprite CreateIcon(string name, Func<float, float, bool> sample)
         {
