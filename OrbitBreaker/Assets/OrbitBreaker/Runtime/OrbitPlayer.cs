@@ -4,11 +4,34 @@ using UnityEngine;
 
 namespace OrbitBreaker
 {
+    public readonly struct CaptureResult
+    {
+        public CaptureResult(OrbitAnchor anchor, float multiplier, int skippedAnchors, int fromSequence)
+        {
+            Anchor = anchor;
+            Multiplier = multiplier;
+            SkippedAnchors = skippedAnchors;
+            FromSequence = fromSequence;
+        }
+
+        public OrbitAnchor Anchor { get; }
+        public float Multiplier { get; }
+        public int SkippedAnchors { get; }
+        public int FromSequence { get; }
+        public bool IsBacktrack => Anchor.Sequence < FromSequence;
+    }
+
     public enum PlayerOrbitState
     {
         Orbiting,
         Flying,
         Dead
+    }
+
+    public enum DeathReason
+    {
+        LostInSpace,
+        Breaker
     }
 
     public sealed class OrbitPlayer : MonoBehaviour
@@ -20,14 +43,18 @@ namespace OrbitBreaker
         private Vector2 velocity;
         private float flightTime;
         private int score;
+        private float capturedAt;
+        private readonly HashSet<int> visitedSequences = new HashSet<int>();
 
         public PlayerOrbitState State { get; private set; }
         public OrbitAnchor CurrentAnchor { get; private set; }
         public int LastSequence { get; private set; }
         public Vector2 Velocity => velocity;
+        public float FlightMultiplier => State == PlayerOrbitState.Flying ? GameTuning.FlightMultiplier(flightTime) : 1f;
+        public float FlightDanger01 => State == PlayerOrbitState.Flying ? GameTuning.FlightDanger01(flightTime) : 0f;
 
-        public event Action<OrbitAnchor, float> Captured;
-        public event Action Died;
+        public event Action<CaptureResult> Captured;
+        public event Action<DeathReason> Died;
 
         public void Initialize()
         {
@@ -38,6 +65,8 @@ namespace OrbitBreaker
         public void ResetTo(OrbitAnchor anchor)
         {
             score = 0;
+            visitedSequences.Clear();
+            visitedSequences.Add(anchor.Sequence);
             LastSequence = anchor.Sequence;
             angleRadians = -Mathf.PI * 0.5f;
             flightTime = 0f;
@@ -46,7 +75,7 @@ namespace OrbitBreaker
             trail.emitting = false;
             body.color = Color.white;
             glow.color = new Color(0.2f, 0.95f, 1f, 0.24f);
-            Capture(anchor, 0f, false);
+            Capture(anchor);
         }
 
         public void SetScore(int value)
@@ -85,22 +114,26 @@ namespace OrbitBreaker
                 TickFlight(deltaTime, anchors);
             }
 
-            if (CheckHazards(hazards) || transform.position.y < cameraY - GameTuning.DeathDistanceBelowCamera || Mathf.Abs(transform.position.x) > GameTuning.HorizontalLimit)
+            if (CheckHazards(hazards))
             {
-                Die();
+                Die(DeathReason.Breaker);
+            }
+            else if (transform.position.y < cameraY - GameTuning.DeathDistanceBelowCamera || Mathf.Abs(transform.position.x) > GameTuning.HorizontalLimit)
+            {
+                Die(DeathReason.LostInSpace);
             }
         }
 
         public void Kill()
         {
-            Die();
+            Die(DeathReason.LostInSpace);
         }
 
         private void TickOrbit(float deltaTime)
         {
             if (CurrentAnchor == null)
             {
-                Die();
+                Die(DeathReason.LostInSpace);
                 return;
             }
 
@@ -122,7 +155,8 @@ namespace OrbitBreaker
             for (int i = 0; i < anchors.Count; i++)
             {
                 OrbitAnchor candidate = anchors[i];
-                if (!candidate.gameObject.activeInHierarchy || candidate.Sequence <= LastSequence) continue;
+                if (!candidate.gameObject.activeInHierarchy || candidate.Sequence == LastSequence) continue;
+                if (candidate.Sequence < LastSequence && !visitedSequences.Contains(candidate.Sequence)) continue;
 
                 float distance = Vector2.Distance(transform.position, candidate.transform.position);
                 float error = Mathf.Abs(distance - candidate.Radius);
@@ -135,20 +169,26 @@ namespace OrbitBreaker
 
             if (best != null)
             {
-                Capture(best, bestError / GameTuning.CaptureBand, true);
+                float multiplier = GameTuning.FlightMultiplier(flightTime);
+                int fromSequence = LastSequence;
+                int skippedAnchors = Mathf.Max(0, best.Sequence - LastSequence - 1);
+                Capture(best);
+                visitedSequences.Add(best.Sequence);
+                Captured?.Invoke(new CaptureResult(best, multiplier, skippedAnchors, fromSequence));
                 return;
             }
 
             if (flightTime >= GameTuning.MaxFlightTime)
             {
-                Die();
+                Die(DeathReason.LostInSpace);
             }
         }
 
-        private void Capture(OrbitAnchor anchor, float normalizedError, bool notify)
+        private void Capture(OrbitAnchor anchor)
         {
             CurrentAnchor?.SetCurrent(false);
             CurrentAnchor = anchor;
+            anchor.SetVisited(true);
             LastSequence = anchor.Sequence;
             Vector2 radial = ((Vector2)transform.position - (Vector2)anchor.transform.position).normalized;
             if (radial.sqrMagnitude < 0.1f) radial = Vector2.down;
@@ -158,8 +198,8 @@ namespace OrbitBreaker
             velocity = Vector2.zero;
             flightTime = 0f;
             State = PlayerOrbitState.Orbiting;
+            capturedAt = Time.time;
             trail.emitting = false;
-            if (notify) Captured?.Invoke(anchor, Mathf.Clamp01(normalizedError));
         }
 
         private bool CheckHazards(IReadOnlyList<OrbitHazard> hazards)
@@ -168,12 +208,13 @@ namespace OrbitBreaker
             {
                 OrbitHazard hazard = hazards[i];
                 if (!hazard.gameObject.activeInHierarchy) continue;
+                if (CurrentAnchor != null && hazard.Sequence == CurrentAnchor.Sequence && Time.time - capturedAt < GameTuning.CaptureGraceDuration(CurrentAnchor.Sequence)) continue;
                 if (Vector2.Distance(transform.position, hazard.transform.position) <= hazard.CollisionRadius + 0.17f) return true;
             }
             return false;
         }
 
-        private void Die()
+        private void Die(DeathReason reason)
         {
             if (State == PlayerOrbitState.Dead) return;
             CurrentAnchor?.SetCurrent(false);
@@ -183,7 +224,7 @@ namespace OrbitBreaker
             trail.emitting = false;
             body.color = new Color(1f, 0.22f, 0.38f, 1f);
             glow.color = new Color(1f, 0.1f, 0.2f, 0.32f);
-            Died?.Invoke();
+            Died?.Invoke(reason);
         }
 
         private void EnsureVisuals()

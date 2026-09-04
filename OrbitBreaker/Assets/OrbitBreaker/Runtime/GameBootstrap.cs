@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 
 namespace OrbitBreaker
@@ -13,13 +15,16 @@ namespace OrbitBreaker
         private OrbitCameraRig cameraRig;
         private OrbitHud hud;
         private OrbitFeedback feedback;
-        private int score;
         private int bestScore;
         private int anchorsCaptured;
-        private int combo;
+        private int distanceScore;
+        private float bankedHeight;
         private bool runActive;
         private bool tutorialVisible;
         private float restartAvailableAt;
+        private readonly Dictionary<int, int> checkpointScores = new Dictionary<int, int>();
+        private readonly Dictionary<int, float> checkpointHeights = new Dictionary<int, float>();
+        private int furthestSequence;
 
         private void Awake()
         {
@@ -47,8 +52,8 @@ namespace OrbitBreaker
             feedback = CreateSystem<OrbitFeedback>("Feedback");
 
             player.Initialize();
-            hud.Initialize();
             feedback.Initialize();
+            hud.Initialize(feedback);
             player.Captured += HandleCaptured;
             player.Died += HandleDeath;
             bestScore = PlayerPrefs.GetInt(BestScoreKey, 0);
@@ -61,11 +66,17 @@ namespace OrbitBreaker
 
         private void Update()
         {
+            if (hud.IsPaused)
+            {
+                if (WasGameplayPressedThisFrame()) hud.ResumeGame();
+                return;
+            }
+
             float deltaTime = Mathf.Min(Time.deltaTime, 1f / 20f);
 
             if (runActive)
             {
-                if (WasPressedThisFrame() && player.Launch())
+                if (!hud.SettingsOpen && WasGameplayPressedThisFrame() && player.Launch())
                 {
                     tutorialVisible = false;
                     hud.HideTutorial();
@@ -73,11 +84,13 @@ namespace OrbitBreaker
                 }
 
                 player.Tick(deltaTime, world.Anchors, world.Hazards, cameraRig.CameraY);
+                hud.UpdateFlightDisplay(player.transform.position, player.FlightMultiplier, player.FlightDanger01, player.State == PlayerOrbitState.Flying);
+                feedback.UpdateCharge(player.FlightMultiplier, player.State == PlayerOrbitState.Flying);
                 Vector2 anchorPosition = player.CurrentAnchor != null ? player.CurrentAnchor.transform.position : player.transform.position + (Vector3)player.Velocity.normalized * 2f;
                 cameraRig.SetTarget(player.transform.position, anchorPosition);
                 world.RecycleBehind(cameraRig.CameraY, player.LastSequence);
             }
-            else if (Time.unscaledTime >= restartAvailableAt && WasPressedThisFrame())
+            else if (!hud.SettingsOpen && Time.unscaledTime >= restartAvailableAt && WasGameplayPressedThisFrame())
             {
                 StartRun();
             }
@@ -92,45 +105,68 @@ namespace OrbitBreaker
 
         private void StartRun()
         {
-            score = 0;
+            hud.ResumeGame();
             anchorsCaptured = 0;
-            combo = 0;
+            distanceScore = 0;
+            bankedHeight = GameTuning.StartingHeight;
             runActive = true;
             tutorialVisible = true;
             OrbitAnchor first = world.ResetWorld();
+            checkpointScores.Clear();
+            checkpointHeights.Clear();
+            checkpointScores[first.Sequence] = 0;
+            checkpointHeights[first.Sequence] = GameTuning.StartingHeight;
+            furthestSequence = first.Sequence;
             player.ResetTo(first);
             player.SetScore(0);
             cameraRig.Snap(first.transform.position);
-            hud.ShowPlaying(score, bestScore, combo, tutorialVisible);
+            hud.ShowPlaying(distanceScore, bestScore, tutorialVisible);
         }
 
-        private void HandleCaptured(OrbitAnchor anchor, float normalizedAccuracy)
+        private void HandleCaptured(CaptureResult result)
         {
-            anchorsCaptured++;
-            bool perfect = normalizedAccuracy <= 0.22f;
-            combo = perfect ? combo + 1 : 0;
-            score += GameTuning.PointsForCapture(normalizedAccuracy, combo);
-            player.SetScore(anchorsCaptured);
-            world.EnsureAhead(anchor.Sequence);
-            feedback.Capture(player.transform.position, perfect);
-
-            if (score > bestScore)
+            int previousScore = distanceScore;
+            bool revisited = checkpointScores.TryGetValue(result.Anchor.Sequence, out int savedScore);
+            if (revisited)
             {
-                bestScore = score;
-                PlayerPrefs.SetInt(BestScoreKey, bestScore);
+                distanceScore = savedScore;
+                bankedHeight = checkpointHeights[result.Anchor.Sequence];
             }
-
-            hud.ShowPlaying(score, bestScore, combo, false);
+            else
+            {
+                int reward = GameTuning.BankedDistance(bankedHeight, result.Anchor.transform.position.y, result.Multiplier);
+                distanceScore += reward;
+                bankedHeight = Mathf.Max(bankedHeight, result.Anchor.transform.position.y);
+                checkpointScores[result.Anchor.Sequence] = distanceScore;
+                checkpointHeights[result.Anchor.Sequence] = bankedHeight;
+                anchorsCaptured++;
+            }
+            int scoreDelta = distanceScore - previousScore;
+            furthestSequence = Mathf.Max(furthestSequence, result.Anchor.Sequence);
+            player.SetScore(furthestSequence);
+            world.EnsureAhead(furthestSequence);
+            int rewardedSkips = !revisited && !result.IsBacktrack ? result.SkippedAnchors : 0;
+            feedback.Capture(player.transform.position, result.Multiplier >= 2f, rewardedSkips);
+            UpdateBestScore(distanceScore);
+            hud.ShowLanding(distanceScore, bestScore, scoreDelta, result.Multiplier, rewardedSkips, result.IsBacktrack, revisited && !result.IsBacktrack);
         }
 
-        private void HandleDeath()
+        private void HandleDeath(DeathReason reason)
         {
             if (!runActive) return;
             runActive = false;
             restartAvailableAt = Time.unscaledTime + 0.55f;
-            feedback.Death(player.transform.position);
+            feedback.Death(player.transform.position, reason);
+            feedback.UpdateCharge(1f, false);
             PlayerPrefs.Save();
-            hud.ShowGameOver(score, bestScore, anchorsCaptured);
+            hud.ShowGameOver(distanceScore, bestScore, anchorsCaptured, reason);
+        }
+
+        private void UpdateBestScore(int currentScore)
+        {
+            if (currentScore <= bestScore) return;
+            bestScore = currentScore;
+            PlayerPrefs.SetInt(BestScoreKey, bestScore);
         }
 
         private T CreateSystem<T>(string objectName) where T : Component
@@ -146,6 +182,19 @@ namespace OrbitBreaker
             bool mouse = Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame;
             bool keyboard = Keyboard.current != null && (Keyboard.current.spaceKey.wasPressedThisFrame || Keyboard.current.enterKey.wasPressedThisFrame);
             return touch || mouse || keyboard;
+        }
+
+        private static bool WasGameplayPressedThisFrame()
+        {
+            if (!WasPressedThisFrame()) return false;
+            if (EventSystem.current == null) return true;
+            if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame && EventSystem.current.IsPointerOverGameObject()) return false;
+            if (Touchscreen.current != null && Touchscreen.current.primaryTouch.press.wasPressedThisFrame)
+            {
+                int touchId = Touchscreen.current.primaryTouch.touchId.ReadValue();
+                if (EventSystem.current.IsPointerOverGameObject(touchId)) return false;
+            }
+            return true;
         }
     }
 }

@@ -9,7 +9,13 @@ Le joueur tourne automatiquement autour d'une ancre. Une pression le propulse se
 - Boucle de jeu complète : orbite, propulsion, capture et défaite
 - Génération procédurale infinie avec difficulté progressive
 - Recyclage des ancres et obstacles par *object pooling*
-- Score, meilleur score persistant et combo de captures parfaites
+- Score unique en mètres, validé uniquement à l'arrivée sur une orbite
+- Multiplicateur de distance croissant pendant chaque vol, particulièrement rentable lors des skips
+- Indicateurs animés montrant le sens de rotation de chaque orbite
+- Dangers mobiles déterministes, télégraphiés et introduits progressivement
+- Musique chiptune originale en boucle et mixage séparé général/musique/effets
+- Menu audio accessible depuis l'accueil et l'écran de fin
+- Mise en pause tactile avec reprise immédiate
 - Interface adaptée aux zones sûres des appareils mobiles
 - Effets visuels, traînée, sons synthétisés et vibration à la défaite
 - Contrôles tactiles, souris et clavier
@@ -25,7 +31,7 @@ Le joueur tourne automatiquement autour d'une ancre. Une pression le propulse se
 | Éditeur | Clic gauche |
 | Clavier | Espace ou Entrée |
 
-Une pression pendant une orbite libère la bille. Après une défaite, une nouvelle pression relance immédiatement une partie.
+Une pression pendant une orbite libère la bille. Pendant le vol, le multiplicateur augmente de `x0,1` toutes les `0,12 s`, jusqu'à `x6`. La distance n'est ajoutée au score qu'après une capture réussie : un vol ambitieux peut donc rapporter beaucoup, mais une chute ne rapporte rien. Après une défaite, une nouvelle pression relance immédiatement une partie.
 
 ## Prérequis
 
@@ -69,7 +75,7 @@ Responsabilités principales :
 - `OrbitPlayer` : états orbital, en vol et détruit
 - `OrbitWorld` : génération infinie, obstacles et pools d'objets
 - `OrbitPresentation` : caméra, HUD, zone sûre, audio et feedbacks
-- `GameTuning` : constantes et courbes de difficulté testables
+- `GameTuning` : multiplicateur, score de distance et courbes de difficulté testables
 - `RuntimeAssets` : formes, matériaux et sons générés à l'exécution
 
 ## Tests
@@ -80,8 +86,10 @@ Les tests couvrent notamment :
 
 - la monotonie et les bornes de la difficulté ;
 - les limites des vitesses orbitale et de propulsion ;
-- les bonus de précision ;
-- le plafonnement du bonus de combo.
+- la progression et le plafonnement du multiplicateur ;
+- la validation de la distance à l'atterrissage ;
+- la phase d'apprentissage sans danger ;
+- les patterns déterministes des dangers.
 
 ## Build Android
 

@@ -8,12 +8,15 @@ namespace OrbitBreaker
     {
         private LineRenderer ring;
         private SpriteRenderer core;
+        private readonly List<SpriteRenderer> directionMarkers = new List<SpriteRenderer>();
         private float pulseOffset;
+        private float markerPhase;
 
         public int Sequence { get; private set; }
         public float Radius { get; private set; }
         public int Direction { get; private set; }
         public bool IsCurrent { get; private set; }
+        public bool IsVisited { get; private set; }
 
         public void Initialize(int sequence, Vector2 position, float radius, int direction)
         {
@@ -24,6 +27,8 @@ namespace OrbitBreaker
             gameObject.name = "Orbit Anchor " + sequence;
             gameObject.SetActive(true);
             pulseOffset = UnityEngine.Random.value * 10f;
+            markerPhase = UnityEngine.Random.value;
+            IsVisited = false;
             EnsureVisuals();
             DrawRing();
             SetCurrent(false);
@@ -34,12 +39,26 @@ namespace OrbitBreaker
             IsCurrent = current;
             if (ring == null) return;
 
-            Color color = current ? new Color(0.18f, 0.94f, 1f, 0.94f) : new Color(0.24f, 0.47f, 0.68f, 0.48f);
+            Color color = current
+                ? new Color(0.18f, 0.94f, 1f, 0.94f)
+                : IsVisited ? new Color(0.58f, 0.4f, 1f, 0.68f) : new Color(0.24f, 0.47f, 0.68f, 0.48f);
             ring.startColor = color;
             ring.endColor = color;
             ring.widthMultiplier = current ? 0.075f : 0.045f;
-            core.color = current ? new Color(0.78f, 1f, 1f, 1f) : new Color(0.35f, 0.66f, 0.83f, 0.82f);
+            core.color = current ? new Color(0.78f, 1f, 1f, 1f) : IsVisited ? new Color(0.72f, 0.55f, 1f, 0.9f) : new Color(0.35f, 0.66f, 0.83f, 0.82f);
             core.transform.localScale = Vector3.one * (current ? 0.27f : 0.19f);
+            for (int i = 0; i < directionMarkers.Count; i++)
+            {
+                directionMarkers[i].color = current
+                    ? new Color(0.76f, 1f, 1f, 0.92f - i * 0.1f)
+                    : new Color(0.34f, 0.68f, 0.88f, 0.5f - i * 0.055f);
+            }
+        }
+
+        public void SetVisited(bool visited)
+        {
+            IsVisited = visited;
+            SetCurrent(IsCurrent);
         }
 
         private void Update()
@@ -47,6 +66,16 @@ namespace OrbitBreaker
             if (ring == null) return;
             float pulse = 1f + Mathf.Sin(Time.unscaledTime * 2.4f + pulseOffset) * (IsCurrent ? 0.018f : 0.008f);
             ring.transform.localScale = Vector3.one * pulse;
+            markerPhase = Mathf.Repeat(markerPhase + Direction * Time.deltaTime * (IsCurrent ? 0.28f : 0.17f), 1f);
+            for (int i = 0; i < directionMarkers.Count; i++)
+            {
+                float progress = Mathf.Repeat(markerPhase - i * 0.075f * Direction, 1f);
+                float angle = progress * Mathf.PI * 2f;
+                Transform marker = directionMarkers[i].transform;
+                marker.localPosition = new Vector3(Mathf.Cos(angle) * Radius, Mathf.Sin(angle) * Radius, 0f);
+                float tangentAngle = angle * Mathf.Rad2Deg + (Direction > 0 ? 90f : -90f);
+                marker.localRotation = Quaternion.Euler(0f, 0f, tangentAngle - 45f);
+            }
         }
 
         private void EnsureVisuals()
@@ -73,6 +102,17 @@ namespace OrbitBreaker
                 core = coreObject.AddComponent<SpriteRenderer>();
                 core.sprite = RuntimeAssets.CircleSprite;
                 core.sortingOrder = 1;
+
+                for (int i = 0; i < 5; i++)
+                {
+                    var markerObject = new GameObject("Direction Marker " + (i + 1));
+                    markerObject.transform.SetParent(transform, false);
+                    markerObject.transform.localScale = Vector3.one * Mathf.Lerp(0.15f, 0.07f, i / 4f);
+                    SpriteRenderer marker = markerObject.AddComponent<SpriteRenderer>();
+                    marker.sprite = RuntimeAssets.SquareSprite;
+                    marker.sortingOrder = 2;
+                    directionMarkers.Add(marker);
+                }
             }
         }
 
@@ -91,26 +131,43 @@ namespace OrbitBreaker
         private SpriteRenderer diamond;
         private LineRenderer outline;
         private float phase;
+        private OrbitAnchor anchor;
+        private float orbitAngle;
+        private float activationTime;
 
         public int Sequence { get; private set; }
-        public float CollisionRadius { get; private set; } = 0.34f;
+        public float CollisionRadius { get; private set; }
 
-        public void Initialize(int sequence, Vector2 position)
+        public void Initialize(OrbitAnchor targetAnchor, float startAngle)
         {
-            Sequence = sequence;
-            transform.position = position;
+            anchor = targetAnchor;
+            Sequence = targetAnchor.Sequence;
+            orbitAngle = startAngle;
+            transform.position = PositionOnOrbit();
             transform.rotation = Quaternion.Euler(0f, 0f, 45f);
-            gameObject.name = "Breaker " + sequence;
+            gameObject.name = "Breaker " + Sequence;
             gameObject.SetActive(true);
             phase = UnityEngine.Random.value * 6f;
+            CollisionRadius = GameTuning.HazardCollisionRadius(Sequence);
+            activationTime = Time.time + 0.8f;
             EnsureVisuals();
         }
 
         private void Update()
         {
-            float scale = 0.44f + Mathf.Sin(Time.time * 4.5f + phase) * 0.035f;
+            if (anchor == null) return;
+            orbitAngle += anchor.Direction * Mathf.Lerp(24f, 42f, GameTuning.Difficulty01(Sequence)) * Mathf.Deg2Rad * Time.deltaTime;
+            transform.position = PositionOnOrbit();
+            float activation = Mathf.Clamp01((Time.time - activationTime) / 0.45f);
+            float scale = (CollisionRadius * 1.45f + Mathf.Sin(Time.time * 4.5f + phase) * 0.025f) * Mathf.Lerp(0.35f, 1f, activation);
             transform.localScale = Vector3.one * scale;
             transform.Rotate(0f, 0f, 46f * Time.deltaTime);
+            diamond.color = new Color(1f, 0.18f, 0.38f, Mathf.Lerp(0.25f, 0.9f, activation));
+        }
+
+        private Vector2 PositionOnOrbit()
+        {
+            return (Vector2)anchor.transform.position + new Vector2(Mathf.Cos(orbitAngle), Mathf.Sin(orbitAngle)) * anchor.Radius;
         }
 
         private void EnsureVisuals()
@@ -163,7 +220,7 @@ namespace OrbitBreaker
             hazards.Clear();
             random = new System.Random(Environment.TickCount);
             nextSequence = 0;
-            lastPosition = new Vector2(0f, -2.1f);
+            lastPosition = new Vector2(0f, GameTuning.StartingHeight);
             OrbitAnchor first = SpawnAnchor(lastPosition, 1.25f, 1);
             EnsureAhead(0);
             return first;
@@ -180,7 +237,7 @@ namespace OrbitBreaker
             for (int i = anchors.Count - 1; i >= 0; i--)
             {
                 OrbitAnchor anchor = anchors[i];
-                if (anchor.Sequence < currentSequence - 2 && anchor.transform.position.y < cameraY - 8f)
+                if (anchor.Sequence < currentSequence - GameTuning.BackwardOrbitRetention && anchor.transform.position.y < cameraY - 18f)
                 {
                     anchors.RemoveAt(i);
                     Recycle(anchor);
@@ -190,7 +247,7 @@ namespace OrbitBreaker
             for (int i = hazards.Count - 1; i >= 0; i--)
             {
                 OrbitHazard hazard = hazards[i];
-                if (hazard.Sequence < currentSequence - 1 && hazard.transform.position.y < cameraY - 8f)
+                if (hazard.Sequence < currentSequence - GameTuning.BackwardOrbitRetention && hazard.transform.position.y < cameraY - 18f)
                 {
                     hazards.RemoveAt(i);
                     Recycle(hazard);
@@ -209,12 +266,10 @@ namespace OrbitBreaker
             int direction = NextFloat() > 0.5f ? 1 : -1;
             OrbitAnchor anchor = SpawnAnchor(lastPosition, radius, direction);
 
-            float hazardChance = Mathf.Lerp(0.12f, 0.58f, GameTuning.Difficulty01(score));
-            if (score >= 4 && NextFloat() < hazardChance)
+            if (GameTuning.HasHazard(score))
             {
-                float angle = Mathf.Lerp(0f, Mathf.PI * 2f, NextFloat());
-                Vector2 hazardPosition = lastPosition + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * radius;
-                hazards.Add(GetHazard(anchor.Sequence, hazardPosition));
+                float angle = Mathf.Repeat(score * 0.381966f, 1f) * Mathf.PI * 2f;
+                hazards.Add(GetHazard(anchor, angle));
             }
         }
 
@@ -238,7 +293,7 @@ namespace OrbitBreaker
             return anchor;
         }
 
-        private OrbitHazard GetHazard(int sequence, Vector2 position)
+        private OrbitHazard GetHazard(OrbitAnchor anchor, float startAngle)
         {
             OrbitHazard hazard;
             if (hazardPool.Count > 0)
@@ -252,7 +307,7 @@ namespace OrbitBreaker
                 instance.transform.SetParent(activeRoot, true);
                 hazard = instance.AddComponent<OrbitHazard>();
             }
-            hazard.Initialize(sequence, position);
+            hazard.Initialize(anchor, startAngle);
             return hazard;
         }
 

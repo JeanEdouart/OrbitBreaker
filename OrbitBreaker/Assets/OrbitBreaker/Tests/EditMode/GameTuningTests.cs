@@ -30,19 +30,62 @@ namespace OrbitBreaker.Tests
         }
 
         [Test]
-        public void PerfectCapture_IsWorthMoreThanLooseCapture()
+        public void FlightMultiplier_IsBoundedAndMonotonic()
         {
-            int perfect = GameTuning.PointsForCapture(0.1f, 3);
-            int loose = GameTuning.PointsForCapture(0.9f, 0);
-            Assert.That(perfect, Is.GreaterThan(loose));
+            float previous = GameTuning.FlightMultiplier(0f);
+            for (float time = 0.1f; time < 10f; time += 0.1f)
+            {
+                float current = GameTuning.FlightMultiplier(time);
+                Assert.That(current, Is.GreaterThanOrEqualTo(previous));
+                Assert.That(current, Is.InRange(1f, GameTuning.MaxDistanceMultiplier));
+                previous = current;
+            }
         }
 
         [Test]
-        public void ComboBonus_IsCapped()
+        public void FlightMultiplier_AdvancesByTenths()
         {
-            int capped = GameTuning.PointsForCapture(0.5f, 10);
-            int excessive = GameTuning.PointsForCapture(0.5f, 999);
-            Assert.That(excessive, Is.EqualTo(capped));
+            Assert.That(GameTuning.FlightMultiplier(0f), Is.EqualTo(1f));
+            Assert.That(GameTuning.FlightMultiplier(GameTuning.MultiplierStepDuration), Is.EqualTo(1.1f).Within(0.001f));
+            Assert.That(GameTuning.FlightMultiplier(GameTuning.MultiplierStepDuration * 2f), Is.EqualTo(1.2f).Within(0.001f));
+        }
+
+        [Test]
+        public void FlightDanger_FillsExactlyAtTimeout()
+        {
+            Assert.That(GameTuning.FlightDanger01(0f), Is.Zero);
+            Assert.That(GameTuning.FlightDanger01(GameTuning.MaxFlightTime * 0.5f), Is.EqualTo(0.5f).Within(0.001f));
+            Assert.That(GameTuning.FlightDanger01(GameTuning.MaxFlightTime), Is.EqualTo(1f));
+            Assert.That(GameTuning.FlightDanger01(GameTuning.MaxFlightTime * 2f), Is.EqualTo(1f));
+        }
+
+        [Test]
+        public void Multiplier_IncreasesBankedDistance()
+        {
+            int normal = GameTuning.BankedDistance(0f, 4f, 1f);
+            int risky = GameTuning.BankedDistance(0f, 4f, 3f);
+            Assert.That(risky, Is.EqualTo(normal * 3));
+        }
+
+        [Test]
+        public void BankedDistance_NeverRewardsFalling()
+        {
+            Assert.That(GameTuning.BankedDistance(10f, 5f, 6f), Is.Zero);
+        }
+
+        [Test]
+        public void Hazards_AreDisabledDuringOnboarding()
+        {
+            for (int sequence = 0; sequence < GameTuning.HazardIntroductionSequence; sequence++)
+                Assert.That(GameTuning.HasHazard(sequence), Is.False);
+        }
+
+        [Test]
+        public void HazardPattern_IsDeterministicAfterOnboarding()
+        {
+            Assert.That(GameTuning.HasHazard(7), Is.True);
+            Assert.That(GameTuning.HasHazard(8), Is.False);
+            Assert.That(GameTuning.HasHazard(10), Is.True);
         }
     }
 }
