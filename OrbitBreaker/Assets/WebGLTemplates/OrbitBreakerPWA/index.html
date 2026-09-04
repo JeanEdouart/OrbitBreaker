@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,height=device-height,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#020817">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Orbit Breaker">
+  <title>Orbit Breaker</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" href="orbit-breaker-icon.png">
+  <link rel="apple-touch-icon" href="orbit-breaker-icon.png">
+  <style>
+    :root { color-scheme: dark; background: #020817; }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #020817; overscroll-behavior: none; }
+    body { position: fixed; inset: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; touch-action: none; }
+    #app { position: absolute; inset: 0; display: grid; place-items: center; overflow: hidden; background:
+      radial-gradient(circle at 50% 32%, rgba(8,115,154,.2), transparent 42%), linear-gradient(180deg,#030a1b,#01040d); }
+    #unity-canvas { display: block; width: 100vw; height: 100dvh; background: #020817; outline: 0; }
+    #loading { position: absolute; inset: 0; z-index: 3; display: grid; place-content: center; justify-items: center;
+      gap: 22px; background: #020817; transition: opacity .35s ease, visibility .35s ease; }
+    #loading.hidden { opacity: 0; visibility: hidden; }
+    #brand { width: min(32vw,154px); aspect-ratio: 1; border-radius: 24%; box-shadow: 0 0 42px rgba(38,217,255,.28); }
+    #loading-title { margin: 0; color: #d9fbff; font-size: clamp(20px,5vw,31px); font-weight: 800; letter-spacing: .14em; }
+    #track { width: min(62vw,310px); height: 7px; overflow: hidden; border-radius: 99px; background: rgba(98,203,232,.16); }
+    #progress { width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg,#20c8ee,#77f4ff);
+      box-shadow: 0 0 18px rgba(32,200,238,.72); transition: width .12s linear; }
+    #status { color: rgba(185,232,246,.72); font-size: 12px; font-weight: 700; letter-spacing: .1em; }
+    #warning { position: absolute; z-index: 5; top: max(12px,env(safe-area-inset-top)); left: 12px; right: 12px;
+      color: #fff; text-align: center; font-size: 13px; }
+    #warning > div { margin-bottom: 8px; padding: 10px 14px; border-radius: 14px; background: rgba(178,52,71,.94); }
+    @media (min-aspect-ratio: 3/4) {
+      #unity-canvas { width: min(100vw,calc(100dvh * .5625)); height: 100dvh; box-shadow: 0 0 90px rgba(0,0,0,.55); }
+    }
+  </style>
+</head>
+<body>
+  <main id="app">
+    <canvas id="unity-canvas" width="{{{ WIDTH }}}" height="{{{ HEIGHT }}}" tabindex="-1" aria-label="Orbit Breaker"></canvas>
+    <section id="loading" aria-live="polite">
+      <img id="brand" src="orbit-breaker-icon.png" alt="">
+      <h1 id="loading-title">ORBIT BREAKER</h1>
+      <div id="track"><div id="progress"></div></div>
+      <div id="status">PRÉPARATION DU VOL</div>
+    </section>
+    <div id="warning"></div>
+  </main>
+  <script>
+    if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("ServiceWorker.js"));
+    const canvas = document.querySelector("#unity-canvas");
+    const loading = document.querySelector("#loading");
+    const progress = document.querySelector("#progress");
+    const status = document.querySelector("#status");
+    const warning = document.querySelector("#warning");
+    const buildUrl = "Build";
+    const loaderUrl = buildUrl + "/{{{ LOADER_FILENAME }}}";
+    const config = {
+      arguments: [],
+      dataUrl: buildUrl + "/{{{ DATA_FILENAME }}}",
+      frameworkUrl: buildUrl + "/{{{ FRAMEWORK_FILENAME }}}",
+#if USE_WASM
+      codeUrl: buildUrl + "/{{{ CODE_FILENAME }}}",
+#endif
+      streamingAssetsUrl: "StreamingAssets",
+      companyName: {{{ JSON.stringify(COMPANY_NAME) }}},
+      productName: {{{ JSON.stringify(PRODUCT_NAME) }}},
+      productVersion: {{{ JSON.stringify(PRODUCT_VERSION) }}},
+      showBanner(message, type) {
+        const item = document.createElement("div");
+        item.textContent = message;
+        warning.appendChild(item);
+        if (type !== "error") setTimeout(() => item.remove(), 5000);
+      }
+    };
+    const script = document.createElement("script");
+    script.src = loaderUrl;
+    script.onload = () => createUnityInstance(canvas, config, value => {
+      progress.style.width = Math.round(value * 100) + "%";
+      status.textContent = value < .9 ? "CHARGEMENT " + Math.round(value * 100) + "%" : "ALLUMAGE DES MOTEURS";
+    }).then(() => loading.classList.add("hidden")).catch(message => {
+      status.textContent = "ÉCHEC DU CHARGEMENT";
+      config.showBanner(String(message), "error");
+    });
+    document.body.appendChild(script);
+    document.addEventListener("touchmove", event => event.preventDefault(), { passive: false });
+    document.addEventListener("contextmenu", event => event.preventDefault());
+  </script>
+</body>
+</html>

@@ -21,6 +21,8 @@ Le joueur tourne automatiquement autour d'une ancre. Une pression le propulse se
 - Menu audio accessible depuis l'accueil et l'écran de fin
 - Réglages persistants par onglets : son, aides visuelles, vibrations, modes 30/60/120 FPS, caméra stable et secousses indépendantes
 - Écran de crédits intégré : création JeanEdouart © 2026 et transparence sur l'assistance IA au développement
+- Identité visuelle Orbit Breaker dédiée pour l'icône Android et l'icône PWA sur l'écran d'accueil iOS
+- Build WebGL installable comme web app plein écran, avec manifeste PWA et cache hors ligne
 - Mise en pause tactile avec reprise immédiate
 - Interface adaptée aux zones sûres des appareils mobiles
 - Effets visuels, explosion, traînée, sons synthétisés et retours haptiques différenciés

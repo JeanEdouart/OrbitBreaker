@@ -41,8 +41,8 @@ PlayerSettings:
     height: 1
   m_SplashScreenLogos: []
   m_VirtualRealitySplashScreen: {fileID: 0}
-  defaultScreenWidth: 1920
-  defaultScreenHeight: 1080
+  defaultScreenWidth: 1080
+  defaultScreenHeight: 1920
   defaultScreenWidthWeb: 960
   defaultScreenHeightWeb: 600
   m_StereoRenderingPath: 0
@@ -303,92 +303,116 @@ PlayerSettings:
   m_BuildTargetPlatformIcons:
   - m_BuildTarget: Android
     m_Icons:
-    - m_Textures: []
+    - m_Textures:
+      - {fileID: 2800000, guid: bf23ea50e3cd51140938a22971ca90de, type: 3}
+      - {fileID: 2800000, guid: bf23ea50e3cd51140938a22971ca90de, type: 3}
       m_Width: 432
       m_Height: 432
       m_Kind: 2
       m_SubKind: 
-    - m_Textures: []
+    - m_Textures:
+      - {fileID: 2800000, guid: bf23ea50e3cd51140938a22971ca90de, type: 3}
+      - {fileID: 2800000, guid: bf23ea50e3cd51140938a22971ca90de, type: 3}
       m_Width: 324
       m_Height: 324
       m_Kind: 2
       m_SubKind: 
-    - m_Textures: []
+    - m_Textures:
+      - {fileID: 2800000, guid: bf23ea50e3cd51140938a22971ca90de, type: 3}
+      - {fileID: 2800000, guid: bf23ea50e3cd51140938a22971ca90de, type: 3}
       m_Width: 216
       m_Height: 216
       m_Kind: 2
       m_SubKind: 
-    - m_Textures: []
+    - m_Textures:
+      - {fileID: 2800000, guid: bf23ea50e3cd51140938a22971ca90de, type: 3}
+      - {fileID: 2800000, guid: bf23ea50e3cd51140938a22971ca90de, type: 3}
       m_Width: 162
       m_Height: 162
       m_Kind: 2
       m_SubKind: 
-    - m_Textures: []
+    - m_Textures:
+      - {fileID: 2800000, guid: bf23ea50e3cd51140938a22971ca90de, type: 3}
+      - {fileID: 2800000, guid: bf23ea50e3cd51140938a22971ca90de, type: 3}
       m_Width: 108
       m_Height: 108
       m_Kind: 2
       m_SubKind: 
-    - m_Textures: []
+    - m_Textures:
+      - {fileID: 2800000, guid: bf23ea50e3cd51140938a22971ca90de, type: 3}
+      - {fileID: 2800000, guid: bf23ea50e3cd51140938a22971ca90de, type: 3}
       m_Width: 81
       m_Height: 81
       m_Kind: 2
       m_SubKind: 
-    - m_Textures: []
+    - m_Textures:
+      - {fileID: 2800000, guid: bf23ea50e3cd51140938a22971ca90de, type: 3}
       m_Width: 192
       m_Height: 192
       m_Kind: 1
       m_SubKind: 
-    - m_Textures: []
+    - m_Textures:
+      - {fileID: 2800000, guid: bf23ea50e3cd51140938a22971ca90de, type: 3}
       m_Width: 144
       m_Height: 144
       m_Kind: 1
       m_SubKind: 
-    - m_Textures: []
+    - m_Textures:
+      - {fileID: 2800000, guid: bf23ea50e3cd51140938a22971ca90de, type: 3}
       m_Width: 96
       m_Height: 96
       m_Kind: 1
       m_SubKind: 
-    - m_Textures: []
+    - m_Textures:
+      - {fileID: 2800000, guid: bf23ea50e3cd51140938a22971ca90de, type: 3}
       m_Width: 72
       m_Height: 72
       m_Kind: 1
       m_SubKind: 
-    - m_Textures: []
+    - m_Textures:
+      - {fileID: 2800000, guid: bf23ea50e3cd51140938a22971ca90de, type: 3}
       m_Width: 48
       m_Height: 48
       m_Kind: 1
       m_SubKind: 
-    - m_Textures: []
+    - m_Textures:
+      - {fileID: 2800000, guid: bf23ea50e3cd51140938a22971ca90de, type: 3}
       m_Width: 36
       m_Height: 36
       m_Kind: 1
       m_SubKind: 
-    - m_Textures: []
+    - m_Textures:
+      - {fileID: 2800000, guid: bf23ea50e3cd51140938a22971ca90de, type: 3}
       m_Width: 192
       m_Height: 192
       m_Kind: 0
       m_SubKind: 
-    - m_Textures: []
+    - m_Textures:
+      - {fileID: 2800000, guid: bf23ea50e3cd51140938a22971ca90de, type: 3}
       m_Width: 144
       m_Height: 144
       m_Kind: 0
       m_SubKind: 
-    - m_Textures: []
+    - m_Textures:
+      - {fileID: 2800000, guid: bf23ea50e3cd51140938a22971ca90de, type: 3}
       m_Width: 96
       m_Height: 96
       m_Kind: 0
       m_SubKind: 
-    - m_Textures: []
+    - m_Textures:
+      - {fileID: 2800000, guid: bf23ea50e3cd51140938a22971ca90de, type: 3}
       m_Width: 72
       m_Height: 72
       m_Kind: 0
       m_SubKind: 
-    - m_Textures: []
+    - m_Textures:
+      - {fileID: 2800000, guid: bf23ea50e3cd51140938a22971ca90de, type: 3}
       m_Width: 48
       m_Height: 48
       m_Kind: 0
       m_SubKind: 
-    - m_Textures: []
+    - m_Textures:
+      - {fileID: 2800000, guid: bf23ea50e3cd51140938a22971ca90de, type: 3}
       m_Width: 36
       m_Height: 36
       m_Kind: 0
@@ -396,6 +420,9 @@ PlayerSettings:
   m_BuildTargetBatching:
   - m_BuildTarget: Android
     m_StaticBatching: 1
+    m_DynamicBatching: 0
+  - m_BuildTarget: WebGL
+    m_StaticBatching: 0
     m_DynamicBatching: 0
   m_BuildTargetShaderSettings: []
   m_BuildTargetGraphicsJobs: []
@@ -664,10 +691,10 @@ PlayerSettings:
   webGLDebugSymbols: 0
   webGLEmscriptenArgs: 
   webGLModulesDirectory: 
-  webGLTemplate: APPLICATION:Default
+  webGLTemplate: PROJECT:OrbitBreakerPWA
   webGLAnalyzeBuildSize: 0
   webGLUseEmbeddedResources: 0
-  webGLCompressionFormat: 0
+  webGLCompressionFormat: 2
   webGLWasmArithmeticExceptions: 0
   webGLLinkerTarget: 1
   webGLThreadsSupport: 0

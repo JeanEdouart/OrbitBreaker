@@ -1,0 +1,17 @@
+{
+  "name": "Orbit Breaker",
+  "short_name": "Orbit Breaker",
+  "description": "Un jeu d'arcade spatial infini par JeanEdouart.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#020817",
+  "theme_color": "#020817",
+  "icons": [{
+    "src": "orbit-breaker-icon.png",
+    "sizes": "1024x1024",
+    "type": "image/png",
+    "purpose": "any maskable"
+  }]
+}
