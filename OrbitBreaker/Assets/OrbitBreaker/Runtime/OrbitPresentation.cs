@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
@@ -311,6 +312,16 @@ namespace OrbitBreaker
         private GameObject infoButton;
         private GameObject styleButton;
         private GameObject missionsButton;
+        private GameObject leaderboardButton;
+        private GameObject leaderboardPanel;
+        private GameObject playerNamePanel;
+        private InputField playerNameInput;
+        private Text playerNameStatus;
+        private InputField leaderboardSearchInput;
+        private Text leaderboardStatus;
+        private readonly Text[] leaderboardRows = new Text[10];
+        private OnlineLeaderboard onlineLeaderboard;
+        private Action identityAccepted;
         private GameObject missionsPanel;
         private GameObject hangarPanel;
         private readonly Text[] challengeLabels = new Text[3];
@@ -355,14 +366,17 @@ namespace OrbitBreaker
         public bool SettingsOpen => (settingsPanel != null && settingsPanel.activeSelf)
             || (creditsPanel != null && creditsPanel.activeSelf)
             || (missionsPanel != null && missionsPanel.activeSelf)
-            || (hangarPanel != null && hangarPanel.activeSelf);
+            || (hangarPanel != null && hangarPanel.activeSelf)
+            || (leaderboardPanel != null && leaderboardPanel.activeSelf)
+            || (playerNamePanel != null && playerNamePanel.activeSelf);
         public bool IsPaused => pausePanel != null && pausePanel.activeSelf;
         public event Action CosmeticsChanged;
         public event Action<int> StyleSelected;
 
-        public void Initialize(OrbitFeedback audio)
+        public void Initialize(OrbitFeedback audio, OnlineLeaderboard leaderboard)
         {
             hudFeedback = audio;
+            onlineLeaderboard = leaderboard;
             if (EventSystem.current == null)
             {
                 new GameObject("Event System", typeof(EventSystem), typeof(InputSystemUIInputModule));
@@ -531,6 +545,9 @@ namespace OrbitBreaker
             missionsButton = CreateIconButton(safe, "Missions Button", RuntimeAssets.TrophyIcon, ToggleMissions);
             SetSquareRect(missionsButton.GetComponent<RectTransform>(), new Vector2(0.07f, 0.405f), 92f);
 
+            leaderboardButton = CreateIconButton(safe, "Leaderboard Button", RuntimeAssets.LeaderboardIcon, ToggleLeaderboard);
+            SetSquareRect(leaderboardButton.GetComponent<RectTransform>(), new Vector2(0.07f, 0.31f), 92f);
+
             pauseButton = CreateIconButton(safe, "Pause Button", RuntimeAssets.PauseIcon, PauseGame);
             SetSquareRect(pauseButton.GetComponent<RectTransform>(), new Vector2(0.095f, 0.92f), 104f);
             pauseButton.SetActive(false);
@@ -546,6 +563,25 @@ namespace OrbitBreaker
             missionsPanel.SetActive(false);
             hangarPanel = CreateHangarPanel(safe);
             hangarPanel.SetActive(false);
+            leaderboardPanel = CreateLeaderboardPanel(safe);
+            leaderboardPanel.SetActive(false);
+            playerNamePanel = CreatePlayerNamePanel(safe);
+            playerNamePanel.SetActive(false);
+        }
+
+        public void PreparePlayerIdentity(Action onAccepted)
+        {
+            identityAccepted = onAccepted;
+            if (onlineLeaderboard == null || onlineLeaderboard.NeedsPlayerName)
+            {
+                playerNameStatus.text = onlineLeaderboard != null && !string.IsNullOrEmpty(onlineLeaderboard.LastError)
+                    ? onlineLeaderboard.LastError + " · CHOISIS TON PSEUDO"
+                    : "3 À 16 CARACTÈRES · LETTRES, CHIFFRES, _ OU -";
+                playerNamePanel.SetActive(true);
+                return;
+            }
+            identityAccepted?.Invoke();
+            identityAccepted = null;
         }
 
         public void ShowPlaying(int distance, int best, bool tutorial)
@@ -560,11 +596,13 @@ namespace OrbitBreaker
             infoButton.SetActive(tutorial);
             styleButton.SetActive(tutorial);
             missionsButton.SetActive(tutorial);
+            leaderboardButton.SetActive(tutorial);
             pauseButton.SetActive(!tutorial);
             settingsPanel.SetActive(false);
             creditsPanel.SetActive(false);
             missionsPanel.SetActive(false);
             hangarPanel.SetActive(false);
+            leaderboardPanel.SetActive(false);
             gameOverPanel.SetActive(false);
             gameOverVisible = false;
             if (materialToast != null) materialToast.SetActive(false);
@@ -677,6 +715,7 @@ namespace OrbitBreaker
             infoButton.SetActive(false);
             styleButton.SetActive(false);
             missionsButton.SetActive(false);
+            leaderboardButton.SetActive(false);
             settingsPanel.SetActive(false);
             creditsPanel.SetActive(false);
             pauseButton.SetActive(true);
@@ -701,6 +740,7 @@ namespace OrbitBreaker
             infoButton.SetActive(true);
             styleButton.SetActive(true);
             missionsButton.SetActive(true);
+            leaderboardButton.SetActive(true);
             pauseButton.SetActive(false);
             gameOverVisible = true;
         }
@@ -733,6 +773,7 @@ namespace OrbitBreaker
             creditsPanel.SetActive(false);
             missionsPanel.SetActive(false);
             hangarPanel.SetActive(false);
+            leaderboardPanel.SetActive(false);
             settingsPanel.SetActive(opening);
             if (opening) ShowSettingsTab(0);
             gameOverPanel.SetActive(!opening && gameOverVisible);
@@ -744,6 +785,7 @@ namespace OrbitBreaker
             settingsPanel.SetActive(false);
             missionsPanel.SetActive(false);
             hangarPanel.SetActive(false);
+            leaderboardPanel.SetActive(false);
             creditsPanel.SetActive(opening);
             gameOverPanel.SetActive(!opening && gameOverVisible);
         }
@@ -754,6 +796,7 @@ namespace OrbitBreaker
             settingsPanel.SetActive(false);
             creditsPanel.SetActive(false);
             hangarPanel.SetActive(false);
+            leaderboardPanel.SetActive(false);
             missionsPanel.SetActive(opening);
             if (opening) RefreshMission();
             gameOverPanel.SetActive(!opening && gameOverVisible);
@@ -765,9 +808,124 @@ namespace OrbitBreaker
             settingsPanel.SetActive(false);
             creditsPanel.SetActive(false);
             missionsPanel.SetActive(false);
+            leaderboardPanel.SetActive(false);
             hangarPanel.SetActive(opening);
             if (opening) RefreshHangar(string.Empty);
             gameOverPanel.SetActive(!opening && gameOverVisible);
+        }
+
+        private async void AcceptPlayerName()
+        {
+            if (onlineLeaderboard == null) return;
+            playerNameStatus.text = "CONNEXION...";
+            bool saved = await onlineLeaderboard.SavePlayerNameAsync(playerNameInput.text);
+            if (!saved && onlineLeaderboard.NeedsPlayerName)
+            {
+                playerNameStatus.text = onlineLeaderboard.LastError;
+                return;
+            }
+            playerNamePanel.SetActive(false);
+            identityAccepted?.Invoke();
+            identityAccepted = null;
+        }
+
+        private async void ToggleLeaderboard()
+        {
+            bool opening = !leaderboardPanel.activeSelf;
+            settingsPanel.SetActive(false);
+            creditsPanel.SetActive(false);
+            missionsPanel.SetActive(false);
+            hangarPanel.SetActive(false);
+            leaderboardPanel.SetActive(opening);
+            gameOverPanel.SetActive(!opening && gameOverVisible);
+            if (!opening) return;
+            leaderboardSearchInput.SetTextWithoutNotify(string.Empty);
+            leaderboardStatus.text = "CHARGEMENT DU CLASSEMENT...";
+            RenderLeaderboardRows(Array.Empty<OrbitLeaderboardEntry>());
+            IReadOnlyList<OrbitLeaderboardEntry> entries = await onlineLeaderboard.RefreshAsync();
+            leaderboardStatus.text = entries.Count > 0
+                ? "TOP 100 · " + onlineLeaderboard.PlayerName.ToUpperInvariant()
+                : onlineLeaderboard.LastError;
+            RenderLeaderboardRows(entries);
+        }
+
+        private void SearchLeaderboard(string query)
+        {
+            IReadOnlyList<OrbitLeaderboardEntry> entries = onlineLeaderboard.Filter(query);
+            leaderboardStatus.text = entries.Count > 0 ? entries.Count + " PILOTE" + (entries.Count > 1 ? "S" : string.Empty) : "AUCUN PILOTE TROUVÉ DANS LE TOP 100";
+            RenderLeaderboardRows(entries);
+        }
+
+        private void RenderLeaderboardRows(IReadOnlyList<OrbitLeaderboardEntry> entries)
+        {
+            for (int i = 0; i < leaderboardRows.Length; i++)
+            {
+                Text row = leaderboardRows[i];
+                bool visible = i < entries.Count;
+                row.gameObject.SetActive(visible);
+                if (!visible) continue;
+                OrbitLeaderboardEntry entry = entries[i];
+                row.text = entry.Rank.ToString().PadLeft(3) + "    " + entry.PlayerName.ToUpperInvariant() + "    " + entry.Score + " m";
+                row.color = entry.IsLocalPlayer ? new Color(1f, 0.75f, 0.24f) : new Color(0.72f, 0.92f, 1f);
+            }
+        }
+
+        private GameObject CreatePlayerNamePanel(Transform safe)
+        {
+            GameObject panel = new GameObject("Player Name Panel", typeof(RectTransform), typeof(Image));
+            panel.transform.SetParent(safe, false); SetRect(panel.GetComponent<RectTransform>(), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            panel.GetComponent<Image>().color = new Color(0.005f, 0.015f, 0.045f, 0.96f);
+            Image card = CreateImage(panel.transform, "Pilot Identity Card", new Color(0.025f, 0.075f, 0.14f, 0.99f)); ApplyRounded(card);
+            SetRect(card.rectTransform, new Vector2(0.09f, 0.31f), new Vector2(0.91f, 0.7f), Vector2.zero, Vector2.zero);
+            Text eyebrow = CreateText(card.transform, "Eyebrow", "PREMIER DÉCOLLAGE", 21, TextAnchor.MiddleCenter, FontStyle.Bold);
+            eyebrow.color = new Color(1f, 0.72f, 0.24f); SetRect(eyebrow.rectTransform, new Vector2(0.08f, 0.78f), new Vector2(0.92f, 0.91f), Vector2.zero, Vector2.zero);
+            Text title = CreateText(card.transform, "Title", "CHOISIS TON PSEUDO", 42, TextAnchor.MiddleCenter, FontStyle.Bold);
+            title.color = new Color(0.76f, 0.98f, 1f); SetRect(title.rectTransform, new Vector2(0.06f, 0.58f), new Vector2(0.94f, 0.8f), Vector2.zero, Vector2.zero);
+            playerNameInput = CreateInputField(card.transform, "Player Name", "TON PSEUDO", 16);
+            SetRect(playerNameInput.GetComponent<RectTransform>(), new Vector2(0.1f, 0.37f), new Vector2(0.9f, 0.55f), Vector2.zero, Vector2.zero);
+            playerNameStatus = CreateText(card.transform, "Status", string.Empty, 16, TextAnchor.MiddleCenter, FontStyle.Bold);
+            playerNameStatus.color = new Color(0.52f, 0.76f, 0.9f); playerNameStatus.resizeTextForBestFit = true; playerNameStatus.resizeTextMinSize = 11;
+            SetRect(playerNameStatus.rectTransform, new Vector2(0.08f, 0.24f), new Vector2(0.92f, 0.37f), Vector2.zero, Vector2.zero);
+            GameObject accept = CreateButton(card.transform, "Confirm Name", "ENTRER EN ORBITE", new Color(0.08f, 0.52f, 0.64f), AcceptPlayerName);
+            SetRect(accept.GetComponent<RectTransform>(), new Vector2(0.2f, 0.07f), new Vector2(0.8f, 0.22f), Vector2.zero, Vector2.zero);
+            return panel;
+        }
+
+        private GameObject CreateLeaderboardPanel(Transform safe)
+        {
+            GameObject panel = new GameObject("Leaderboard Panel", typeof(RectTransform), typeof(Image)); panel.transform.SetParent(safe, false);
+            SetRect(panel.GetComponent<RectTransform>(), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero); panel.GetComponent<Image>().color = new Color(0.005f, 0.015f, 0.045f, 0.94f);
+            Image card = CreateImage(panel.transform, "Leaderboard Card", new Color(0.025f, 0.075f, 0.14f, 0.99f)); ApplyRounded(card);
+            SetRect(card.rectTransform, new Vector2(0.055f, 0.08f), new Vector2(0.945f, 0.92f), Vector2.zero, Vector2.zero);
+            Text title = CreateText(card.transform, "Title", "CLASSEMENT MONDIAL", 40, TextAnchor.MiddleCenter, FontStyle.Bold);
+            title.color = new Color(0.76f, 0.98f, 1f); SetRect(title.rectTransform, new Vector2(0.05f, 0.875f), new Vector2(0.95f, 0.97f), Vector2.zero, Vector2.zero);
+            leaderboardSearchInput = CreateInputField(card.transform, "Search", "RECHERCHER DANS LE TOP 100", 24);
+            SetRect(leaderboardSearchInput.GetComponent<RectTransform>(), new Vector2(0.08f, 0.77f), new Vector2(0.92f, 0.855f), Vector2.zero, Vector2.zero);
+            leaderboardSearchInput.onValueChanged.AddListener(SearchLeaderboard);
+            leaderboardStatus = CreateText(card.transform, "Status", string.Empty, 17, TextAnchor.MiddleCenter, FontStyle.Bold);
+            leaderboardStatus.color = new Color(1f, 0.72f, 0.24f); SetRect(leaderboardStatus.rectTransform, new Vector2(0.06f, 0.705f), new Vector2(0.94f, 0.765f), Vector2.zero, Vector2.zero);
+            for (int i = 0; i < leaderboardRows.Length; i++)
+            {
+                float top = 0.69f - i * 0.057f;
+                Text row = CreateText(card.transform, "Rank " + (i + 1), string.Empty, 23, TextAnchor.MiddleLeft, FontStyle.Bold);
+                row.resizeTextForBestFit = true; row.resizeTextMinSize = 14; row.horizontalOverflow = HorizontalWrapMode.Wrap;
+                SetRect(row.rectTransform, new Vector2(0.09f, top - 0.05f), new Vector2(0.91f, top), Vector2.zero, Vector2.zero);
+                leaderboardRows[i] = row;
+            }
+            GameObject refresh = CreateButton(card.transform, "Refresh", "ACTUALISER", new Color(0.08f, 0.36f, 0.48f), ToggleLeaderboard);
+            refresh.GetComponent<Button>().onClick.RemoveAllListeners(); refresh.GetComponent<Button>().onClick.AddListener(RefreshLeaderboard);
+            SetRect(refresh.GetComponent<RectTransform>(), new Vector2(0.08f, 0.065f), new Vector2(0.44f, 0.135f), Vector2.zero, Vector2.zero);
+            GameObject close = CreateButton(card.transform, "Close", "FERMER", new Color(0.06f, 0.2f, 0.3f), ToggleLeaderboard);
+            SetRect(close.GetComponent<RectTransform>(), new Vector2(0.56f, 0.065f), new Vector2(0.92f, 0.135f), Vector2.zero, Vector2.zero);
+            return panel;
+        }
+
+        private async void RefreshLeaderboard()
+        {
+            leaderboardStatus.text = "ACTUALISATION...";
+            IReadOnlyList<OrbitLeaderboardEntry> entries = await onlineLeaderboard.RefreshAsync(leaderboardSearchInput.text);
+            leaderboardStatus.text = entries.Count > 0 ? "CLASSEMENT À JOUR" : onlineLeaderboard.LastError;
+            RenderLeaderboardRows(entries);
         }
 
         public void PauseGame()
@@ -1269,6 +1427,25 @@ namespace OrbitBreaker
             Text text = CreateText(instance.transform, "Label", label, 25, TextAnchor.MiddleCenter, FontStyle.Bold);
             SetRect(text.rectTransform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
             return instance;
+        }
+
+        private static InputField CreateInputField(Transform parent, string name, string placeholder, int characterLimit)
+        {
+            GameObject instance = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(InputField));
+            instance.transform.SetParent(parent, false);
+            Image background = instance.GetComponent<Image>();
+            background.color = new Color(0.015f, 0.045f, 0.09f, 1f); ApplyRounded(background);
+            Text value = CreateText(instance.transform, "Text", string.Empty, 27, TextAnchor.MiddleLeft, FontStyle.Bold);
+            value.color = new Color(0.82f, 0.97f, 1f); value.supportRichText = false;
+            SetRect(value.rectTransform, new Vector2(0.06f, 0f), new Vector2(0.94f, 1f), Vector2.zero, Vector2.zero);
+            Text hint = CreateText(instance.transform, "Placeholder", placeholder, 22, TextAnchor.MiddleLeft, FontStyle.Italic);
+            hint.color = new Color(0.38f, 0.59f, 0.72f, 0.8f);
+            SetRect(hint.rectTransform, new Vector2(0.06f, 0f), new Vector2(0.94f, 1f), Vector2.zero, Vector2.zero);
+            InputField input = instance.GetComponent<InputField>();
+            input.targetGraphic = background; input.textComponent = value; input.placeholder = hint;
+            input.characterLimit = characterLimit; input.lineType = InputField.LineType.SingleLine;
+            input.contentType = InputField.ContentType.Standard;
+            return input;
         }
 
         private static GameObject CreateIconButton(Transform parent, string name, Sprite iconSprite, UnityEngine.Events.UnityAction callback)

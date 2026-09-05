@@ -14,6 +14,7 @@ namespace OrbitBreaker
         private static Sprite locationIcon;
         private static Sprite planetIcon;
         private static Sprite trophyIcon;
+        private static Sprite leaderboardIcon;
         private static Sprite rocketSprite;
         private static Sprite flameSprite;
         private static Sprite[] planetSprites;
@@ -176,6 +177,14 @@ namespace OrbitBreaker
             bool stem = y > -0.3f && y <= -0.05f && Mathf.Abs(x) < 0.08f;
             bool basePlate = y > -0.4f && y < -0.28f && Mathf.Abs(x) < 0.27f;
             return cup || handles || stem || basePlate;
+        });
+
+        public static Sprite LeaderboardIcon => leaderboardIcon != null ? leaderboardIcon : leaderboardIcon = CreateIcon("LeaderboardIcon", (x, y) =>
+        {
+            bool left = x > -0.43f && x < -0.18f && y > -0.4f && y < 0.06f;
+            bool center = Mathf.Abs(x) < 0.125f && y > -0.4f && y < 0.42f;
+            bool right = x > 0.18f && x < 0.43f && y > -0.4f && y < 0.22f;
+            return left || center || right;
         });
 
         public static Sprite RocketSprite => rocketSprite != null ? rocketSprite : rocketSprite = LoadSingleSprite("Art/rocket", "Player Rocket");

@@ -15,6 +15,7 @@ namespace OrbitBreaker
         private OrbitCameraRig cameraRig;
         private OrbitHud hud;
         private OrbitFeedback feedback;
+        private OnlineLeaderboard onlineLeaderboard;
         private SpaceBackground spaceBackground;
         private int bestScore;
         private int anchorsCaptured;
@@ -62,10 +63,11 @@ namespace OrbitBreaker
             player = CreateSystem<OrbitPlayer>("Player");
             hud = CreateSystem<OrbitHud>("HUD");
             feedback = CreateSystem<OrbitFeedback>("Feedback");
+            onlineLeaderboard = CreateSystem<OnlineLeaderboard>("Online Leaderboard");
 
             player.Initialize();
             feedback.Initialize();
-            hud.Initialize(feedback);
+            hud.Initialize(feedback, onlineLeaderboard);
             hud.CosmeticsChanged += HandleCosmeticsChanged;
             player.Captured += HandleCaptured;
             player.MaterialCollected += HandleMaterialCollected;
@@ -74,9 +76,10 @@ namespace OrbitBreaker
             bestScore = PlayerPrefs.GetInt(BestScoreKey, 0);
         }
 
-        private void Start()
+        private async void Start()
         {
-            StartRun();
+            await onlineLeaderboard.InitializeAsync();
+            hud.PreparePlayerIdentity(StartRun);
         }
 
         private void Update()
@@ -250,6 +253,7 @@ namespace OrbitBreaker
             GameProgression.RecordRun(distanceScore, runSynchronizations, runNearMisses);
             MetaProgression.RecordRun(distanceScore, anchorsCaptured, runSkips, runSynchronizations, runNearMisses, runMaterials, bestRunMultiplier);
             PlayerPrefs.Save();
+            _ = onlineLeaderboard.SubmitBestScoreAsync(bestScore);
             hud.ShowGameOver(distanceScore, bestScore, anchorsCaptured, reason, runSynchronizations, runNearMisses, bestRunSkip, bestRunMultiplier);
         }
 

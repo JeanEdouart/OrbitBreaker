@@ -1,14 +1,14 @@
 {
-  "name": "OrbitBreaker.Runtime",
-  "rootNamespace": "OrbitBreaker",
+  "name": "OrbitBreaker.Editor",
+  "rootNamespace": "OrbitBreaker.Editor",
   "references": [
-    "Unity.InputSystem",
-    "Unity.ugui",
-    "Unity.Services.Core",
-    "Unity.Services.Authentication",
-    "Unity.Services.Leaderboards"
+    "OrbitBreaker.Runtime",
+    "Unity.Services.DeploymentApi",
+    "Unity.Services.Core.Environments.Editor"
   ],
-  "includePlatforms": [],
+  "includePlatforms": [
+    "Editor"
+  ],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
   "overrideReferences": false,
