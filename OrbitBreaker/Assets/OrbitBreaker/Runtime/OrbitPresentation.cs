@@ -16,6 +16,7 @@ namespace OrbitBreaker
         private readonly Transform[] stars = new Transform[52];
         private readonly float[] starSeedX = new float[52];
         private readonly float[] starSeedY = new float[52];
+        private float tileWorldHeight = TileSize;
 
         public void Initialize(Camera camera)
         {
@@ -24,12 +25,12 @@ namespace OrbitBreaker
             {
                 var tile = new GameObject("Nebula Tile " + (i + 1));
                 tile.transform.SetParent(transform, false);
-                tile.transform.localScale = Vector3.one * TileSize;
                 nebulaTiles[i] = tile.AddComponent<SpriteRenderer>();
-                nebulaTiles[i].sprite = RuntimeAssets.SpaceBackgroundSprite;
+                nebulaTiles[i].sprite = RuntimeAssets.GetBackgroundSprite(MetaProgression.Selected(CosmeticKind.Background));
                 nebulaTiles[i].color = new Color(0.72f, 0.78f, 0.92f, 0.72f);
                 nebulaTiles[i].sortingOrder = -100;
             }
+            ResizeTilesToCoverCamera();
 
             var random = new System.Random(7319);
             for (int i = 0; i < stars.Length; i++)
@@ -52,6 +53,30 @@ namespace OrbitBreaker
             RefreshPositions();
         }
 
+        public void ApplyCosmetics()
+        {
+            Sprite selected = RuntimeAssets.GetBackgroundSprite(MetaProgression.Selected(CosmeticKind.Background));
+            for (int i = 0; i < nebulaTiles.Length; i++)
+                if (nebulaTiles[i] != null) nebulaTiles[i].sprite = selected;
+            ResizeTilesToCoverCamera();
+        }
+
+        private void ResizeTilesToCoverCamera()
+        {
+            if (targetCamera == null) return;
+            float viewHeight = targetCamera.orthographicSize * 2f;
+            float viewWidth = viewHeight * targetCamera.aspect;
+            tileWorldHeight = TileSize;
+            for (int i = 0; i < nebulaTiles.Length; i++)
+            {
+                Sprite sprite = nebulaTiles[i] != null ? nebulaTiles[i].sprite : null;
+                if (sprite == null) continue;
+                float scale = Mathf.Max(viewWidth / Mathf.Max(0.01f, sprite.bounds.size.x), viewHeight / Mathf.Max(0.01f, sprite.bounds.size.y)) * 1.04f;
+                nebulaTiles[i].transform.localScale = Vector3.one * scale;
+                tileWorldHeight = sprite.bounds.size.y * scale;
+            }
+        }
+
         private void LateUpdate()
         {
             RefreshPositions();
@@ -70,11 +95,11 @@ namespace OrbitBreaker
                 : biome == 1 ? new Color(0.42f, 0.9f, 0.88f, 0.72f) : new Color(0.72f, 0.78f, 0.92f, 0.72f);
             Color biomeTint = Color.Lerp(biomeA, biomeB, biomeProgress);
             float nebulaOffset = GamePreferences.DynamicBackground
-                ? Mathf.Repeat(cameraY * 0.2f + TileSize * 0.5f, TileSize) - TileSize * 0.5f
+                ? Mathf.Repeat(cameraY * 0.2f + tileWorldHeight * 0.5f, tileWorldHeight) - tileWorldHeight * 0.5f
                 : 0f;
             for (int i = 0; i < nebulaTiles.Length; i++)
             {
-                nebulaTiles[i].transform.position = new Vector3(cameraX * 0.88f, cameraY + (i - 1) * TileSize - nebulaOffset, 2f);
+                nebulaTiles[i].transform.position = new Vector3(cameraX * 0.88f, cameraY + (i - 1) * tileWorldHeight - nebulaOffset, 2f);
                 nebulaTiles[i].color = biomeTint;
             }
 
@@ -267,6 +292,12 @@ namespace OrbitBreaker
         private GameObject multiplierBadge;
         private Image multiplierFill;
         private Text stuntText;
+        private Text nearMissText;
+        private GameObject materialToast;
+        private Text materialToastText;
+        private GameObject challengeToast;
+        private Text challengeToastText;
+        private OrbitFeedback hudFeedback;
         private Text titleText;
         private Text instructionText;
         private Text gameOverTitle;
@@ -282,9 +313,28 @@ namespace OrbitBreaker
         private GameObject missionsButton;
         private GameObject missionsPanel;
         private GameObject hangarPanel;
+        private readonly Text[] challengeLabels = new Text[3];
+        private readonly Text[] challengeProgressTexts = new Text[3];
+        private readonly Image[] challengeFills = new Image[3];
+        private readonly Button[] challengeButtons = new Button[3];
+        private readonly Text[] challengeButtonLabels = new Text[3];
+        private Text missionCurrencyText;
         private Text missionProgressText;
         private Image missionProgressFill;
         private Text hangarStatus;
+        private Text hangarCurrencyText;
+        private Text hangarItemName;
+        private Text hangarItemPrice;
+        private Image hangarPreview;
+        private Button hangarActionButton;
+        private Text hangarActionLabel;
+        private readonly Button[] cosmeticCards = new Button[4];
+        private readonly Text[] cosmeticCardLabels = new Text[4];
+        private readonly Image[] cosmeticCardPreviews = new Image[4];
+        private readonly Image[] hangarTabImages = new Image[4];
+        private CosmeticKind hangarCategory;
+        private int hangarPage;
+        private int selectedCosmeticIndex;
         private Text[] styleRowLabels;
         private Image[] styleRowImages;
         private GameObject creditsPanel;
@@ -307,10 +357,12 @@ namespace OrbitBreaker
             || (missionsPanel != null && missionsPanel.activeSelf)
             || (hangarPanel != null && hangarPanel.activeSelf);
         public bool IsPaused => pausePanel != null && pausePanel.activeSelf;
+        public event Action CosmeticsChanged;
         public event Action<int> StyleSelected;
 
         public void Initialize(OrbitFeedback audio)
         {
+            hudFeedback = audio;
             if (EventSystem.current == null)
             {
                 new GameObject("Event System", typeof(EventSystem), typeof(InputSystemUIInputModule));
@@ -378,6 +430,35 @@ namespace OrbitBreaker
             stuntText.resizeTextMinSize = 18;
             stuntText.resizeTextMaxSize = 34;
             SetRect(stuntText.rectTransform, new Vector2(0.88f, 0.25f), new Vector2(1.85f, 0.72f), new Vector2(16f, 0f), Vector2.zero);
+
+            nearMissText = CreateText(floatingHud, "Near Miss", string.Empty, 28, TextAnchor.MiddleCenter, FontStyle.Bold);
+            nearMissText.color = new Color(1f, 0.78f, 0.25f, 1f);
+            nearMissText.gameObject.AddComponent<Outline>().effectColor = new Color(0.08f, 0.035f, 0.01f, 1f);
+            nearMissText.horizontalOverflow = HorizontalWrapMode.Overflow;
+            SetRect(nearMissText.rectTransform, new Vector2(-0.25f, -0.16f), new Vector2(1.25f, 0.1f), Vector2.zero, Vector2.zero);
+
+            Image materialToastImage = CreateImage(safe, "Material Toast", new Color(0.025f, 0.12f, 0.18f, 0.94f));
+            materialToast = materialToastImage.gameObject;
+            ApplyRounded(materialToastImage);
+            materialToastImage.raycastTarget = false;
+            SetRect(materialToastImage.rectTransform, new Vector2(0.32f, 0.805f), new Vector2(0.68f, 0.855f), Vector2.zero, Vector2.zero);
+            materialToastText = CreateText(materialToast.transform, "Material Value", string.Empty, 23, TextAnchor.MiddleCenter, FontStyle.Bold);
+            materialToastText.color = new Color(0.35f, 0.95f, 1f);
+            SetRect(materialToastText.rectTransform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            materialToast.SetActive(false);
+
+            Image challengeToastImage = CreateImage(safe, "Challenge Complete Toast", new Color(0.12f, 0.075f, 0.02f, 0.95f));
+            challengeToast = challengeToastImage.gameObject;
+            ApplyRounded(challengeToastImage);
+            challengeToastImage.raycastTarget = false;
+            SetRect(challengeToastImage.rectTransform, new Vector2(0.17f, 0.735f), new Vector2(0.83f, 0.795f), Vector2.zero, Vector2.zero);
+            challengeToastText = CreateText(challengeToast.transform, "Challenge Complete", string.Empty, 21, TextAnchor.MiddleCenter, FontStyle.Bold);
+            challengeToastText.color = new Color(1f, 0.76f, 0.28f);
+            challengeToastText.resizeTextForBestFit = true;
+            challengeToastText.resizeTextMinSize = 14;
+            challengeToastText.resizeTextMaxSize = 21;
+            SetRect(challengeToastText.rectTransform, new Vector2(0.04f, 0f), new Vector2(0.96f, 1f), Vector2.zero, Vector2.zero);
+            challengeToast.SetActive(false);
 
             titleText = CreateText(safe, "Title", "ORBIT\nBREAKER", 78, TextAnchor.MiddleCenter, FontStyle.Bold);
             titleText.color = new Color(0.76f, 0.98f, 1f, 1f);
@@ -471,6 +552,7 @@ namespace OrbitBreaker
         {
             UpdateProgress(distance, best);
             stuntText.text = string.Empty;
+            nearMissText.text = string.Empty;
             titleText.gameObject.SetActive(tutorial);
             hintGroup.gameObject.SetActive(tutorial);
             tutorialTips.SetActive(tutorial);
@@ -485,6 +567,9 @@ namespace OrbitBreaker
             hangarPanel.SetActive(false);
             gameOverPanel.SetActive(false);
             gameOverVisible = false;
+            if (materialToast != null) materialToast.SetActive(false);
+            if (challengeToast != null) challengeToast.SetActive(false);
+            if (nearMissText != null) nearMissText.text = string.Empty;
         }
 
         public void UpdateProgress(int distance, int best)
@@ -496,6 +581,10 @@ namespace OrbitBreaker
 
         public void UpdateFlightDisplay(Vector3 worldPosition, float multiplier, float danger01, bool flying)
         {
+            if (materialToast != null && materialToast.activeSelf)
+                materialToast.transform.localScale = Vector3.Lerp(materialToast.transform.localScale, Vector3.one, 1f - Mathf.Exp(-Time.unscaledDeltaTime * 15f));
+            if (challengeToast != null && challengeToast.activeSelf)
+                challengeToast.transform.localScale = Vector3.Lerp(challengeToast.transform.localScale, Vector3.one, 1f - Mathf.Exp(-Time.unscaledDeltaTime * 12f));
             multiplierBadge.SetActive(flying && GamePreferences.FlightGauges);
             if (safeRect != null && Camera.main != null)
             {
@@ -518,6 +607,8 @@ namespace OrbitBreaker
                 float pop = Mathf.Clamp01((Time.unscaledTime - stuntShownAt) / 0.16f);
                 stuntText.transform.localScale = Vector3.one * Mathf.Lerp(1.35f, 1f, 1f - Mathf.Pow(1f - pop, 3f));
             }
+            if (!string.IsNullOrEmpty(nearMissText.text))
+                nearMissText.transform.localScale = Vector3.Lerp(nearMissText.transform.localScale, Vector3.one, 1f - Mathf.Exp(-Time.unscaledDeltaTime * 16f));
             if (!flying) return;
             multiplierText.text = "x" + multiplier.ToString("0.0");
             float intensity = Mathf.Clamp01(danger01);
@@ -546,10 +637,35 @@ namespace OrbitBreaker
 
         public void ShowNearMiss(int chain, float multiplier)
         {
-            stuntText.text = "FRÔLEMENT" + (chain > 1 ? " x" + chain : string.Empty) + "  MULTI x" + multiplier.ToString("0.0");
-            stuntShownAt = Time.unscaledTime;
-            CancelInvoke(nameof(ClearStunt));
-            Invoke(nameof(ClearStunt), 0.9f);
+            nearMissText.text = "FRÔLEMENT" + (chain > 1 ? " x" + chain : string.Empty) + "  ·  MULTI x" + multiplier.ToString("0.0");
+            nearMissText.transform.localScale = Vector3.one * 1.18f;
+            CancelInvoke(nameof(ClearNearMiss));
+            Invoke(nameof(ClearNearMiss), 1.05f);
+        }
+
+        public void ShowMaterialPickup(Vector2 position, int value)
+        {
+            materialToastText.text = "+" + value + " MATÉRIAU" + (value > 1 ? "X" : string.Empty) + "   ·   TOTAL " + MetaProgression.Materials;
+            materialToastText.color = value >= 7 ? new Color(1f, 0.72f, 0.2f) : value >= 3 ? new Color(0.78f, 0.55f, 1f) : new Color(0.35f, 0.95f, 1f);
+            materialToast.SetActive(true);
+            materialToast.transform.localScale = Vector3.one * 1.12f;
+            CancelInvoke(nameof(ClearMaterialToast));
+            Invoke(nameof(ClearMaterialToast), 1.15f);
+        }
+
+        public void RefreshMetaPanels()
+        {
+            if (missionsPanel != null && missionsPanel.activeSelf) RefreshMissions();
+            if (hangarPanel != null && hangarPanel.activeSelf) RefreshHangar(string.Empty);
+        }
+
+        public void ShowChallengeComplete(string objective)
+        {
+            challengeToastText.text = "DÉFI TERMINÉ  ·  " + objective;
+            challengeToast.SetActive(true);
+            challengeToast.transform.localScale = Vector3.one * 1.1f;
+            CancelInvoke(nameof(ClearChallengeToast));
+            Invoke(nameof(ClearChallengeToast), 2.1f);
         }
 
         public void HideTutorial()
@@ -568,6 +684,9 @@ namespace OrbitBreaker
 
         public void ShowGameOver(int distance, int best, int anchors, DeathReason reason, int synchronizations, int nearMisses, int bestSkip, float bestMultiplier)
         {
+            if (materialToast != null) materialToast.SetActive(false);
+            if (challengeToast != null) challengeToast.SetActive(false);
+            if (nearMissText != null) nearMissText.text = string.Empty;
             scoreText.text = distance + " m";
             multiplierBadge.SetActive(false);
             bestText.text = "RECORD " + best + " m";
@@ -590,6 +709,22 @@ namespace OrbitBreaker
         {
             stuntText.text = string.Empty;
             stuntText.transform.localScale = Vector3.one;
+        }
+
+        private void ClearNearMiss()
+        {
+            nearMissText.text = string.Empty;
+            nearMissText.transform.localScale = Vector3.one;
+        }
+
+        private void ClearMaterialToast()
+        {
+            if (materialToast != null) materialToast.SetActive(false);
+        }
+
+        private void ClearChallengeToast()
+        {
+            if (challengeToast != null) challengeToast.SetActive(false);
         }
 
         private void ToggleSettings()
@@ -678,7 +813,7 @@ namespace OrbitBreaker
             return panel;
         }
 
-        private GameObject CreateMissionsPanel(Transform safe)
+        private GameObject CreateMissionsPanelLegacy(Transform safe)
         {
             var panel = new GameObject("Missions Panel", typeof(RectTransform), typeof(Image));
             panel.transform.SetParent(safe, false);
@@ -716,7 +851,7 @@ namespace OrbitBreaker
             return panel;
         }
 
-        private void RefreshMission()
+        private void RefreshMissionLegacy()
         {
             int progress = Mathf.Min(GameProgression.MissionProgress, GameProgression.MissionTarget);
             string objective = GameProgression.MissionType == DailyMissionType.Distance
@@ -731,7 +866,7 @@ namespace OrbitBreaker
                 : new Color(0.24f, 0.9f, 1f, 1f);
         }
 
-        private GameObject CreateHangarPanel(Transform safe)
+        private GameObject CreateHangarPanelLegacy(Transform safe)
         {
             var panel = new GameObject("Hangar Panel", typeof(RectTransform), typeof(Image));
             panel.transform.SetParent(safe, false);
@@ -759,7 +894,7 @@ namespace OrbitBreaker
             {
                 int style = i;
                 float top = 0.7f - i * 0.14f;
-                GameObject row = CreateButton(card.transform, "Style " + GameProgression.StyleName(i), string.Empty, new Color(0.045f, 0.14f, 0.22f, 1f), () => SelectStyleFromHangar(style));
+                GameObject row = CreateButton(card.transform, "Style " + GameProgression.StyleName(i), string.Empty, new Color(0.045f, 0.14f, 0.22f, 1f), () => SelectStyleFromHangarLegacy(style));
                 SetRect(row.GetComponent<RectTransform>(), new Vector2(0.09f, top - 0.11f), new Vector2(0.91f, top), Vector2.zero, Vector2.zero);
                 styleRowImages[i] = row.GetComponent<Image>();
 
@@ -778,7 +913,7 @@ namespace OrbitBreaker
             return panel;
         }
 
-        private void SelectStyleFromHangar(int style)
+        private void SelectStyleFromHangarLegacy(int style)
         {
             if (!GameProgression.SelectStyle(style))
             {
@@ -790,7 +925,7 @@ namespace OrbitBreaker
             RefreshHangar(GameProgression.StyleName(style) + " ÉQUIPÉ");
         }
 
-        private void RefreshHangar(string message)
+        private void RefreshHangarLegacy(string message)
         {
             hangarStatus.text = string.IsNullOrEmpty(message)
                 ? "DISTANCE CUMULÉE  " + GameProgression.LifetimeDistance + " m"
@@ -807,6 +942,118 @@ namespace OrbitBreaker
                     : new Color(0.045f, 0.14f, 0.22f, unlocked ? 1f : 0.72f);
             }
         }
+
+        private GameObject CreateMissionsPanel(Transform safe)
+        {
+            var panel = new GameObject("Missions Panel", typeof(RectTransform), typeof(Image));
+            panel.transform.SetParent(safe, false); SetRect(panel.GetComponent<RectTransform>(), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            panel.GetComponent<Image>().color = new Color(0.008f, 0.02f, 0.055f, 0.94f);
+            Image card = CreateImage(panel.transform, "Challenges Card", new Color(0.025f, 0.075f, 0.14f, 0.99f)); ApplyRounded(card);
+            SetRect(card.rectTransform, new Vector2(0.06f, 0.14f), new Vector2(0.94f, 0.86f), Vector2.zero, Vector2.zero);
+            Text title = CreateText(card.transform, "Title", "DÉFIS ACTIFS", 39, TextAnchor.MiddleLeft, FontStyle.Bold); title.color = new Color(1f, 0.72f, 0.24f);
+            SetRect(title.rectTransform, new Vector2(0.07f, 0.87f), new Vector2(0.65f, 0.97f), Vector2.zero, Vector2.zero);
+            missionCurrencyText = CreateText(card.transform, "Balance", string.Empty, 24, TextAnchor.MiddleRight, FontStyle.Bold); missionCurrencyText.color = new Color(0.3f, 0.94f, 1f);
+            SetRect(missionCurrencyText.rectTransform, new Vector2(0.58f, 0.87f), new Vector2(0.93f, 0.97f), Vector2.zero, Vector2.zero);
+            for (int i = 0; i < 3; i++)
+            {
+                int slot = i; float top = 0.84f - i * 0.225f;
+                Image row = CreateImage(card.transform, "Challenge " + (i + 1), new Color(0.035f, 0.12f, 0.2f, 0.98f)); ApplyRounded(row);
+                SetRect(row.rectTransform, new Vector2(0.055f, top - 0.19f), new Vector2(0.945f, top), Vector2.zero, Vector2.zero);
+                challengeLabels[i] = CreateText(row.transform, "Objective", string.Empty, 23, TextAnchor.MiddleLeft, FontStyle.Bold);
+                challengeLabels[i].resizeTextForBestFit = true; challengeLabels[i].resizeTextMinSize = 14; challengeLabels[i].resizeTextMaxSize = 23;
+                SetRect(challengeLabels[i].rectTransform, new Vector2(0.05f, 0.49f), new Vector2(0.73f, 0.93f), Vector2.zero, Vector2.zero);
+                challengeProgressTexts[i] = CreateText(row.transform, "Progress", string.Empty, 18, TextAnchor.MiddleLeft, FontStyle.Bold); challengeProgressTexts[i].color = new Color(0.55f, 0.8f, 0.94f);
+                SetRect(challengeProgressTexts[i].rectTransform, new Vector2(0.05f, 0.16f), new Vector2(0.59f, 0.47f), Vector2.zero, Vector2.zero);
+                Image track = CreateImage(row.transform, "Track", new Color(0.01f, 0.04f, 0.08f, 0.9f)); ApplyRounded(track);
+                SetRect(track.rectTransform, new Vector2(0.05f, 0.08f), new Vector2(0.58f, 0.15f), Vector2.zero, Vector2.zero);
+                challengeFills[i] = CreateImage(track.transform, "Fill", new Color(0.2f, 0.9f, 1f)); ApplyRounded(challengeFills[i]);
+                SetRect(challengeFills[i].rectTransform, Vector2.zero, new Vector2(0f, 1f), Vector2.zero, Vector2.zero);
+                GameObject claim = CreateButton(row.transform, "Claim", string.Empty, new Color(0.08f, 0.38f, 0.48f), () => ClaimChallenge(slot));
+                SetRect(claim.GetComponent<RectTransform>(), new Vector2(0.63f, 0.19f), new Vector2(0.95f, 0.78f), Vector2.zero, Vector2.zero);
+                challengeButtons[i] = claim.GetComponent<Button>(); challengeButtonLabels[i] = claim.transform.Find("Label").GetComponent<Text>();
+                challengeButtonLabels[i].fontSize = 18; challengeButtonLabels[i].resizeTextForBestFit = true; challengeButtonLabels[i].resizeTextMinSize = 11;
+            }
+            GameObject close = CreateButton(card.transform, "Close", "FERMER", new Color(0.12f, 0.48f, 0.58f), ToggleMissions);
+            SetRect(close.GetComponent<RectTransform>(), new Vector2(0.3f, 0.025f), new Vector2(0.7f, 0.095f), Vector2.zero, Vector2.zero);
+            return panel;
+        }
+
+        private void RefreshMission() => RefreshMissions();
+        private void RefreshMissions()
+        {
+            missionCurrencyText.text = MetaProgression.Materials + "  MATÉRIAUX";
+            for (int i = 0; i < 3; i++)
+            {
+                ChallengeDefinition c = MetaProgression.Challenge(MetaProgression.ActiveChallengeId(i)); int progress = Mathf.Min(MetaProgression.ChallengeProgress(i), c.Target);
+                bool complete = progress >= c.Target; bool claimed = MetaProgression.ChallengeClaimed(i);
+                challengeLabels[i].text = c.Label; challengeProgressTexts[i].text = progress + " / " + c.Target + "     +" + c.Reward + " MAT";
+                challengeFills[i].rectTransform.anchorMax = new Vector2(progress / (float)c.Target, 1f); challengeFills[i].color = complete ? new Color(1f, 0.72f, 0.24f) : new Color(0.2f, 0.9f, 1f);
+                challengeButtons[i].interactable = complete && !claimed; challengeButtonLabels[i].text = claimed ? "TERMINÉ" : complete ? "RÉCUPÉRER" : "EN COURS";
+            }
+        }
+        private void ClaimChallenge(int slot)
+        {
+            if (!MetaProgression.Claim(slot)) return;
+            hudFeedback?.ChallengeRewardClaimed();
+            StartCoroutine(PulseRewardBalance());
+            RefreshMissions();
+        }
+
+        private IEnumerator PulseRewardBalance()
+        {
+            float elapsed = 0f;
+            while (elapsed < 0.42f)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float t = Mathf.Clamp01(elapsed / 0.42f);
+                float scale = 1f + Mathf.Sin(t * Mathf.PI) * 0.24f;
+                if (missionCurrencyText != null) missionCurrencyText.transform.localScale = Vector3.one * scale;
+                yield return null;
+            }
+            if (missionCurrencyText != null) missionCurrencyText.transform.localScale = Vector3.one;
+        }
+
+        private GameObject CreateHangarPanel(Transform safe)
+        {
+            var panel = new GameObject("Hangar Panel", typeof(RectTransform), typeof(Image)); panel.transform.SetParent(safe, false);
+            SetRect(panel.GetComponent<RectTransform>(), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero); panel.GetComponent<Image>().color = new Color(0.008f, 0.02f, 0.055f, 0.94f);
+            Image card = CreateImage(panel.transform, "Hangar Card", new Color(0.025f, 0.075f, 0.14f, 0.99f)); ApplyRounded(card);
+            SetRect(card.rectTransform, new Vector2(0.045f, 0.08f), new Vector2(0.955f, 0.92f), Vector2.zero, Vector2.zero);
+            Text title = CreateText(card.transform, "Title", "HANGAR", 45, TextAnchor.MiddleLeft, FontStyle.Bold); title.color = new Color(0.76f, 0.98f, 1f);
+            SetRect(title.rectTransform, new Vector2(0.06f, 0.9f), new Vector2(0.5f, 0.98f), Vector2.zero, Vector2.zero);
+            hangarCurrencyText = CreateText(card.transform, "Balance", string.Empty, 24, TextAnchor.MiddleRight, FontStyle.Bold); hangarCurrencyText.color = new Color(1f, 0.72f, 0.24f);
+            SetRect(hangarCurrencyText.rectTransform, new Vector2(0.5f, 0.9f), new Vector2(0.94f, 0.98f), Vector2.zero, Vector2.zero);
+            string[] tabs = { "FUSÉES", "FEUX", "PLANÈTES", "FONDS" };
+            for (int i = 0; i < 4; i++) { int tab=i; GameObject b=CreateButton(card.transform,"Tab "+i,tabs[i],new Color(0.045f,0.14f,0.22f),()=>SelectHangarCategory((CosmeticKind)tab)); hangarTabImages[i]=b.GetComponent<Image>(); SetRect(b.GetComponent<RectTransform>(),new Vector2(0.04f+i*0.235f,0.82f),new Vector2(0.255f+i*0.235f,0.89f),Vector2.zero,Vector2.zero); b.transform.Find("Label").GetComponent<Text>().fontSize=17; }
+            Image previewPlate = CreateImage(card.transform, "Preview Plate", new Color(0.01f, 0.04f, 0.085f, 0.96f)); ApplyRounded(previewPlate);
+            SetRect(previewPlate.rectTransform, new Vector2(0.07f, 0.49f), new Vector2(0.93f, 0.8f), Vector2.zero, Vector2.zero);
+            hangarPreview = CreateImage(previewPlate.transform, "Preview", Color.white); hangarPreview.preserveAspect=true; hangarPreview.raycastTarget=false;
+            SetRect(hangarPreview.rectTransform,new Vector2(0.31f,0.12f),new Vector2(0.69f,0.88f),Vector2.zero,Vector2.zero);
+            hangarItemName=CreateText(previewPlate.transform,"Item Name",string.Empty,27,TextAnchor.LowerLeft,FontStyle.Bold); SetRect(hangarItemName.rectTransform,new Vector2(0.04f,0.05f),new Vector2(0.47f,0.3f),Vector2.zero,Vector2.zero);
+            hangarItemPrice=CreateText(previewPlate.transform,"Price",string.Empty,22,TextAnchor.LowerRight,FontStyle.Bold); hangarItemPrice.color=new Color(1f,0.72f,0.24f); SetRect(hangarItemPrice.rectTransform,new Vector2(0.53f,0.05f),new Vector2(0.96f,0.3f),Vector2.zero,Vector2.zero);
+            for(int i=0;i<4;i++){int slot=i; GameObject b=CreateButton(card.transform,"Cosmetic "+i,string.Empty,new Color(0.04f,0.13f,0.21f),()=>SelectCosmeticCard(slot)); cosmeticCards[i]=b.GetComponent<Button>(); SetRect(b.GetComponent<RectTransform>(),new Vector2(0.05f+i*0.235f,0.32f),new Vector2(0.255f+i*0.235f,0.47f),Vector2.zero,Vector2.zero); cosmeticCardPreviews[i]=CreateImage(b.transform,"Preview",Color.white); cosmeticCardPreviews[i].preserveAspect=true; cosmeticCardPreviews[i].raycastTarget=false; SetRect(cosmeticCardPreviews[i].rectTransform,new Vector2(0.2f,0.37f),new Vector2(0.8f,0.92f),Vector2.zero,Vector2.zero); cosmeticCardLabels[i]=b.transform.Find("Label").GetComponent<Text>(); cosmeticCardLabels[i].fontSize=14; cosmeticCardLabels[i].alignment=TextAnchor.LowerCenter; }
+            GameObject prev=CreateButton(card.transform,"Previous","‹",new Color(0.08f,0.3f,0.4f),()=>ChangeHangarPage(-1)); SetRect(prev.GetComponent<RectTransform>(),new Vector2(0.05f,0.22f),new Vector2(0.18f,0.29f),Vector2.zero,Vector2.zero);
+            GameObject next=CreateButton(card.transform,"Next","›",new Color(0.08f,0.3f,0.4f),()=>ChangeHangarPage(1)); SetRect(next.GetComponent<RectTransform>(),new Vector2(0.82f,0.22f),new Vector2(0.95f,0.29f),Vector2.zero,Vector2.zero);
+            hangarStatus=CreateText(card.transform,"Status",string.Empty,18,TextAnchor.MiddleCenter,FontStyle.Bold); hangarStatus.color=new Color(0.55f,0.8f,0.94f); SetRect(hangarStatus.rectTransform,new Vector2(0.18f,0.22f),new Vector2(0.82f,0.29f),Vector2.zero,Vector2.zero);
+            GameObject action=CreateButton(card.transform,"Action",string.Empty,new Color(0.12f,0.48f,0.58f),BuyOrEquipSelected); hangarActionButton=action.GetComponent<Button>(); hangarActionLabel=action.transform.Find("Label").GetComponent<Text>(); SetRect(action.GetComponent<RectTransform>(),new Vector2(0.21f,0.12f),new Vector2(0.79f,0.2f),Vector2.zero,Vector2.zero);
+            GameObject close=CreateButton(card.transform,"Close","FERMER",new Color(0.06f,0.2f,0.3f),ToggleHangar); SetRect(close.GetComponent<RectTransform>(),new Vector2(0.31f,0.035f),new Vector2(0.69f,0.1f),Vector2.zero,Vector2.zero);
+            return panel;
+        }
+
+        private System.Collections.Generic.List<CosmeticDefinition> CurrentCosmetics(){var list=new System.Collections.Generic.List<CosmeticDefinition>();foreach(var item in MetaProgression.Catalog)if(item.Kind==hangarCategory)list.Add(item);return list;}
+        private void SelectHangarCategory(CosmeticKind kind){hangarCategory=kind;hangarPage=0;selectedCosmeticIndex=0;RefreshHangar(string.Empty);}
+        private void ChangeHangarPage(int delta){var list=CurrentCosmetics();int pages=Mathf.Max(1,Mathf.CeilToInt(list.Count/4f));hangarPage=(hangarPage+delta+pages)%pages;selectedCosmeticIndex=hangarPage*4;RefreshHangar(string.Empty);}
+        private void SelectCosmeticCard(int slot){selectedCosmeticIndex=hangarPage*4+slot;RefreshHangar(string.Empty);}
+        private void BuyOrEquipSelected(){var list=CurrentCosmetics();if(selectedCosmeticIndex<0||selectedCosmeticIndex>=list.Count)return;var item=list[selectedCosmeticIndex];if(!MetaProgression.BuyOrEquip(item)){RefreshHangar("MATÉRIAUX INSUFFISANTS");return;}CosmeticsChanged?.Invoke();RefreshHangar(item.Name+" ÉQUIPÉ");}
+        private void RefreshHangar(string message)
+        {
+            var list=CurrentCosmetics();if(list.Count==0)return;selectedCosmeticIndex=Mathf.Clamp(selectedCosmeticIndex,0,list.Count-1);var selected=list[selectedCosmeticIndex];hangarCurrencyText.text=MetaProgression.Materials+"  MATÉRIAUX";
+            for(int i=0;i<4;i++){int index=hangarPage*4+i;bool visible=index<list.Count;cosmeticCards[i].gameObject.SetActive(visible);if(!visible)continue;var item=list[index];cosmeticCardLabels[i].text=item.Name;cosmeticCardPreviews[i].sprite=CosmeticPreview(item);cosmeticCardPreviews[i].color=CosmeticColor(item);cosmeticCards[i].GetComponent<Image>().color=index==selectedCosmeticIndex?new Color(0.08f,0.4f,0.5f):new Color(0.04f,0.13f,0.21f);}
+            for(int i=0;i<4;i++)hangarTabImages[i].color=i==(int)hangarCategory?new Color(0.1f,0.43f,0.54f):new Color(0.045f,0.14f,0.22f);
+            hangarPreview.sprite=CosmeticPreview(selected);hangarPreview.color=CosmeticColor(selected);hangarItemName.text=selected.Name;bool owned=MetaProgression.Owned(selected);bool equipped=MetaProgression.Selected(selected.Kind)==selected.VisualIndex;hangarItemPrice.text=owned?"ACQUIS":selected.Price+" MAT";hangarActionLabel.text=equipped?"ÉQUIPÉ":owned?"ÉQUIPER":"ACHETER · "+selected.Price;hangarActionButton.interactable=!equipped;hangarStatus.text=string.IsNullOrEmpty(message)?"PAGE "+(hangarPage+1)+" / "+Mathf.Max(1,Mathf.CeilToInt(list.Count/4f)):message;
+        }
+        private static Sprite CosmeticPreview(CosmeticDefinition item){return item.Kind==CosmeticKind.Rocket?RuntimeAssets.GetRocketSprite(item.VisualIndex):item.Kind==CosmeticKind.PlanetPack?RuntimeAssets.GetPlanetPackSprite(item.VisualIndex,item.VisualIndex*7+1):item.Kind==CosmeticKind.Background?RuntimeAssets.GetBackgroundSprite(item.VisualIndex):RuntimeAssets.CircleSprite;}
+        private static Color CosmeticColor(CosmeticDefinition item){return item.Kind==CosmeticKind.Trail?GameProgression.TrailColor(item.VisualIndex):Color.white;}
 
         private GameObject CreateCreditsPanel(Transform safe)
         {
@@ -1143,6 +1390,9 @@ namespace OrbitBreaker
         private AudioClip deathClip;
         private AudioClip skipClip;
         private AudioClip nearMissClip;
+        private AudioClip materialClip;
+        private AudioClip challengeCompleteClip;
+        private AudioClip challengeRewardClip;
 
         public float MasterVolume { get; private set; }
         public float MusicVolume { get; private set; }
@@ -1169,6 +1419,9 @@ namespace OrbitBreaker
             deathClip = RuntimeAssets.CreateTone("Break", 115f, 0.32f, 0.44f);
             skipClip = RuntimeAssets.CreateSkipStinger();
             nearMissClip = RuntimeAssets.CreateTone("Near Miss", 1120f, 0.11f, 0.3f);
+            materialClip = RuntimeAssets.CreateTone("Material", 1320f, 0.13f, 0.32f);
+            challengeCompleteClip = RuntimeAssets.CreateTone("Challenge Complete", 940f, 0.2f, 0.3f);
+            challengeRewardClip = RuntimeAssets.CreateSkipStinger();
             MasterVolume = PlayerPrefs.GetFloat(MasterVolumeKey, 0.85f);
             MusicVolume = PlayerPrefs.GetFloat(MusicVolumeKey, 0.55f);
             EffectsVolume = PlayerPrefs.GetFloat(EffectsVolumeKey, 0.8f);
@@ -1254,6 +1507,31 @@ namespace OrbitBreaker
             audioSource.pitch = 1f;
             TriggerHaptic(18L, 55);
             StartCoroutine(Pulse(position, new Color(1f, 0.7f, 0.2f, 0.9f), 0.24f, 0.85f));
+        }
+
+        public void Material(Vector2 position, int value)
+        {
+            audioSource.pitch = value >= 7 ? 1.35f : value >= 3 ? 1.16f : 1f;
+            audioSource.PlayOneShot(materialClip);
+            audioSource.pitch = 1f;
+            TriggerHaptic(value >= 7 ? 45L : 20L, value >= 7 ? 120 : 52);
+            StartCoroutine(Pulse(position, value >= 7 ? new Color(1f, 0.72f, 0.2f, 0.95f) : new Color(0.25f, 0.95f, 1f, 0.9f), 0.24f, value >= 7 ? 1.25f : 0.8f));
+        }
+
+        public void ChallengeCompleted()
+        {
+            audioSource.pitch = 1.08f;
+            audioSource.PlayOneShot(challengeCompleteClip, 0.7f);
+            audioSource.pitch = 1f;
+            TriggerHaptic(28L, 70);
+        }
+
+        public void ChallengeRewardClaimed()
+        {
+            audioSource.pitch = 1.22f;
+            audioSource.PlayOneShot(challengeRewardClip, 0.78f);
+            audioSource.pitch = 1f;
+            TriggerHaptic(48L, 120);
         }
 
         public void Death(Vector2 position, DeathReason reason)

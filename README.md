@@ -106,6 +106,14 @@ Les tests couvrent notamment :
 - la phase d'apprentissage sans danger ;
 - les patterns déterministes des dangers.
 
+## Progression et hangar
+
+- Des cristaux de matÃ©riaux de trois tailles apparaissent entre les orbites ; leur taille dÃ©termine une valeur de 1, 3 ou 7.
+- Le portefeuille, les achats et les Ã©quipements sont sauvegardÃ©s localement avec `PlayerPrefs`.
+- Le hangar contient 10 fusÃ©es, 4 propulsions, 3 packs de planÃ¨tes et 3 fonds spatiaux.
+- Le catalogue comprend 100 dÃ©fis. Trois sont actifs Ã  la fois ; lorsque les trois rÃ©compenses sont rÃ©cupÃ©rÃ©es, un nouveau trio distinct remplace le prÃ©cÃ©dent.
+- `MetaProgression.cs` centralise l'Ã©conomie, le catalogue cosmÃ©tique et les dÃ©fis.
+
 ## Build Android
 
 Dans Unity :

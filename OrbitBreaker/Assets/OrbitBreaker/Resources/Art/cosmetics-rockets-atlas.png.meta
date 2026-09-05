@@ -1,0 +1,481 @@
+fileFormatVersion: 2
+guid: a218f8961d0d71d4eb738be75ecda610
+TextureImporter:
+  internalIDToNameTable:
+  - first:
+      213: 5959401185481136683
+    second: cosmetics-rockets-atlas_0
+  - first:
+      213: -2365754872231054134
+    second: cosmetics-rockets-atlas_1
+  - first:
+      213: 7659651797942849954
+    second: cosmetics-rockets-atlas_2
+  - first:
+      213: 2694991537991917187
+    second: cosmetics-rockets-atlas_3
+  - first:
+      213: 9154684574238092029
+    second: cosmetics-rockets-atlas_4
+  - first:
+      213: -5006873030947297854
+    second: cosmetics-rockets-atlas_5
+  - first:
+      213: -3027453475644241518
+    second: cosmetics-rockets-atlas_6
+  - first:
+      213: 6176871952158185395
+    second: cosmetics-rockets-atlas_7
+  - first:
+      213: 8003713567237600761
+    second: cosmetics-rockets-atlas_8
+  - first:
+      213: 2276683976224495138
+    second: cosmetics-rockets-atlas_9
+  - first:
+      213: -4031382595200972885
+    second: cosmetics-rockets-atlas_10
+  - first:
+      213: -693995785556404434
+    second: cosmetics-rockets-atlas_11
+  - first:
+      213: -6232186218735754875
+    second: cosmetics-rockets-atlas_12
+  externalObjects: {}
+  serializedVersion: 13
+  mipmaps:
+    mipMapMode: 0
+    enableMipMap: 0
+    sRGBTexture: 1
+    linearTexture: 0
+    fadeOut: 0
+    borderMipMap: 0
+    mipMapsPreserveCoverage: 0
+    alphaTestReferenceValue: 0.5
+    mipMapFadeDistanceStart: 1
+    mipMapFadeDistanceEnd: 3
+  bumpmap:
+    convertToNormalMap: 0
+    externalNormalMap: 0
+    heightScale: 0.25
+    normalMapFilter: 0
+    flipGreenChannel: 0
+  isReadable: 0
+  streamingMipmaps: 0
+  streamingMipmapsPriority: 0
+  vTOnly: 0
+  ignoreMipmapLimit: 0
+  grayScaleToAlpha: 0
+  generateCubemap: 6
+  cubemapConvolution: 0
+  seamlessCubemap: 0
+  textureFormat: 1
+  maxTextureSize: 2048
+  textureSettings:
+    serializedVersion: 2
+    filterMode: 1
+    aniso: 1
+    mipBias: 0
+    wrapU: 1
+    wrapV: 1
+    wrapW: 1
+  nPOTScale: 0
+  lightmap: 0
+  compressionQuality: 50
+  spriteMode: 2
+  spriteExtrude: 1
+  spriteMeshType: 1
+  alignment: 0
+  spritePivot: {x: 0.5, y: 0.5}
+  spritePixelsToUnits: 100
+  spriteBorder: {x: 0, y: 0, z: 0, w: 0}
+  spriteGenerateFallbackPhysicsShape: 1
+  alphaUsage: 1
+  alphaIsTransparency: 1
+  spriteTessellationDetail: -1
+  textureType: 8
+  textureShape: 1
+  singleChannelComponent: 0
+  flipbookRows: 1
+  flipbookColumns: 1
+  maxTextureSizeSet: 0
+  compressionQualitySet: 0
+  textureFormatSet: 0
+  ignorePngGamma: 0
+  applyGammaDecoding: 0
+  swizzle: 50462976
+  cookieLightType: 0
+  platformSettings:
+  - serializedVersion: 4
+    buildTarget: DefaultTexturePlatform
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: Standalone
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: Android
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: WebGL
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  spriteSheet:
+    serializedVersion: 2
+    sprites:
+    - serializedVersion: 2
+      name: cosmetics-rockets-atlas_0
+      rect:
+        serializedVersion: 2
+        x: 45
+        y: 519
+        width: 238
+        height: 452
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: b2a15aecdcb04b250800000000000000
+      internalID: 5959401185481136683
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: cosmetics-rockets-atlas_1
+      rect:
+        serializedVersion: 2
+        x: 292
+        y: 517
+        width: 313
+        height: 477
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: ac4b40f5a762b2fd0800000000000000
+      internalID: -2365754872231054134
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: cosmetics-rockets-atlas_2
+      rect:
+        serializedVersion: 2
+        x: 622
+        y: 547
+        width: 311
+        height: 414
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 2a1d0974abc8c4a60800000000000000
+      internalID: 7659651797942849954
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: cosmetics-rockets-atlas_3
+      rect:
+        serializedVersion: 2
+        x: 966
+        y: 511
+        width: 237
+        height: 427
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 38e11be6688866520800000000000000
+      internalID: 2694991537991917187
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: cosmetics-rockets-atlas_4
+      rect:
+        serializedVersion: 2
+        x: 1240
+        y: 525
+        width: 283
+        height: 420
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: dfaa53edd19fb0f70800000000000000
+      internalID: 9154684574238092029
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: cosmetics-rockets-atlas_5
+      rect:
+        serializedVersion: 2
+        x: 13
+        y: 0
+        width: 294
+        height: 514
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 2c527e28183048ab0800000000000000
+      internalID: -5006873030947297854
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: cosmetics-rockets-atlas_6
+      rect:
+        serializedVersion: 2
+        x: 312
+        y: 29
+        width: 275
+        height: 460
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 2990432aa135cf5d0800000000000000
+      internalID: -3027453475644241518
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: cosmetics-rockets-atlas_7
+      rect:
+        serializedVersion: 2
+        x: 576
+        y: 69
+        width: 11
+        height: 13
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 3b756736058a8b550800000000000000
+      internalID: 6176871952158185395
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: cosmetics-rockets-atlas_8
+      rect:
+        serializedVersion: 2
+        x: 600
+        y: 22
+        width: 330
+        height: 465
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 9f5fb2b7517e21f60800000000000000
+      internalID: 8003713567237600761
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: cosmetics-rockets-atlas_9
+      rect:
+        serializedVersion: 2
+        x: 923
+        y: 49
+        width: 311
+        height: 431
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 2265fa49308689f10800000000000000
+      internalID: 2276683976224495138
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: cosmetics-rockets-atlas_10
+      rect:
+        serializedVersion: 2
+        x: 1228
+        y: 18
+        width: 297
+        height: 496
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: ba78a5b83e6ad08c0800000000000000
+      internalID: -4031382595200972885
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: cosmetics-rockets-atlas_11
+      rect:
+        serializedVersion: 2
+        x: 574
+        y: 35
+        width: 25
+        height: 15
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: e27da4e828e6e56f0800000000000000
+      internalID: -693995785556404434
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: cosmetics-rockets-atlas_12
+      rect:
+        serializedVersion: 2
+        x: 38
+        y: 13
+        width: 13
+        height: 13
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 581ab2257a3d289a0800000000000000
+      internalID: -6232186218735754875
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    outline: []
+    customData: 
+    physicsShape: []
+    bones: []
+    spriteID: 
+    internalID: 0
+    vertices: []
+    indices: 
+    edges: []
+    weights: []
+    secondaryTextures: []
+    spriteCustomMetadata:
+      entries: []
+    nameFileIdTable:
+      cosmetics-rockets-atlas_0: 5959401185481136683
+      cosmetics-rockets-atlas_1: -2365754872231054134
+      cosmetics-rockets-atlas_10: -4031382595200972885
+      cosmetics-rockets-atlas_11: -693995785556404434
+      cosmetics-rockets-atlas_12: -6232186218735754875
+      cosmetics-rockets-atlas_2: 7659651797942849954
+      cosmetics-rockets-atlas_3: 2694991537991917187
+      cosmetics-rockets-atlas_4: 9154684574238092029
+      cosmetics-rockets-atlas_5: -5006873030947297854
+      cosmetics-rockets-atlas_6: -3027453475644241518
+      cosmetics-rockets-atlas_7: 6176871952158185395
+      cosmetics-rockets-atlas_8: 8003713567237600761
+      cosmetics-rockets-atlas_9: 2276683976224495138
+  mipmapLimitGroupName: 
+  pSDRemoveMatte: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

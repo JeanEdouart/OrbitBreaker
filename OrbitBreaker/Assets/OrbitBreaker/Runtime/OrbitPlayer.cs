@@ -81,6 +81,7 @@ namespace OrbitBreaker
         public event Action<CaptureResult> Captured;
         public event Action<DeathReason> Died;
         public event Action<NearMissResult> NearMissed;
+        public event Action<int, Vector2> MaterialCollected;
 
         public void Initialize()
         {
@@ -109,7 +110,7 @@ namespace OrbitBreaker
             fuelFill.enabled = true;
             SetEngine(false);
             SetFuel(1f);
-            ApplyStyle(GameProgression.SelectedStyle);
+            ApplyCosmetics();
             Capture(anchor);
         }
 
@@ -141,11 +142,11 @@ namespace OrbitBreaker
             SetEngine(true);
             SetShield(false);
             launchJuice = 0.16f;
-            ApplyStyle(GameProgression.SelectedStyle);
+            ApplyCosmetics();
             return true;
         }
 
-        public void Tick(float deltaTime, IReadOnlyList<OrbitAnchor> anchors, IReadOnlyList<OrbitHazard> hazards, IReadOnlyList<FreeDebris> freeDebris, float cameraY)
+        public void Tick(float deltaTime, IReadOnlyList<OrbitAnchor> anchors, IReadOnlyList<OrbitHazard> hazards, IReadOnlyList<FreeDebris> freeDebris, IReadOnlyList<MaterialPickup> materials, float cameraY)
         {
             if (State == PlayerOrbitState.Dead) return;
 
@@ -161,6 +162,7 @@ namespace OrbitBreaker
 
             UpdateShield();
             UpdateMotionJuice(deltaTime);
+            CheckMaterials(materials);
 
             if (CheckHazards(hazards, freeDebris))
             {
@@ -169,6 +171,19 @@ namespace OrbitBreaker
             else if (transform.position.y < cameraY - GameTuning.DeathDistanceBelowCamera || Mathf.Abs(transform.position.x) > GameTuning.HorizontalLimit)
             {
                 Die(DeathReason.LostInSpace);
+            }
+        }
+
+        private void CheckMaterials(IReadOnlyList<MaterialPickup> materials)
+        {
+            for (int i = 0; i < materials.Count; i++)
+            {
+                MaterialPickup pickup = materials[i];
+                if (!pickup.gameObject.activeInHierarchy) continue;
+                if (Vector2.Distance(transform.position, pickup.transform.position) > pickup.Radius + GameTuning.PlayerCollisionRadius) continue;
+                Vector2 position = pickup.transform.position;
+                int value = pickup.Value;
+                if (pickup.Collect()) MaterialCollected?.Invoke(value, position);
             }
         }
 
@@ -419,6 +434,12 @@ namespace OrbitBreaker
             }
             if (outerFlame != null) outerFlame.color = new Color(accent.r, accent.g, accent.b, 0.94f);
             if (body != null && State != PlayerOrbitState.Dead) body.color = Color.Lerp(Color.white, accent, 0.13f);
+        }
+
+        public void ApplyCosmetics()
+        {
+            if (body != null) body.sprite = RuntimeAssets.GetRocketSprite(MetaProgression.Selected(CosmeticKind.Rocket));
+            ApplyStyle(MetaProgression.Selected(CosmeticKind.Trail));
         }
 
         private void UpdateMotionJuice(float deltaTime)

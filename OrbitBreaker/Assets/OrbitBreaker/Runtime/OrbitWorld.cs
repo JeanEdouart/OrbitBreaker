@@ -75,6 +75,11 @@ namespace OrbitBreaker
             SetCurrent(IsCurrent);
         }
 
+        public void RefreshCosmetic()
+        {
+            if (core != null) core.sprite = RuntimeAssets.GetPlanetSprite(Sequence);
+        }
+
         private void Update()
         {
             if (ring == null) return;
@@ -301,14 +306,71 @@ namespace OrbitBreaker
         }
     }
 
+    public sealed class MaterialPickup : MonoBehaviour
+    {
+        private SpriteRenderer glow;
+        private SpriteRenderer crystal;
+        private float phase;
+        public int Sequence { get; private set; }
+        public int Value { get; private set; }
+        public float Radius { get; private set; }
+
+        public void Initialize(int sequence, Vector2 position, int value)
+        {
+            Sequence = sequence;
+            Value = value;
+            Radius = value >= 7 ? 0.3f : value >= 3 ? 0.23f : 0.17f;
+            phase = sequence * 0.73f + value;
+            gameObject.name = "Material " + value + " (" + sequence + ")";
+            gameObject.SetActive(true);
+            transform.position = position;
+            EnsureVisuals();
+            float scale = value >= 7 ? 0.44f : value >= 3 ? 0.34f : 0.26f;
+            transform.localScale = Vector3.one * scale;
+            crystal.color = value >= 7 ? new Color(1f, 0.66f, 0.18f) : value >= 3 ? new Color(0.68f, 0.3f, 1f) : new Color(0.2f, 0.95f, 1f);
+            glow.color = new Color(crystal.color.r, crystal.color.g, crystal.color.b, 0.11f);
+        }
+
+        public bool Collect()
+        {
+            if (!gameObject.activeSelf) return false;
+            gameObject.SetActive(false);
+            return true;
+        }
+
+        private void Update()
+        {
+            transform.Rotate(0f, 0f, 72f * Time.deltaTime);
+            glow.transform.localScale = Vector3.one * (1.3f + Mathf.Sin(Time.unscaledTime * 4f + phase) * 0.1f);
+        }
+
+        private void EnsureVisuals()
+        {
+            if (crystal != null) return;
+            var halo = new GameObject("Halo");
+            halo.transform.SetParent(transform, false);
+            glow = halo.AddComponent<SpriteRenderer>();
+            glow.sprite = RuntimeAssets.CircleSprite;
+            glow.sortingOrder = 7;
+            var core = new GameObject("Crystal");
+            core.transform.SetParent(transform, false);
+            core.transform.localRotation = Quaternion.Euler(0f, 0f, 45f);
+            crystal = core.AddComponent<SpriteRenderer>();
+            crystal.sprite = RuntimeAssets.MaterialCrystalSprite;
+            crystal.sortingOrder = 8;
+        }
+    }
+
     public sealed class OrbitWorld : MonoBehaviour
     {
         private readonly List<OrbitAnchor> anchors = new List<OrbitAnchor>();
         private readonly List<OrbitHazard> hazards = new List<OrbitHazard>();
         private readonly List<FreeDebris> freeDebris = new List<FreeDebris>();
+        private readonly List<MaterialPickup> materials = new List<MaterialPickup>();
         private readonly Queue<OrbitAnchor> anchorPool = new Queue<OrbitAnchor>();
         private readonly Queue<OrbitHazard> hazardPool = new Queue<OrbitHazard>();
         private readonly Queue<FreeDebris> freeDebrisPool = new Queue<FreeDebris>();
+        private readonly Queue<MaterialPickup> materialPool = new Queue<MaterialPickup>();
         private Transform activeRoot;
         private Transform poolRoot;
         private System.Random random;
@@ -319,6 +381,12 @@ namespace OrbitBreaker
         public IReadOnlyList<OrbitAnchor> Anchors => anchors;
         public IReadOnlyList<OrbitHazard> Hazards => hazards;
         public IReadOnlyList<FreeDebris> FreeDebris => freeDebris;
+        public IReadOnlyList<MaterialPickup> Materials => materials;
+
+        public void RefreshCosmetics()
+        {
+            for (int i = 0; i < anchors.Count; i++) anchors[i].RefreshCosmetic();
+        }
 
         public OrbitAnchor ResetWorld()
         {
@@ -326,9 +394,11 @@ namespace OrbitBreaker
             foreach (OrbitAnchor anchor in anchors) Recycle(anchor);
             foreach (OrbitHazard hazard in hazards) Recycle(hazard);
             foreach (FreeDebris debris in freeDebris) Recycle(debris);
+            foreach (MaterialPickup material in materials) Recycle(material);
             anchors.Clear();
             hazards.Clear();
             freeDebris.Clear();
+            materials.Clear();
             random = new System.Random(Environment.TickCount);
             nextSequence = 0;
             lastPosition = new Vector2(0f, GameTuning.StartingHeight);
@@ -375,11 +445,21 @@ namespace OrbitBreaker
                     Recycle(debris);
                 }
             }
+            for (int i = materials.Count - 1; i >= 0; i--)
+            {
+                MaterialPickup material = materials[i];
+                if (material.Sequence < currentSequence - GameTuning.BackwardOrbitRetention && material.transform.position.y < cameraY - 18f)
+                {
+                    materials.RemoveAt(i);
+                    Recycle(material);
+                }
+            }
         }
 
         private void GenerateNext()
         {
             int score = nextSequence;
+            OrbitAnchor previousAnchor = lastAnchor;
             Vector2 candidatePosition = default;
             float candidateRadius = 1.2f;
             int candidateDirection = 1;
@@ -450,6 +530,17 @@ namespace OrbitBreaker
             lastPosition = candidatePosition;
             OrbitAnchor anchor = SpawnAnchor(candidatePosition, candidateRadius, candidateDirection, synchronizationAngle);
             lastAnchor = anchor;
+
+            if (score >= 2 && NextFloat() < 0.7f)
+            {
+                Vector2 route = (Vector2)anchor.transform.position - (Vector2)previousAnchor.transform.position;
+                Vector2 side = route.sqrMagnitude > 0.01f ? new Vector2(-route.y, route.x).normalized : Vector2.right;
+                float offset = Mathf.Lerp(-0.48f, 0.48f, NextFloat());
+                Vector2 position = Vector2.Lerp(previousAnchor.transform.position, anchor.transform.position, Mathf.Lerp(0.4f, 0.6f, NextFloat())) + side * offset;
+                float roll = NextFloat();
+                int value = roll < 0.68f ? 1 : roll < 0.94f ? 3 : 7;
+                materials.Add(GetMaterial(score, position, value));
+            }
 
             if (!GameTuning.IsBreatherOrbit(score) && GameTuning.HasHazard(score) && GameTuning.CanAddHazardToLayout(reachableSamples, score))
             {
@@ -562,6 +653,14 @@ namespace OrbitBreaker
             return debris;
         }
 
+        private MaterialPickup GetMaterial(int sequence, Vector2 position, int value)
+        {
+            MaterialPickup pickup = materialPool.Count > 0 ? materialPool.Dequeue() : new GameObject().AddComponent<MaterialPickup>();
+            pickup.transform.SetParent(activeRoot, true);
+            pickup.Initialize(sequence, position, value);
+            return pickup;
+        }
+
         private void Recycle(OrbitAnchor anchor)
         {
             anchor.SetCurrent(false);
@@ -582,6 +681,13 @@ namespace OrbitBreaker
             debris.gameObject.SetActive(false);
             debris.transform.SetParent(poolRoot, false);
             freeDebrisPool.Enqueue(debris);
+        }
+
+        private void Recycle(MaterialPickup material)
+        {
+            material.gameObject.SetActive(false);
+            material.transform.SetParent(poolRoot, false);
+            materialPool.Enqueue(material);
         }
 
         private void EnsureRoots()

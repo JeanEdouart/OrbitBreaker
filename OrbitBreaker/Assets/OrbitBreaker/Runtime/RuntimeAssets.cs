@@ -19,6 +19,10 @@ namespace OrbitBreaker
         private static Sprite[] planetSprites;
         private static Sprite[] debrisSprites;
         private static Sprite spaceBackgroundSprite;
+        private static Sprite[] cosmeticRockets;
+        private static Sprite[] cosmeticPlanets;
+        private static Sprite[] cosmeticBackgrounds;
+        private static Sprite materialCrystalSprite;
 
         public static Sprite CircleSprite
         {
@@ -177,6 +181,26 @@ namespace OrbitBreaker
         public static Sprite RocketSprite => rocketSprite != null ? rocketSprite : rocketSprite = LoadSingleSprite("Art/rocket", "Player Rocket");
         public static Sprite SpaceBackgroundSprite => spaceBackgroundSprite != null ? spaceBackgroundSprite : spaceBackgroundSprite = LoadSingleSprite("Art/space-background", "Space Background");
 
+        public static Sprite GetRocketSprite(int index)
+        {
+            if (index <= 0) return RocketSprite;
+            if (cosmeticRockets == null) cosmeticRockets = LoadGridSprites("Art/cosmetics-rockets-atlas", 5, 2, "Rocket Cosmetic");
+            // Sprite.Create uses texture coordinates from the bottom row upward.
+            // Catalog order: interceptor, miner, retro, crystal, bio, banana, stealth, lunar, gold.
+            int[] atlasByCatalog = { 0, 6, 7, 8, 9, 0, 1, 2, 3, 4 };
+            int atlasIndex = atlasByCatalog[Mathf.Clamp(index, 0, atlasByCatalog.Length - 1)];
+            return cosmeticRockets.Length > atlasIndex ? cosmeticRockets[atlasIndex] : RocketSprite;
+        }
+
+        public static Sprite MaterialCrystalSprite => materialCrystalSprite != null ? materialCrystalSprite : materialCrystalSprite = CreateFacetedCrystal();
+
+        public static Sprite GetBackgroundSprite(int index)
+        {
+            if (index <= 0) return SpaceBackgroundSprite;
+            if (cosmeticBackgrounds == null) cosmeticBackgrounds = LoadGridSprites("Art/cosmetics-backgrounds-atlas", 2, 1, "Background Cosmetic");
+            return cosmeticBackgrounds.Length > 0 ? cosmeticBackgrounds[Mathf.Clamp(index - 1, 0, cosmeticBackgrounds.Length - 1)] : SpaceBackgroundSprite;
+        }
+
         public static Sprite FlameSprite => flameSprite != null ? flameSprite : flameSprite = CreateIcon("Engine Flame", (x, y) =>
         {
             float width = Mathf.Lerp(0.08f, 0.3f, Mathf.Clamp01(y + 0.5f));
@@ -185,6 +209,20 @@ namespace OrbitBreaker
 
         public static Sprite GetPlanetSprite(int sequence)
         {
+            return GetPlanetPackSprite(MetaProgression.Selected(CosmeticKind.PlanetPack), sequence);
+        }
+
+        public static Sprite GetPlanetPackSprite(int pack, int sequence)
+        {
+            if (pack > 0)
+            {
+                if (cosmeticPlanets == null) cosmeticPlanets = LoadGridSprites("Art/cosmetics-planets-atlas", 4, 2, "Planet Cosmetic", true);
+                if (cosmeticPlanets.Length > 0)
+                {
+                    int offset = pack == 1 ? 4 : 0;
+                    return cosmeticPlanets[offset + Mathf.Abs(sequence) % 4];
+                }
+            }
             if (planetSprites == null) planetSprites = LoadGridSprites("Art/planets-sheet", 3, 2, "Planet");
             return planetSprites.Length > 0 ? planetSprites[Mathf.Abs(sequence) % planetSprites.Length] : CircleSprite;
         }
@@ -204,7 +242,7 @@ namespace OrbitBreaker
             return sprite;
         }
 
-        private static Sprite[] LoadGridSprites(string resourcePath, int columns, int rows, string prefix)
+        private static Sprite[] LoadGridSprites(string resourcePath, int columns, int rows, string prefix, bool removeLightEdgeBackdrop = false)
         {
             Texture2D texture = Resources.Load<Texture2D>(resourcePath);
             if (texture == null) return Array.Empty<Sprite>();
@@ -217,12 +255,75 @@ namespace OrbitBreaker
                 {
                     int index = row * columns + column;
                     Rect rect = new Rect(column * cellWidth, row * cellHeight, cellWidth, cellHeight);
-                    sprites[index] = Sprite.Create(texture, rect, Vector2.one * 0.5f, cellHeight, 0, SpriteMeshType.FullRect);
+                    if (removeLightEdgeBackdrop)
+                    {
+                        int width = Mathf.RoundToInt(cellWidth); int height = Mathf.RoundToInt(cellHeight);
+                        Color32[] pixels = texture.GetPixels32(0);
+                        int originX = Mathf.RoundToInt(column * cellWidth); int originY = Mathf.RoundToInt(row * cellHeight);
+                        // Jupiter and Saturn overlap the mathematically even cell boundary.
+                        // Move that one boundary left so Jupiter cannot inherit a ring fragment
+                        // and Saturn keeps the complete left side of its rings.
+                        if (rows == 2 && columns == 4 && row == 1 && column == 3)
+                        {
+                            originX = Mathf.RoundToInt(texture.width * 0.735f);
+                            width = texture.width - originX;
+                        }
+                        var cellPixels = new Color32[width * height];
+                        for (int y = 0; y < height; y++) Array.Copy(pixels, (originY + y) * texture.width + originX, cellPixels, y * width, width);
+                        RemoveConnectedLightBackdrop(cellPixels, width, height);
+                        if (index == 6) KeepCenterConnectedSubject(cellPixels, width, height);
+                        var cellTexture = new Texture2D(width, height, TextureFormat.RGBA32, false) { name = prefix + " Texture " + index, filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
+                        cellTexture.SetPixels32(cellPixels); cellTexture.Apply(false, true);
+                        sprites[index] = Sprite.Create(cellTexture, new Rect(0f, 0f, width, height), Vector2.one * 0.5f, height, 0, SpriteMeshType.FullRect);
+                    }
+                    else sprites[index] = Sprite.Create(texture, rect, Vector2.one * 0.5f, cellHeight, 0, SpriteMeshType.FullRect);
                     sprites[index].name = prefix + " " + index;
                 }
             }
             return sprites;
         }
+
+        private static void RemoveConnectedLightBackdrop(Color32[] pixels, int width, int height)
+        {
+            var visited = new bool[pixels.Length];
+            var queue = new System.Collections.Generic.Queue<int>();
+            void Seed(int index) { if (!visited[index] && IsLightBackdrop(pixels[index])) { visited[index] = true; queue.Enqueue(index); } }
+            for (int x = 0; x < width; x++) { Seed(x); Seed((height - 1) * width + x); }
+            for (int y = 0; y < height; y++) { Seed(y * width); Seed(y * width + width - 1); }
+            while (queue.Count > 0)
+            {
+                int index = queue.Dequeue(); Color32 color = pixels[index]; color.a = 0; pixels[index] = color;
+                int x = index % width; int y = index / width;
+                if (x > 0) Seed(index - 1); if (x + 1 < width) Seed(index + 1);
+                if (y > 0) Seed(index - width); if (y + 1 < height) Seed(index + width);
+            }
+        }
+
+        private static bool IsLightBackdrop(Color32 color)
+        {
+            int maximum = Mathf.Max(color.r, Mathf.Max(color.g, color.b));
+            int minimum = Mathf.Min(color.r, Mathf.Min(color.g, color.b));
+            return minimum >= 210 && maximum - minimum <= 20;
+        }
+
+        private static void KeepCenterConnectedSubject(Color32[] pixels, int width, int height)
+        {
+            var kept = new bool[pixels.Length];
+            var queue = new System.Collections.Generic.Queue<int>();
+            int center = (height / 2) * width + width / 2;
+            if (pixels[center].a == 0) return;
+            kept[center] = true; queue.Enqueue(center);
+            void Visit(int index) { if (!kept[index] && pixels[index].a > 0) { kept[index] = true; queue.Enqueue(index); } }
+            while (queue.Count > 0)
+            {
+                int index = queue.Dequeue(); int x = index % width; int y = index / width;
+                if (x > 0) Visit(index - 1); if (x + 1 < width) Visit(index + 1);
+                if (y > 0) Visit(index - width); if (y + 1 < height) Visit(index + width);
+            }
+            for (int i = 0; i < pixels.Length; i++)
+                if (!kept[i]) { Color32 color = pixels[i]; color.a = 0; pixels[i] = color; }
+        }
+
 
         private static Sprite CreateIcon(string name, Func<float, float, bool> sample)
         {
@@ -248,6 +349,37 @@ namespace OrbitBreaker
             texture.Apply(false, true);
             Sprite sprite = Sprite.Create(texture, new Rect(0, 0, size, size), Vector2.one * 0.5f, size);
             sprite.name = name;
+            return sprite;
+        }
+
+        private static Sprite CreateFacetedCrystal()
+        {
+            const int size = 64;
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false)
+            {
+                name = "Faceted Material Crystal",
+                filterMode = FilterMode.Point,
+                wrapMode = TextureWrapMode.Clamp,
+                hideFlags = HideFlags.HideAndDontSave
+            };
+            var pixels = new Color32[size * size];
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float px = (x + 0.5f) / size - 0.5f;
+                float py = (y + 0.5f) / size - 0.5f;
+                float halfWidth = py >= 0.12f ? Mathf.Lerp(0.3f, 0.08f, Mathf.InverseLerp(0.12f, 0.48f, py))
+                    : Mathf.Lerp(0.055f, 0.3f, Mathf.InverseLerp(-0.48f, 0.12f, py));
+                if (Mathf.Abs(px) > halfWidth) { pixels[y * size + x] = Color.clear; continue; }
+                float edge = Mathf.Clamp01((halfWidth - Mathf.Abs(px)) * 24f);
+                float facet = px < -0.04f ? 0.5f : px > 0.11f ? 0.7f : 1f;
+                float band = py > 0.1f ? 1f : py > -0.15f ? 0.82f : 0.62f;
+                byte shade = (byte)Mathf.RoundToInt(255f * facet * band * Mathf.Lerp(0.72f, 1f, edge));
+                pixels[y * size + x] = new Color32(shade, shade, shade, 255);
+            }
+            texture.SetPixels32(pixels); texture.Apply(false, true);
+            Sprite sprite = Sprite.Create(texture, new Rect(0, 0, size, size), Vector2.one * 0.5f, size);
+            sprite.name = "Faceted Material Crystal";
             return sprite;
         }
 

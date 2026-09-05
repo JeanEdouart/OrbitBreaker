@@ -30,6 +30,9 @@ namespace OrbitBreaker
         private int runNearMisses;
         private int bestRunSkip;
         private float bestRunMultiplier;
+        private int runMaterials;
+        private int runSkips;
+        private readonly bool[] challengeCompletionNotified = new bool[3];
 
         private void Awake()
         {
@@ -63,8 +66,9 @@ namespace OrbitBreaker
             player.Initialize();
             feedback.Initialize();
             hud.Initialize(feedback);
-            hud.StyleSelected += HandleStyleSelected;
+            hud.CosmeticsChanged += HandleCosmeticsChanged;
             player.Captured += HandleCaptured;
+            player.MaterialCollected += HandleMaterialCollected;
             player.Died += HandleDeath;
             player.NearMissed += HandleNearMiss;
             bestScore = PlayerPrefs.GetInt(BestScoreKey, 0);
@@ -77,6 +81,14 @@ namespace OrbitBreaker
 
         private void Update()
         {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            if (Keyboard.current != null && Keyboard.current.kKey.wasPressedThisFrame)
+            {
+                MetaProgression.AddMaterials(10000);
+                hud.ShowMaterialPickup(player != null ? (Vector2)player.transform.position : Vector2.zero, 10000);
+                hud.RefreshMetaPanels();
+            }
+#endif
             if (hud.IsPaused)
             {
                 if (WasGameplayPressedThisFrame()) hud.ResumeGame();
@@ -94,9 +106,11 @@ namespace OrbitBreaker
                     feedback.Launch(player.transform.position);
                 }
 
-                player.Tick(deltaTime, world.Anchors, world.Hazards, world.FreeDebris, cameraRig.CameraY);
+                player.Tick(deltaTime, world.Anchors, world.Hazards, world.FreeDebris, world.Materials, cameraRig.CameraY);
                 hud.UpdateFlightDisplay(player.transform.position, player.FlightMultiplier, player.FlightDanger01, player.State == PlayerOrbitState.Flying);
                 feedback.UpdateCharge(player.FlightMultiplier, player.State == PlayerOrbitState.Flying);
+                bestRunMultiplier = Mathf.Max(bestRunMultiplier, player.FlightMultiplier);
+                CheckChallengeCompletions();
                 Vector2 anchorPosition = player.CurrentAnchor != null ? player.CurrentAnchor.transform.position : player.transform.position + (Vector3)player.Velocity.normalized * 2f;
                 cameraRig.SetTarget(player.transform.position, anchorPosition);
                 cameraRig.SetFlightShake(player.FlightDanger01, player.State == PlayerOrbitState.Flying);
@@ -114,7 +128,8 @@ namespace OrbitBreaker
             player.Captured -= HandleCaptured;
             player.Died -= HandleDeath;
             player.NearMissed -= HandleNearMiss;
-            hud.StyleSelected -= HandleStyleSelected;
+            player.MaterialCollected -= HandleMaterialCollected;
+            hud.CosmeticsChanged -= HandleCosmeticsChanged;
         }
 
         private void StartRun()
@@ -129,6 +144,13 @@ namespace OrbitBreaker
             runNearMisses = 0;
             bestRunSkip = 0;
             bestRunMultiplier = 1f;
+            runMaterials = 0;
+            runSkips = 0;
+            for (int i = 0; i < challengeCompletionNotified.Length; i++)
+            {
+                ChallengeDefinition challenge = MetaProgression.Challenge(MetaProgression.ActiveChallengeId(i));
+                challengeCompletionNotified[i] = MetaProgression.ChallengeProgress(i) >= challenge.Target;
+            }
             OrbitAnchor first = world.ResetWorld();
             checkpointScores.Clear();
             checkpointHeights.Clear();
@@ -164,6 +186,7 @@ namespace OrbitBreaker
             player.SetScore(furthestSequence);
             world.EnsureAhead(furthestSequence);
             int rewardedSkips = !revisited && !result.IsBacktrack ? result.SkippedAnchors : 0;
+            if (rewardedSkips > 0) runSkips++;
             if (result.Synchronized && !result.IsBacktrack) runSynchronizations++;
             bestRunSkip = Mathf.Max(bestRunSkip, rewardedSkips);
             bestRunMultiplier = Mathf.Max(bestRunMultiplier, result.Multiplier);
@@ -173,6 +196,7 @@ namespace OrbitBreaker
             cameraRig.ShakeCapture();
             UpdateBestScore(distanceScore);
             hud.ShowLanding(distanceScore, bestScore, scoreDelta, result.Multiplier, rewardedSkips, result.IsBacktrack, revisited && !result.IsBacktrack, result.Synchronization);
+            CheckChallengeCompletions();
         }
 
         private void HandleNearMiss(NearMissResult result)
@@ -180,12 +204,38 @@ namespace OrbitBreaker
             runNearMisses++;
             feedback.NearMiss(result.Position, result.Chain);
             hud.ShowNearMiss(result.Chain, player.FlightMultiplier);
+            CheckChallengeCompletions();
         }
 
-        private void HandleStyleSelected(int style)
+        private void HandleCosmeticsChanged()
         {
-            player.ApplyStyle(style);
+            player.ApplyCosmetics();
+            world.RefreshCosmetics();
+            spaceBackground.ApplyCosmetics();
             feedback.Capture(player.transform.position, true, 0);
+        }
+
+        private void HandleMaterialCollected(int value, Vector2 position)
+        {
+            runMaterials += value;
+            MetaProgression.AddMaterials(value);
+            feedback.Material(position, value);
+            hud.ShowMaterialPickup(position, value);
+            CheckChallengeCompletions();
+        }
+
+        private void CheckChallengeCompletions()
+        {
+            for (int slot = 0; slot < challengeCompletionNotified.Length; slot++)
+            {
+                if (challengeCompletionNotified[slot] || MetaProgression.ChallengeClaimed(slot)) continue;
+                ChallengeDefinition challenge = MetaProgression.Challenge(MetaProgression.ActiveChallengeId(slot));
+                int projected = MetaProgression.ProjectedProgress(slot, distanceScore, anchorsCaptured, runSkips, runSynchronizations, runNearMisses, runMaterials, bestRunMultiplier);
+                if (projected < challenge.Target) continue;
+                challengeCompletionNotified[slot] = true;
+                hud.ShowChallengeComplete(challenge.Label);
+                feedback.ChallengeCompleted();
+            }
         }
 
         private void HandleDeath(DeathReason reason)
@@ -198,6 +248,7 @@ namespace OrbitBreaker
             cameraRig.SetFlightShake(0f, false);
             feedback.UpdateCharge(1f, false);
             GameProgression.RecordRun(distanceScore, runSynchronizations, runNearMisses);
+            MetaProgression.RecordRun(distanceScore, anchorsCaptured, runSkips, runSynchronizations, runNearMisses, runMaterials, bestRunMultiplier);
             PlayerPrefs.Save();
             hud.ShowGameOver(distanceScore, bestScore, anchorsCaptured, reason, runSynchronizations, runNearMisses, bestRunSkip, bestRunMultiplier);
         }
