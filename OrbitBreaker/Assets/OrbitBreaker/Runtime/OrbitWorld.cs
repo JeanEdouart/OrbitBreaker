@@ -7,6 +7,8 @@ namespace OrbitBreaker
     public sealed class OrbitAnchor : MonoBehaviour
     {
         private LineRenderer ring;
+        private LineRenderer synchronizationArc;
+        private SpriteRenderer synchronizationMarker;
         private SpriteRenderer core;
         private readonly List<SpriteRenderer> directionMarkers = new List<SpriteRenderer>();
         private float pulseOffset;
@@ -17,8 +19,9 @@ namespace OrbitBreaker
         public int Direction { get; private set; }
         public bool IsCurrent { get; private set; }
         public bool IsVisited { get; private set; }
+        public float SynchronizationAngle { get; private set; }
 
-        public void Initialize(int sequence, Vector2 position, float radius, int direction)
+        public void Initialize(int sequence, Vector2 position, float radius, int direction, float synchronizationAngle = 0f)
         {
             Sequence = sequence;
             Radius = radius;
@@ -28,10 +31,12 @@ namespace OrbitBreaker
             gameObject.SetActive(true);
             pulseOffset = UnityEngine.Random.value * 10f;
             markerPhase = UnityEngine.Random.value;
+            SynchronizationAngle = synchronizationAngle;
             IsVisited = false;
             EnsureVisuals();
             core.sprite = RuntimeAssets.GetPlanetSprite(sequence);
             DrawRing();
+            DrawSynchronizationArc();
             SetCurrent(false);
         }
 
@@ -54,6 +59,14 @@ namespace OrbitBreaker
                     ? new Color(0.76f, 1f, 1f, 0.92f - i * 0.1f)
                     : new Color(0.34f, 0.68f, 0.88f, 0.5f - i * 0.055f);
             }
+            if (synchronizationArc != null)
+            {
+                synchronizationArc.enabled = GamePreferences.OrbitRings && !current && !IsVisited;
+                Color cyan = new Color(0.2f, 0.95f, 1f, current ? 0f : 0.9f);
+                Color amber = new Color(1f, 0.68f, 0.2f, cyan.a);
+                synchronizationArc.startColor = Direction > 0 ? cyan : amber;
+                synchronizationArc.endColor = Direction > 0 ? amber : cyan;
+            }
         }
 
         public void SetVisited(bool visited)
@@ -66,6 +79,18 @@ namespace OrbitBreaker
         {
             if (ring == null) return;
             ring.enabled = GamePreferences.OrbitRings;
+            if (synchronizationArc != null) synchronizationArc.enabled = GamePreferences.OrbitRings && !IsCurrent && !IsVisited;
+            if (synchronizationMarker != null)
+            {
+                synchronizationMarker.enabled = synchronizationArc != null && synchronizationArc.enabled;
+                float halfArc = GameTuning.SynchronizationHalfAngle(Sequence) * Mathf.Deg2Rad;
+                float travel = Mathf.Repeat(Time.unscaledTime * 0.72f + Sequence * 0.13f, 1f);
+                float from = Direction > 0 ? -halfArc : halfArc;
+                float to = -from;
+                float syncAngle = SynchronizationAngle + Mathf.Lerp(from, to, travel);
+                synchronizationMarker.transform.localPosition = new Vector3(Mathf.Cos(syncAngle), Mathf.Sin(syncAngle)) * Radius;
+                synchronizationMarker.transform.localScale = Vector3.one * (0.11f + Mathf.Sin(travel * Mathf.PI) * 0.045f);
+            }
             float pulse = 1f + Mathf.Sin(Time.unscaledTime * 2.4f + pulseOffset) * (IsCurrent ? 0.018f : 0.008f);
             ring.transform.localScale = Vector3.one * pulse;
             markerPhase = Mathf.Repeat(markerPhase + Direction * Time.deltaTime * (IsCurrent ? 0.28f : 0.17f), 1f);
@@ -96,6 +121,23 @@ namespace OrbitBreaker
                 ring.textureMode = LineTextureMode.Stretch;
                 ring.sharedMaterial = RuntimeAssets.SpriteMaterial;
                 ring.sortingOrder = 0;
+
+                var syncObject = new GameObject("Synchronization Window");
+                syncObject.transform.SetParent(transform, false);
+                synchronizationArc = syncObject.AddComponent<LineRenderer>();
+                synchronizationArc.useWorldSpace = false;
+                synchronizationArc.positionCount = 13;
+                synchronizationArc.numCapVertices = 4;
+                synchronizationArc.sharedMaterial = RuntimeAssets.SpriteMaterial;
+                synchronizationArc.widthMultiplier = 0.115f;
+                synchronizationArc.sortingOrder = 3;
+
+                var syncMarkerObject = new GameObject("Synchronization Direction");
+                syncMarkerObject.transform.SetParent(transform, false);
+                synchronizationMarker = syncMarkerObject.AddComponent<SpriteRenderer>();
+                synchronizationMarker.sprite = RuntimeAssets.CircleSprite;
+                synchronizationMarker.color = new Color(0.92f, 1f, 1f, 0.98f);
+                synchronizationMarker.sortingOrder = 4;
             }
 
             if (core == null)
@@ -125,6 +167,18 @@ namespace OrbitBreaker
             {
                 float angle = i / (float)ring.positionCount * Mathf.PI * 2f;
                 ring.SetPosition(i, new Vector3(Mathf.Cos(angle) * Radius, Mathf.Sin(angle) * Radius, 0f));
+            }
+        }
+
+        private void DrawSynchronizationArc()
+        {
+            if (synchronizationArc == null) return;
+            float halfArc = GameTuning.SynchronizationHalfAngle(Sequence) * Mathf.Deg2Rad;
+            for (int i = 0; i < synchronizationArc.positionCount; i++)
+            {
+                float t = i / (float)(synchronizationArc.positionCount - 1);
+                float angle = SynchronizationAngle + Mathf.Lerp(-halfArc, halfArc, t);
+                synchronizationArc.SetPosition(i, new Vector3(Mathf.Cos(angle), Mathf.Sin(angle)) * Radius);
             }
         }
     }
@@ -201,12 +255,60 @@ namespace OrbitBreaker
         }
     }
 
+    public sealed class FreeDebris : MonoBehaviour
+    {
+        private SpriteRenderer body;
+        private Vector2 origin;
+        private Vector2 axis;
+        private float amplitude;
+        private float speed;
+        private float phase;
+
+        public int Id { get; private set; }
+        public float CollisionRadius { get; private set; }
+
+        public void Initialize(int id, Vector2 position, Vector2 movementAxis, float movementAmplitude, float movementSpeed)
+        {
+            Id = id;
+            origin = position;
+            axis = movementAxis.sqrMagnitude > 0.01f ? movementAxis.normalized : Vector2.right;
+            amplitude = movementAmplitude;
+            speed = movementSpeed;
+            phase = Mathf.Repeat(id * 0.381966f, 1f) * Mathf.PI * 2f;
+            CollisionRadius = Mathf.Lerp(0.2f, 0.29f, GameTuning.Difficulty01(id));
+            gameObject.name = "Drifting Debris " + id;
+            gameObject.SetActive(true);
+            EnsureVisuals();
+            body.sprite = RuntimeAssets.GetDebrisSprite(id + 11);
+            transform.position = origin + axis * Mathf.Sin(phase) * amplitude;
+        }
+
+        private void Update()
+        {
+            phase += speed * Time.deltaTime;
+            transform.position = origin + axis * Mathf.Sin(phase) * amplitude;
+            transform.Rotate(0f, 0f, (65f + speed * 18f) * Time.deltaTime);
+            float pulse = 1f + Mathf.Sin(Time.unscaledTime * 5f + Id) * 0.06f;
+            transform.localScale = Vector3.one * CollisionRadius * 4.4f * pulse;
+        }
+
+        private void EnsureVisuals()
+        {
+            if (body != null) return;
+            body = gameObject.AddComponent<SpriteRenderer>();
+            body.sortingOrder = 6;
+            body.color = new Color(1f, 0.76f, 0.42f, 0.96f);
+        }
+    }
+
     public sealed class OrbitWorld : MonoBehaviour
     {
         private readonly List<OrbitAnchor> anchors = new List<OrbitAnchor>();
         private readonly List<OrbitHazard> hazards = new List<OrbitHazard>();
+        private readonly List<FreeDebris> freeDebris = new List<FreeDebris>();
         private readonly Queue<OrbitAnchor> anchorPool = new Queue<OrbitAnchor>();
         private readonly Queue<OrbitHazard> hazardPool = new Queue<OrbitHazard>();
+        private readonly Queue<FreeDebris> freeDebrisPool = new Queue<FreeDebris>();
         private Transform activeRoot;
         private Transform poolRoot;
         private System.Random random;
@@ -216,14 +318,17 @@ namespace OrbitBreaker
 
         public IReadOnlyList<OrbitAnchor> Anchors => anchors;
         public IReadOnlyList<OrbitHazard> Hazards => hazards;
+        public IReadOnlyList<FreeDebris> FreeDebris => freeDebris;
 
         public OrbitAnchor ResetWorld()
         {
             EnsureRoots();
             foreach (OrbitAnchor anchor in anchors) Recycle(anchor);
             foreach (OrbitHazard hazard in hazards) Recycle(hazard);
+            foreach (FreeDebris debris in freeDebris) Recycle(debris);
             anchors.Clear();
             hazards.Clear();
+            freeDebris.Clear();
             random = new System.Random(Environment.TickCount);
             nextSequence = 0;
             lastPosition = new Vector2(0f, GameTuning.StartingHeight);
@@ -260,6 +365,16 @@ namespace OrbitBreaker
                     Recycle(hazard);
                 }
             }
+
+            for (int i = freeDebris.Count - 1; i >= 0; i--)
+            {
+                FreeDebris debris = freeDebris[i];
+                if (debris.Id < currentSequence - GameTuning.BackwardOrbitRetention && debris.transform.position.y < cameraY - 18f)
+                {
+                    freeDebris.RemoveAt(i);
+                    Recycle(debris);
+                }
+            }
         }
 
         private void GenerateNext()
@@ -269,11 +384,12 @@ namespace OrbitBreaker
             float candidateRadius = 1.2f;
             int candidateDirection = 1;
             int reachableSamples = 0;
+            float synchronizationAngle = 0f;
 
             for (int attempt = 0; attempt < GameTuning.GenerationAttempts; attempt++)
             {
-                float gap = GameTuning.AnchorGap(score, NextFloat());
-                float horizontalStep = Mathf.Lerp(-2.2f, 2.2f, NextFloat());
+                float gap = GameTuning.AnchorGap(score, GameTuning.IsBreatherOrbit(score) ? NextFloat() * 0.35f : NextFloat());
+                float horizontalStep = GameTuning.PatternHorizontalStep(score, NextFloat());
                 float x = Mathf.Clamp(lastPosition.x + horizontalStep, -2.45f, 2.45f);
                 candidatePosition = new Vector2(x, lastPosition.y + gap);
                 candidateRadius = Mathf.Lerp(1.02f, 1.38f, NextFloat());
@@ -306,18 +422,91 @@ namespace OrbitBreaker
                     score);
             }
 
+            float positiveAngle;
+            float positiveAlignment;
+            float negativeAngle;
+            float negativeAlignment;
+            bool positiveGate = GameTuning.TryFindSynchronizationGate(
+                lastAnchor.transform.position, lastAnchor.Radius, lastAnchor.Direction,
+                candidatePosition, candidateRadius, 1, score,
+                out positiveAngle, out positiveAlignment);
+            bool negativeGate = GameTuning.TryFindSynchronizationGate(
+                lastAnchor.transform.position, lastAnchor.Radius, lastAnchor.Direction,
+                candidatePosition, candidateRadius, -1, score,
+                out negativeAngle, out negativeAlignment);
+            if (positiveGate || negativeGate)
+            {
+                candidateDirection = positiveAlignment >= negativeAlignment ? 1 : -1;
+                synchronizationAngle = candidateDirection > 0 ? positiveAngle : negativeAngle;
+            }
+            else
+            {
+                // This should only happen on a heavily constrained fallback. Keep the gate on
+                // the best simulated arrival instead of placing it at an unrelated random angle.
+                candidateDirection = positiveAlignment >= negativeAlignment ? 1 : -1;
+                synchronizationAngle = candidateDirection > 0 ? positiveAngle : negativeAngle;
+            }
+
             lastPosition = candidatePosition;
-            OrbitAnchor anchor = SpawnAnchor(candidatePosition, candidateRadius, candidateDirection);
+            OrbitAnchor anchor = SpawnAnchor(candidatePosition, candidateRadius, candidateDirection, synchronizationAngle);
             lastAnchor = anchor;
 
-            if (GameTuning.HasHazard(score) && GameTuning.CanAddHazardToLayout(reachableSamples, score))
+            if (!GameTuning.IsBreatherOrbit(score) && GameTuning.HasHazard(score) && GameTuning.CanAddHazardToLayout(reachableSamples, score))
             {
                 float angle = Mathf.Repeat(score * 0.381966f, 1f) * Mathf.PI * 2f;
                 hazards.Add(GetHazard(anchor, angle));
             }
+
+            if (score >= 11 && !GameTuning.IsBreatherOrbit(score) && NextFloat() < 0.52f)
+            {
+                OrbitAnchor skipSource = FindAnchor(score - 2);
+                OrbitAnchor bypassed = FindAnchor(score - 1);
+                if (skipSource != null && bypassed != null)
+                {
+                    int skipSamples = GameTuning.CountReachableLaunchSamples(
+                        skipSource.transform.position, skipSource.Radius, skipSource.Direction,
+                        anchor.transform.position, anchor.Radius, score);
+                    if (GameTuning.CanAddSkipChallenge(skipSamples, score))
+                    {
+                        Vector2 challengePosition;
+                        float bypassClearance;
+                        if (GameTuning.TryFindSkipChallengePoint(
+                            skipSource.transform.position, skipSource.Radius, skipSource.Direction,
+                            bypassed.transform.position, bypassed.Radius,
+                            anchor.transform.position, anchor.Radius, score,
+                            out challengePosition, out bypassClearance)
+                            && IsClearOfEveryOrbit(challengePosition, skipSource.Sequence, anchor.Sequence, score))
+                        {
+                            Vector2 skipRoute = (Vector2)anchor.transform.position - (Vector2)skipSource.transform.position;
+                            Vector2 movementAxis = skipRoute.sqrMagnitude > 0.01f
+                                ? new Vector2(-skipRoute.y, skipRoute.x).normalized : Vector2.right;
+                            freeDebris.Add(GetFreeDebris(score, challengePosition, movementAxis));
+                        }
+                    }
+                }
+            }
         }
 
-        private OrbitAnchor SpawnAnchor(Vector2 position, float radius, int direction)
+        private bool IsClearOfEveryOrbit(Vector2 point, int sourceSequence, int targetSequence, int sequence)
+        {
+            float requiredClearance = GameTuning.CaptureBand + 0.46f + GameTuning.HazardCollisionRadius(sequence) + 0.12f;
+            for (int i = 0; i < anchors.Count; i++)
+            {
+                OrbitAnchor other = anchors[i];
+                if (other.Sequence == sourceSequence || other.Sequence == targetSequence) continue;
+                if (Vector2.Distance(point, other.transform.position) - other.Radius < requiredClearance) return false;
+            }
+            return true;
+        }
+
+        private OrbitAnchor FindAnchor(int sequence)
+        {
+            for (int i = anchors.Count - 1; i >= 0; i--)
+                if (anchors[i].Sequence == sequence) return anchors[i];
+            return null;
+        }
+
+        private OrbitAnchor SpawnAnchor(Vector2 position, float radius, int direction, float synchronizationAngle = 0f)
         {
             OrbitAnchor anchor;
             if (anchorPool.Count > 0)
@@ -331,7 +520,7 @@ namespace OrbitBreaker
                 instance.transform.SetParent(activeRoot, true);
                 anchor = instance.AddComponent<OrbitAnchor>();
             }
-            anchor.Initialize(nextSequence, position, radius, direction);
+            anchor.Initialize(nextSequence, position, radius, direction, synchronizationAngle);
             anchors.Add(anchor);
             nextSequence++;
             return anchor;
@@ -355,6 +544,24 @@ namespace OrbitBreaker
             return hazard;
         }
 
+        private FreeDebris GetFreeDebris(int id, Vector2 position, Vector2 axis)
+        {
+            FreeDebris debris;
+            if (freeDebrisPool.Count > 0)
+            {
+                debris = freeDebrisPool.Dequeue();
+                debris.transform.SetParent(activeRoot, true);
+            }
+            else
+            {
+                var instance = new GameObject();
+                instance.transform.SetParent(activeRoot, true);
+                debris = instance.AddComponent<FreeDebris>();
+            }
+            debris.Initialize(id, position, axis, 0.46f, Mathf.Lerp(0.72f, 1.28f, GameTuning.Difficulty01(id)));
+            return debris;
+        }
+
         private void Recycle(OrbitAnchor anchor)
         {
             anchor.SetCurrent(false);
@@ -368,6 +575,13 @@ namespace OrbitBreaker
             hazard.gameObject.SetActive(false);
             hazard.transform.SetParent(poolRoot, false);
             hazardPool.Enqueue(hazard);
+        }
+
+        private void Recycle(FreeDebris debris)
+        {
+            debris.gameObject.SetActive(false);
+            debris.transform.SetParent(poolRoot, false);
+            freeDebrisPool.Enqueue(debris);
         }
 
         private void EnsureRoots()

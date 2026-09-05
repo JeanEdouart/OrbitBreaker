@@ -26,6 +26,10 @@ namespace OrbitBreaker
         private readonly Dictionary<int, int> checkpointScores = new Dictionary<int, int>();
         private readonly Dictionary<int, float> checkpointHeights = new Dictionary<int, float>();
         private int furthestSequence;
+        private int runSynchronizations;
+        private int runNearMisses;
+        private int bestRunSkip;
+        private float bestRunMultiplier;
 
         private void Awake()
         {
@@ -59,8 +63,10 @@ namespace OrbitBreaker
             player.Initialize();
             feedback.Initialize();
             hud.Initialize(feedback);
+            hud.StyleSelected += HandleStyleSelected;
             player.Captured += HandleCaptured;
             player.Died += HandleDeath;
+            player.NearMissed += HandleNearMiss;
             bestScore = PlayerPrefs.GetInt(BestScoreKey, 0);
         }
 
@@ -88,7 +94,7 @@ namespace OrbitBreaker
                     feedback.Launch(player.transform.position);
                 }
 
-                player.Tick(deltaTime, world.Anchors, world.Hazards, cameraRig.CameraY);
+                player.Tick(deltaTime, world.Anchors, world.Hazards, world.FreeDebris, cameraRig.CameraY);
                 hud.UpdateFlightDisplay(player.transform.position, player.FlightMultiplier, player.FlightDanger01, player.State == PlayerOrbitState.Flying);
                 feedback.UpdateCharge(player.FlightMultiplier, player.State == PlayerOrbitState.Flying);
                 Vector2 anchorPosition = player.CurrentAnchor != null ? player.CurrentAnchor.transform.position : player.transform.position + (Vector3)player.Velocity.normalized * 2f;
@@ -107,6 +113,8 @@ namespace OrbitBreaker
             if (player == null) return;
             player.Captured -= HandleCaptured;
             player.Died -= HandleDeath;
+            player.NearMissed -= HandleNearMiss;
+            hud.StyleSelected -= HandleStyleSelected;
         }
 
         private void StartRun()
@@ -117,6 +125,10 @@ namespace OrbitBreaker
             bankedHeight = GameTuning.StartingHeight;
             runActive = true;
             tutorialVisible = true;
+            runSynchronizations = 0;
+            runNearMisses = 0;
+            bestRunSkip = 0;
+            bestRunMultiplier = 1f;
             OrbitAnchor first = world.ResetWorld();
             checkpointScores.Clear();
             checkpointHeights.Clear();
@@ -152,10 +164,28 @@ namespace OrbitBreaker
             player.SetScore(furthestSequence);
             world.EnsureAhead(furthestSequence);
             int rewardedSkips = !revisited && !result.IsBacktrack ? result.SkippedAnchors : 0;
-            feedback.Capture(player.transform.position, result.Multiplier >= 2f, rewardedSkips);
+            if (result.Synchronized && !result.IsBacktrack) runSynchronizations++;
+            bestRunSkip = Mathf.Max(bestRunSkip, rewardedSkips);
+            bestRunMultiplier = Mathf.Max(bestRunMultiplier, result.Multiplier);
+            feedback.Capture(player.transform.position, result.Synchronized, rewardedSkips);
+            if (result.Synchronization == SynchronizationResult.WrongDirection)
+                feedback.SynchronizationMiss(player.transform.position);
             cameraRig.ShakeCapture();
             UpdateBestScore(distanceScore);
-            hud.ShowLanding(distanceScore, bestScore, scoreDelta, result.Multiplier, rewardedSkips, result.IsBacktrack, revisited && !result.IsBacktrack);
+            hud.ShowLanding(distanceScore, bestScore, scoreDelta, result.Multiplier, rewardedSkips, result.IsBacktrack, revisited && !result.IsBacktrack, result.Synchronization);
+        }
+
+        private void HandleNearMiss(NearMissResult result)
+        {
+            runNearMisses++;
+            feedback.NearMiss(result.Position, result.Chain);
+            hud.ShowNearMiss(result.Chain, player.FlightMultiplier);
+        }
+
+        private void HandleStyleSelected(int style)
+        {
+            player.ApplyStyle(style);
+            feedback.Capture(player.transform.position, true, 0);
         }
 
         private void HandleDeath(DeathReason reason)
@@ -167,8 +197,9 @@ namespace OrbitBreaker
             if (reason == DeathReason.Breaker) cameraRig.ShakeExplosion();
             cameraRig.SetFlightShake(0f, false);
             feedback.UpdateCharge(1f, false);
+            GameProgression.RecordRun(distanceScore, runSynchronizations, runNearMisses);
             PlayerPrefs.Save();
-            hud.ShowGameOver(distanceScore, bestScore, anchorsCaptured, reason);
+            hud.ShowGameOver(distanceScore, bestScore, anchorsCaptured, reason, runSynchronizations, runNearMisses, bestRunSkip, bestRunMultiplier);
         }
 
         private void UpdateBestScore(int currentScore)

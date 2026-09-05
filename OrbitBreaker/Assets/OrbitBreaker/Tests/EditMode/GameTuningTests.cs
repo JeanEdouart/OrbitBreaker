@@ -120,5 +120,85 @@ namespace OrbitBreaker.Tests
             Assert.That(GameTuning.CanAddHazardToLayout(minimum, 20), Is.False);
             Assert.That(GameTuning.CanAddHazardToLayout(minimum + 3, 20), Is.True);
         }
+
+        [Test]
+        public void SkipChallenge_OnlyUsesComfortableOptionalRoutes()
+        {
+            Assert.That(GameTuning.CanAddSkipChallenge(3, 20), Is.False);
+            Assert.That(GameTuning.CanAddSkipChallenge(5, 20), Is.True);
+            Assert.That(GameTuning.CanAddSkipChallenge(99, 8), Is.False);
+        }
+
+        [Test]
+        public void SkipChallengePoint_SitsInsideTheActualLongFlight()
+        {
+            bool found = GameTuning.TryFindSkipChallengePoint(
+                Vector2.zero, 1.2f, 1,
+                new Vector2(1.8f, 3.6f), 1.2f,
+                new Vector2(-0.4f, 7.4f), 1.25f,
+                18, out Vector2 point, out float clearance);
+
+            Assert.That(found, Is.True);
+            Assert.That(point.y, Is.GreaterThan(1.4f).And.LessThan(6.3f));
+            Assert.That(clearance, Is.GreaterThan(-0.4f));
+        }
+
+        [Test]
+        public void SkipChallengePoint_RejectsARouteCapturedByTheMiddleOrbit()
+        {
+            bool found = GameTuning.TryFindSkipChallengePoint(
+                Vector2.zero, 1.2f, 1,
+                new Vector2(0.7f, 3.6f), 1.2f,
+                new Vector2(-0.4f, 7.4f), 1.25f,
+                18, out _, out _);
+
+            Assert.That(found, Is.False);
+        }
+
+        [Test]
+        public void Synchronization_RequiresCorrectZoneAndDirection()
+        {
+            Vector2 radial = Vector2.right;
+            float zone = 0f;
+            Assert.That(GameTuning.IsSynchronizedCapture(radial, Vector2.up, 1, 10, zone), Is.True);
+            Assert.That(GameTuning.IsSynchronizedCapture(radial, Vector2.down, 1, 10, zone), Is.False);
+            Assert.That(GameTuning.IsSynchronizedCapture(Vector2.up, Vector2.left, 1, 10, zone), Is.False);
+        }
+
+        [TestCase(0, 1.35f, 3.35f)]
+        [TestCase(18, -1.6f, 4.0f)]
+        [TestCase(45, 0.4f, 4.35f)]
+        public void SynchronizationGate_ComesFromAReachableTrajectory(int sequence, float targetX, float targetY)
+        {
+            Vector2 target = new Vector2(targetX, targetY);
+            bool clockwise = GameTuning.TryFindSynchronizationGate(
+                Vector2.zero, 1.2f, 1, target, 1.25f, 1, sequence,
+                out _, out float clockwiseAlignment);
+            bool counterClockwise = GameTuning.TryFindSynchronizationGate(
+                Vector2.zero, 1.2f, 1, target, 1.25f, -1, sequence,
+                out _, out float counterClockwiseAlignment);
+
+            Assert.That(clockwise || counterClockwise, Is.True,
+                "At least one orbit direction must provide a fair synchronization gate.");
+            Assert.That(Mathf.Max(clockwiseAlignment, counterClockwiseAlignment),
+                Is.GreaterThanOrEqualTo(GameTuning.SynchronizationAlignment(sequence)));
+        }
+
+        [Test]
+        public void DifficultyCycle_ContainsBreathingRoom()
+        {
+            Assert.That(GameTuning.IsBreatherOrbit(20), Is.False);
+            Assert.That(GameTuning.IsBreatherOrbit(21), Is.True);
+            Assert.That(GameTuning.IsBreatherOrbit(23), Is.True);
+            Assert.That(GameTuning.IsBreatherOrbit(24), Is.False);
+        }
+
+        [Test]
+        public void ProceduralMotifs_StayInsideHorizontalStepBudget()
+        {
+            for (int sequence = 0; sequence < 100; sequence++)
+            for (int sample = 0; sample <= 10; sample++)
+                Assert.That(Mathf.Abs(GameTuning.PatternHorizontalStep(sequence, sample / 10f)), Is.LessThanOrEqualTo(2.2f));
+        }
     }
 }

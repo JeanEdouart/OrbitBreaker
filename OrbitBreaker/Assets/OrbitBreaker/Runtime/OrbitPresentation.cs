@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -61,12 +62,20 @@ namespace OrbitBreaker
             if (targetCamera == null) return;
             float cameraY = targetCamera.transform.position.y;
             float cameraX = targetCamera.transform.position.x;
+            float biomeProgress = Mathf.Repeat(Mathf.Max(0f, cameraY) / 34f, 1f);
+            int biome = Mathf.FloorToInt(Mathf.Max(0f, cameraY) / 34f) % 3;
+            Color biomeA = biome == 0 ? new Color(0.72f, 0.78f, 0.92f, 0.72f)
+                : biome == 1 ? new Color(0.72f, 0.52f, 1f, 0.72f) : new Color(0.42f, 0.9f, 0.88f, 0.72f);
+            Color biomeB = biome == 0 ? new Color(0.72f, 0.52f, 1f, 0.72f)
+                : biome == 1 ? new Color(0.42f, 0.9f, 0.88f, 0.72f) : new Color(0.72f, 0.78f, 0.92f, 0.72f);
+            Color biomeTint = Color.Lerp(biomeA, biomeB, biomeProgress);
             float nebulaOffset = GamePreferences.DynamicBackground
                 ? Mathf.Repeat(cameraY * 0.2f + TileSize * 0.5f, TileSize) - TileSize * 0.5f
                 : 0f;
             for (int i = 0; i < nebulaTiles.Length; i++)
             {
                 nebulaTiles[i].transform.position = new Vector3(cameraX * 0.88f, cameraY + (i - 1) * TileSize - nebulaOffset, 2f);
+                nebulaTiles[i].color = biomeTint;
             }
 
             for (int i = 0; i < stars.Length; i++)
@@ -264,10 +273,20 @@ namespace OrbitBreaker
         private Text gameOverDistance;
         private Text gameOverOrbits;
         private Text gameOverRecord;
+        private Text gameOverSummary;
         private GameObject gameOverPanel;
         private GameObject settingsPanel;
         private GameObject settingsButton;
         private GameObject infoButton;
+        private GameObject styleButton;
+        private GameObject missionsButton;
+        private GameObject missionsPanel;
+        private GameObject hangarPanel;
+        private Text missionProgressText;
+        private Image missionProgressFill;
+        private Text hangarStatus;
+        private Text[] styleRowLabels;
+        private Image[] styleRowImages;
         private GameObject creditsPanel;
         private GameObject settingsAudioPage;
         private GameObject settingsGameplayPage;
@@ -283,8 +302,12 @@ namespace OrbitBreaker
         private bool gameOverVisible;
         private float stuntShownAt = -10f;
 
-        public bool SettingsOpen => (settingsPanel != null && settingsPanel.activeSelf) || (creditsPanel != null && creditsPanel.activeSelf);
+        public bool SettingsOpen => (settingsPanel != null && settingsPanel.activeSelf)
+            || (creditsPanel != null && creditsPanel.activeSelf)
+            || (missionsPanel != null && missionsPanel.activeSelf)
+            || (hangarPanel != null && hangarPanel.activeSelf);
         public bool IsPaused => pausePanel != null && pausePanel.activeSelf;
+        public event Action<int> StyleSelected;
 
         public void Initialize(OrbitFeedback audio)
         {
@@ -375,10 +398,10 @@ namespace OrbitBreaker
             ApplyRounded(tipsPanel);
             tipsPanel.raycastTarget = false;
             SetRect(tipsPanel.rectTransform, new Vector2(0.1f, 0.035f), new Vector2(0.9f, 0.165f), Vector2.zero, Vector2.zero);
-            Text tipsLabel = CreateText(tipsPanel.transform, "Tips Label", "TIPS", 22, TextAnchor.MiddleLeft, FontStyle.Bold);
+            Text tipsLabel = CreateText(tipsPanel.transform, "Tips Label", "TIPS", 20, TextAnchor.MiddleLeft, FontStyle.Bold);
             tipsLabel.color = new Color(1f, 0.72f, 0.24f, 1f);
             SetRect(tipsLabel.rectTransform, new Vector2(0.06f, 0.6f), new Vector2(0.25f, 0.94f), Vector2.zero, Vector2.zero);
-            Text tipsText = CreateText(tipsPanel.transform, "Tips", "SAUTE PLUSIEURS ORBITES POUR BOOSTER LA DISTANCE\nREVIENS SUR UNE ORBITE VISITÉE POUR CHANGER TA ROUTE\nAPRÈS UNE CAPTURE, TU ES BRIÈVEMENT PROTÉGÉ", 18, TextAnchor.MiddleLeft, FontStyle.Normal);
+            Text tipsText = CreateText(tipsPanel.transform, "Tips", "VISE LA PORTE COLORÉE DANS SON SENS POUR UN BONUS SYNCHRO\nELLE EST OPTIONNELLE : TOUTE L'ORBITE PEUT TE CAPTURER\nSKIP PLUSIEURS ORBITES POUR MULTIPLIER TA DISTANCE", 17, TextAnchor.MiddleLeft, FontStyle.Normal);
             tipsText.color = new Color(0.68f, 0.88f, 1f, 0.95f);
             tipsText.lineSpacing = 1.15f;
             SetRect(tipsText.rectTransform, new Vector2(0.06f, 0.06f), new Vector2(0.95f, 0.66f), Vector2.zero, Vector2.zero);
@@ -402,11 +425,17 @@ namespace OrbitBreaker
 
             gameOverDistance = CreateStatRow(deathCard.transform, "Distance", RuntimeAssets.LocationIcon, 0.54f);
             gameOverOrbits = CreateStatRow(deathCard.transform, "Orbits", RuntimeAssets.PlanetIcon, 0.39f);
-            gameOverRecord = CreateStatRow(deathCard.transform, "Record", RuntimeAssets.TrophyIcon, 0.24f);
+            gameOverRecord = CreateStatRow(deathCard.transform, "Record", RuntimeAssets.TrophyIcon, 0.28f);
+            gameOverSummary = CreateText(deathCard.transform, "Run Summary", string.Empty, 19, TextAnchor.MiddleCenter, FontStyle.Bold);
+            gameOverSummary.color = new Color(1f, 0.72f, 0.24f, 0.95f);
+            gameOverSummary.resizeTextForBestFit = true;
+            gameOverSummary.resizeTextMinSize = 13;
+            gameOverSummary.resizeTextMaxSize = 19;
+            SetRect(gameOverSummary.rectTransform, new Vector2(0.07f, 0.15f), new Vector2(0.93f, 0.25f), Vector2.zero, Vector2.zero);
 
             Text retry = CreateText(deathCard.rectTransform, "Retry", "TOUCHE POUR RECOMMENCER", 28, TextAnchor.MiddleCenter, FontStyle.Bold);
             retry.color = new Color(1f, 0.76f, 0.28f, 1f);
-            SetRect(retry.rectTransform, new Vector2(0.08f, 0.04f), new Vector2(0.92f, 0.24f), Vector2.zero, Vector2.zero);
+            SetRect(retry.rectTransform, new Vector2(0.08f, 0.02f), new Vector2(0.92f, 0.15f), Vector2.zero, Vector2.zero);
             gameOverPanel.SetActive(false);
 
             settingsButton = CreateIconButton(safe, "Settings Button", RuntimeAssets.SettingsIcon, ToggleSettings);
@@ -414,6 +443,12 @@ namespace OrbitBreaker
 
             infoButton = CreateRoundTextButton(safe, "Credits Button", "i", ToggleCredits);
             SetSquareRect(infoButton.GetComponent<RectTransform>(), new Vector2(0.07f, 0.5f), 76f);
+
+            styleButton = CreateIconButton(safe, "Hangar Button", RuntimeAssets.RocketSprite, ToggleHangar);
+            SetSquareRect(styleButton.GetComponent<RectTransform>(), new Vector2(0.91f, 0.405f), 92f);
+
+            missionsButton = CreateIconButton(safe, "Missions Button", RuntimeAssets.TrophyIcon, ToggleMissions);
+            SetSquareRect(missionsButton.GetComponent<RectTransform>(), new Vector2(0.07f, 0.405f), 92f);
 
             pauseButton = CreateIconButton(safe, "Pause Button", RuntimeAssets.PauseIcon, PauseGame);
             SetSquareRect(pauseButton.GetComponent<RectTransform>(), new Vector2(0.095f, 0.92f), 104f);
@@ -426,6 +461,10 @@ namespace OrbitBreaker
             settingsPanel.SetActive(false);
             creditsPanel = CreateCreditsPanel(safe);
             creditsPanel.SetActive(false);
+            missionsPanel = CreateMissionsPanel(safe);
+            missionsPanel.SetActive(false);
+            hangarPanel = CreateHangarPanel(safe);
+            hangarPanel.SetActive(false);
         }
 
         public void ShowPlaying(int distance, int best, bool tutorial)
@@ -437,9 +476,13 @@ namespace OrbitBreaker
             tutorialTips.SetActive(tutorial);
             settingsButton.SetActive(tutorial);
             infoButton.SetActive(tutorial);
+            styleButton.SetActive(tutorial);
+            missionsButton.SetActive(tutorial);
             pauseButton.SetActive(!tutorial);
             settingsPanel.SetActive(false);
             creditsPanel.SetActive(false);
+            missionsPanel.SetActive(false);
+            hangarPanel.SetActive(false);
             gameOverPanel.SetActive(false);
             gameOverVisible = false;
         }
@@ -484,18 +527,29 @@ namespace OrbitBreaker
             multiplierFill.color = Color.Lerp(new Color(0.2f, 0.88f, 1f, 0.35f), new Color(1f, 0.2f, 0.5f, 0.55f), intensity);
         }
 
-        public void ShowLanding(int distance, int best, int gainedDistance, float multiplier, int skippedAnchors, bool backtrack, bool revisited)
+        public void ShowLanding(int distance, int best, int gainedDistance, float multiplier, int skippedAnchors, bool backtrack, bool revisited, SynchronizationResult synchronization)
         {
             UpdateProgress(distance, best);
             multiplierBadge.SetActive(false);
             settingsButton.SetActive(false);
             pauseButton.SetActive(true);
-            string label = backtrack ? "RETOUR ORBITAL" : revisited ? "CHECKPOINT" : skippedAnchors > 0 ? "SKIP x" + (skippedAnchors + 1) : multiplier >= 2f ? "LONG VOL" : string.Empty;
+            string label = backtrack ? "RETOUR ORBITAL" : revisited ? "CHECKPOINT" : synchronization == SynchronizationResult.Success
+                ? "SYNCHRO +0.4x" + (skippedAnchors > 0 ? "  SKIP x" + (skippedAnchors + 1) : string.Empty)
+                : synchronization == SynchronizationResult.WrongDirection ? "ZONE ATTEINTE  MAUVAIS SENS"
+                : skippedAnchors > 0 ? "SKIP x" + (skippedAnchors + 1) : multiplier >= 2f ? "LONG VOL" : string.Empty;
             string delta = gainedDistance > 0 ? "+" + gainedDistance : gainedDistance < 0 ? gainedDistance.ToString() : string.Empty;
             stuntText.text = string.IsNullOrEmpty(label) ? string.Empty : label + (string.IsNullOrEmpty(delta) ? string.Empty : "  " + delta + " m");
             stuntShownAt = Time.unscaledTime;
             CancelInvoke(nameof(ClearStunt));
             Invoke(nameof(ClearStunt), 1.15f);
+        }
+
+        public void ShowNearMiss(int chain, float multiplier)
+        {
+            stuntText.text = "FRÔLEMENT" + (chain > 1 ? " x" + chain : string.Empty) + "  MULTI x" + multiplier.ToString("0.0");
+            stuntShownAt = Time.unscaledTime;
+            CancelInvoke(nameof(ClearStunt));
+            Invoke(nameof(ClearStunt), 0.9f);
         }
 
         public void HideTutorial()
@@ -505,12 +559,14 @@ namespace OrbitBreaker
             tutorialTips.SetActive(false);
             settingsButton.SetActive(false);
             infoButton.SetActive(false);
+            styleButton.SetActive(false);
+            missionsButton.SetActive(false);
             settingsPanel.SetActive(false);
             creditsPanel.SetActive(false);
             pauseButton.SetActive(true);
         }
 
-        public void ShowGameOver(int distance, int best, int anchors, DeathReason reason)
+        public void ShowGameOver(int distance, int best, int anchors, DeathReason reason, int synchronizations, int nearMisses, int bestSkip, float bestMultiplier)
         {
             scoreText.text = distance + " m";
             multiplierBadge.SetActive(false);
@@ -518,11 +574,14 @@ namespace OrbitBreaker
             gameOverDistance.text = "DISTANCE     " + distance + " m";
             gameOverOrbits.text = "ORBITES      " + anchors;
             gameOverRecord.text = "RECORD       " + best + " m";
+            gameOverSummary.text = "SYNCHRO " + synchronizations + "   FRÔLEMENTS " + nearMisses + "   SKIP " + bestSkip + "   MAX x" + bestMultiplier.ToString("0.0") + "   STYLES " + GameProgression.UnlockedStyleCount + "/4";
             gameOverTitle.text = reason == DeathReason.Breaker ? "VOTRE VAISSEAU\nA EXPLOSÉ" : "VOUS VOUS ÊTES PERDU\nDANS L'ESPACE";
             gameOverTitle.color = reason == DeathReason.Breaker ? new Color(1f, 0.28f, 0.38f) : new Color(0.45f, 0.82f, 1f);
             gameOverPanel.SetActive(true);
             settingsButton.SetActive(true);
             infoButton.SetActive(true);
+            styleButton.SetActive(true);
+            missionsButton.SetActive(true);
             pauseButton.SetActive(false);
             gameOverVisible = true;
         }
@@ -537,6 +596,8 @@ namespace OrbitBreaker
         {
             bool opening = !settingsPanel.activeSelf;
             creditsPanel.SetActive(false);
+            missionsPanel.SetActive(false);
+            hangarPanel.SetActive(false);
             settingsPanel.SetActive(opening);
             if (opening) ShowSettingsTab(0);
             gameOverPanel.SetActive(!opening && gameOverVisible);
@@ -546,7 +607,31 @@ namespace OrbitBreaker
         {
             bool opening = !creditsPanel.activeSelf;
             settingsPanel.SetActive(false);
+            missionsPanel.SetActive(false);
+            hangarPanel.SetActive(false);
             creditsPanel.SetActive(opening);
+            gameOverPanel.SetActive(!opening && gameOverVisible);
+        }
+
+        private void ToggleMissions()
+        {
+            bool opening = !missionsPanel.activeSelf;
+            settingsPanel.SetActive(false);
+            creditsPanel.SetActive(false);
+            hangarPanel.SetActive(false);
+            missionsPanel.SetActive(opening);
+            if (opening) RefreshMission();
+            gameOverPanel.SetActive(!opening && gameOverVisible);
+        }
+
+        private void ToggleHangar()
+        {
+            bool opening = !hangarPanel.activeSelf;
+            settingsPanel.SetActive(false);
+            creditsPanel.SetActive(false);
+            missionsPanel.SetActive(false);
+            hangarPanel.SetActive(opening);
+            if (opening) RefreshHangar(string.Empty);
             gameOverPanel.SetActive(!opening && gameOverVisible);
         }
 
@@ -591,6 +676,136 @@ namespace OrbitBreaker
             resume.color = new Color(0.42f, 0.72f, 0.9f, 0.9f);
             SetRect(resume.rectTransform, new Vector2(0.1f, 0.06f), new Vector2(0.9f, 0.3f), Vector2.zero, Vector2.zero);
             return panel;
+        }
+
+        private GameObject CreateMissionsPanel(Transform safe)
+        {
+            var panel = new GameObject("Missions Panel", typeof(RectTransform), typeof(Image));
+            panel.transform.SetParent(safe, false);
+            SetRect(panel.GetComponent<RectTransform>(), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            panel.GetComponent<Image>().color = new Color(0.008f, 0.02f, 0.055f, 0.9f);
+
+            Image card = CreateImage(panel.transform, "Mission Card", new Color(0.025f, 0.075f, 0.14f, 0.99f));
+            ApplyRounded(card);
+            SetRect(card.rectTransform, new Vector2(0.09f, 0.27f), new Vector2(0.91f, 0.73f), Vector2.zero, Vector2.zero);
+
+            Text eyebrow = CreateText(card.transform, "Mission Eyebrow", "MISSION DU JOUR", 22, TextAnchor.MiddleCenter, FontStyle.Bold);
+            eyebrow.color = new Color(1f, 0.72f, 0.24f, 1f);
+            SetRect(eyebrow.rectTransform, new Vector2(0.08f, 0.8f), new Vector2(0.92f, 0.94f), Vector2.zero, Vector2.zero);
+
+            missionProgressText = CreateText(card.transform, "Mission Progress", string.Empty, 36, TextAnchor.MiddleCenter, FontStyle.Bold);
+            missionProgressText.color = new Color(0.76f, 0.98f, 1f, 1f);
+            missionProgressText.resizeTextForBestFit = true;
+            missionProgressText.resizeTextMinSize = 22;
+            missionProgressText.resizeTextMaxSize = 36;
+            SetRect(missionProgressText.rectTransform, new Vector2(0.07f, 0.47f), new Vector2(0.93f, 0.8f), Vector2.zero, Vector2.zero);
+
+            Image track = CreateImage(card.transform, "Mission Progress Track", new Color(0.04f, 0.14f, 0.23f, 1f));
+            ApplyRounded(track);
+            SetRect(track.rectTransform, new Vector2(0.12f, 0.37f), new Vector2(0.88f, 0.43f), Vector2.zero, Vector2.zero);
+            missionProgressFill = CreateImage(track.transform, "Mission Progress Fill", new Color(0.24f, 0.9f, 1f, 1f));
+            ApplyRounded(missionProgressFill);
+            SetRect(missionProgressFill.rectTransform, Vector2.zero, new Vector2(0f, 1f), Vector2.zero, Vector2.zero);
+
+            Text note = CreateText(card.transform, "Mission Note", "LA PROGRESSION EST CONSERVÉE ENTRE TES PARTIES", 18, TextAnchor.MiddleCenter, FontStyle.Bold);
+            note.color = new Color(0.55f, 0.75f, 0.88f, 0.9f);
+            SetRect(note.rectTransform, new Vector2(0.07f, 0.22f), new Vector2(0.93f, 0.34f), Vector2.zero, Vector2.zero);
+
+            GameObject close = CreateButton(card.transform, "Close Missions", "FERMER", new Color(0.12f, 0.48f, 0.58f, 0.95f), ToggleMissions);
+            SetRect(close.GetComponent<RectTransform>(), new Vector2(0.25f, 0.055f), new Vector2(0.75f, 0.18f), Vector2.zero, Vector2.zero);
+            return panel;
+        }
+
+        private void RefreshMission()
+        {
+            int progress = Mathf.Min(GameProgression.MissionProgress, GameProgression.MissionTarget);
+            string objective = GameProgression.MissionType == DailyMissionType.Distance
+                ? "PARCOURIR " + GameProgression.MissionTarget + " m"
+                : GameProgression.MissionType == DailyMissionType.Synchronizations
+                    ? "RÉUSSIR " + GameProgression.MissionTarget + " SYNCHRONISATIONS"
+                    : "RÉUSSIR " + GameProgression.MissionTarget + " FRÔLEMENTS";
+            missionProgressText.text = objective + "\n" + progress + " / " + GameProgression.MissionTarget;
+            missionProgressFill.rectTransform.anchorMax = new Vector2(progress / (float)GameProgression.MissionTarget, 1f);
+            missionProgressFill.color = progress >= GameProgression.MissionTarget
+                ? new Color(1f, 0.72f, 0.24f, 1f)
+                : new Color(0.24f, 0.9f, 1f, 1f);
+        }
+
+        private GameObject CreateHangarPanel(Transform safe)
+        {
+            var panel = new GameObject("Hangar Panel", typeof(RectTransform), typeof(Image));
+            panel.transform.SetParent(safe, false);
+            SetRect(panel.GetComponent<RectTransform>(), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            panel.GetComponent<Image>().color = new Color(0.008f, 0.02f, 0.055f, 0.9f);
+
+            Image card = CreateImage(panel.transform, "Hangar Card", new Color(0.025f, 0.075f, 0.14f, 0.99f));
+            ApplyRounded(card);
+            SetRect(card.rectTransform, new Vector2(0.075f, 0.14f), new Vector2(0.925f, 0.86f), Vector2.zero, Vector2.zero);
+
+            Text title = CreateText(card.transform, "Hangar Title", "HANGAR", 48, TextAnchor.MiddleCenter, FontStyle.Bold);
+            title.color = new Color(0.76f, 0.98f, 1f, 1f);
+            SetRect(title.rectTransform, new Vector2(0.08f, 0.84f), new Vector2(0.92f, 0.96f), Vector2.zero, Vector2.zero);
+
+            hangarStatus = CreateText(card.transform, "Hangar Status", string.Empty, 19, TextAnchor.MiddleCenter, FontStyle.Bold);
+            hangarStatus.color = new Color(1f, 0.72f, 0.24f, 1f);
+            hangarStatus.resizeTextForBestFit = true;
+            hangarStatus.resizeTextMinSize = 14;
+            hangarStatus.resizeTextMaxSize = 19;
+            SetRect(hangarStatus.rectTransform, new Vector2(0.06f, 0.73f), new Vector2(0.94f, 0.84f), Vector2.zero, Vector2.zero);
+
+            styleRowLabels = new Text[4];
+            styleRowImages = new Image[4];
+            for (int i = 0; i < 4; i++)
+            {
+                int style = i;
+                float top = 0.7f - i * 0.14f;
+                GameObject row = CreateButton(card.transform, "Style " + GameProgression.StyleName(i), string.Empty, new Color(0.045f, 0.14f, 0.22f, 1f), () => SelectStyleFromHangar(style));
+                SetRect(row.GetComponent<RectTransform>(), new Vector2(0.09f, top - 0.11f), new Vector2(0.91f, top), Vector2.zero, Vector2.zero);
+                styleRowImages[i] = row.GetComponent<Image>();
+
+                Image swatch = CreateImage(row.transform, "Color", GameProgression.TrailColor(i));
+                swatch.sprite = RuntimeAssets.CircleSprite;
+                swatch.preserveAspect = true;
+                swatch.raycastTarget = false;
+                SetRect(swatch.rectTransform, new Vector2(0.04f, 0.22f), new Vector2(0.14f, 0.78f), Vector2.zero, Vector2.zero);
+                styleRowLabels[i] = row.transform.Find("Label").GetComponent<Text>();
+                styleRowLabels[i].alignment = TextAnchor.MiddleLeft;
+                SetRect(styleRowLabels[i].rectTransform, new Vector2(0.18f, 0f), new Vector2(0.96f, 1f), Vector2.zero, Vector2.zero);
+            }
+
+            GameObject close = CreateButton(card.transform, "Close Hangar", "FERMER", new Color(0.12f, 0.48f, 0.58f, 0.95f), ToggleHangar);
+            SetRect(close.GetComponent<RectTransform>(), new Vector2(0.25f, 0.045f), new Vector2(0.75f, 0.12f), Vector2.zero, Vector2.zero);
+            return panel;
+        }
+
+        private void SelectStyleFromHangar(int style)
+        {
+            if (!GameProgression.SelectStyle(style))
+            {
+                int remaining = Mathf.Max(0, GameProgression.UnlockDistanceForStyle(style) - GameProgression.LifetimeDistance);
+                RefreshHangar("ENCORE " + remaining + " m POUR DÉBLOQUER " + GameProgression.StyleName(style));
+                return;
+            }
+            StyleSelected?.Invoke(style);
+            RefreshHangar(GameProgression.StyleName(style) + " ÉQUIPÉ");
+        }
+
+        private void RefreshHangar(string message)
+        {
+            hangarStatus.text = string.IsNullOrEmpty(message)
+                ? "DISTANCE CUMULÉE  " + GameProgression.LifetimeDistance + " m"
+                : message;
+            for (int i = 0; i < styleRowLabels.Length; i++)
+            {
+                bool unlocked = i < GameProgression.UnlockedStyleCount;
+                bool selected = i == GameProgression.SelectedStyle;
+                string state = selected ? "ÉQUIPÉ" : unlocked ? "CHOISIR" : "À " + GameProgression.UnlockDistanceForStyle(i) + " m";
+                styleRowLabels[i].text = GameProgression.StyleName(i) + "                         " + state;
+                styleRowLabels[i].color = unlocked ? new Color(0.78f, 0.96f, 1f, 1f) : new Color(0.42f, 0.56f, 0.68f, 1f);
+                styleRowImages[i].color = selected
+                    ? new Color(0.08f, 0.39f, 0.5f, 1f)
+                    : new Color(0.045f, 0.14f, 0.22f, unlocked ? 1f : 0.72f);
+            }
         }
 
         private GameObject CreateCreditsPanel(Transform safe)
@@ -924,8 +1139,10 @@ namespace OrbitBreaker
         private AudioClip launchClip;
         private AudioClip captureClip;
         private AudioClip perfectClip;
+        private AudioClip synchronizationMissClip;
         private AudioClip deathClip;
         private AudioClip skipClip;
+        private AudioClip nearMissClip;
 
         public float MasterVolume { get; private set; }
         public float MusicVolume { get; private set; }
@@ -948,8 +1165,10 @@ namespace OrbitBreaker
             launchClip = RuntimeAssets.CreateTone("Launch", 340f, 0.09f, 0.32f);
             captureClip = RuntimeAssets.CreateTone("Capture", 620f, 0.12f, 0.34f);
             perfectClip = RuntimeAssets.CreateTone("Perfect", 880f, 0.16f, 0.34f);
+            synchronizationMissClip = RuntimeAssets.CreateTone("Synchronization Miss", 245f, 0.12f, 0.22f);
             deathClip = RuntimeAssets.CreateTone("Break", 115f, 0.32f, 0.44f);
             skipClip = RuntimeAssets.CreateSkipStinger();
+            nearMissClip = RuntimeAssets.CreateTone("Near Miss", 1120f, 0.11f, 0.3f);
             MasterVolume = PlayerPrefs.GetFloat(MasterVolumeKey, 0.85f);
             MusicVolume = PlayerPrefs.GetFloat(MusicVolumeKey, 0.55f);
             EffectsVolume = PlayerPrefs.GetFloat(EffectsVolumeKey, 0.8f);
@@ -1008,6 +1227,12 @@ namespace OrbitBreaker
             StartCoroutine(Pulse(position, perfect ? new Color(1f, 0.72f, 0.2f, 0.9f) : new Color(0.2f, 1f, 0.75f, 0.85f), 0.4f, perfect ? 1.5f : 1.05f));
         }
 
+        public void SynchronizationMiss(Vector2 position)
+        {
+            audioSource.PlayOneShot(synchronizationMissClip, 0.72f);
+            StartCoroutine(Pulse(position, new Color(0.35f, 0.65f, 1f, 0.58f), 0.22f, 0.72f));
+        }
+
         public void UpdateCharge(float multiplier, bool flying)
         {
             if (chargeSource == null) return;
@@ -1020,6 +1245,15 @@ namespace OrbitBreaker
             chargeSource.pitch = Mathf.Lerp(0.82f, 1.85f, normalized);
             chargeSource.volume = EffectsVolume * Mathf.Lerp(0.18f, 0.48f, normalized);
             if (!chargeSource.isPlaying) chargeSource.Play();
+        }
+
+        public void NearMiss(Vector2 position, int chain)
+        {
+            audioSource.pitch = Mathf.Clamp(1f + (chain - 1) * 0.08f, 1f, 1.35f);
+            audioSource.PlayOneShot(nearMissClip);
+            audioSource.pitch = 1f;
+            TriggerHaptic(18L, 55);
+            StartCoroutine(Pulse(position, new Color(1f, 0.7f, 0.2f, 0.9f), 0.24f, 0.85f));
         }
 
         public void Death(Vector2 position, DeathReason reason)

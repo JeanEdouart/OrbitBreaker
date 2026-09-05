@@ -6,12 +6,14 @@ namespace OrbitBreaker
 {
     public readonly struct CaptureResult
     {
-        public CaptureResult(OrbitAnchor anchor, float multiplier, int skippedAnchors, int fromSequence)
+        public CaptureResult(OrbitAnchor anchor, float multiplier, int skippedAnchors, int fromSequence, SynchronizationResult synchronization, int nearMisses)
         {
             Anchor = anchor;
             Multiplier = multiplier;
             SkippedAnchors = skippedAnchors;
             FromSequence = fromSequence;
+            Synchronization = synchronization;
+            NearMisses = nearMisses;
         }
 
         public OrbitAnchor Anchor { get; }
@@ -19,6 +21,18 @@ namespace OrbitBreaker
         public int SkippedAnchors { get; }
         public int FromSequence { get; }
         public bool IsBacktrack => Anchor.Sequence < FromSequence;
+        public SynchronizationResult Synchronization { get; }
+        public bool Synchronized => Synchronization == SynchronizationResult.Success;
+        public int NearMisses { get; }
+    }
+
+    public enum SynchronizationResult { None, WrongDirection, Success }
+
+    public readonly struct NearMissResult
+    {
+        public NearMissResult(Vector2 position, int chain) { Position = position; Chain = chain; }
+        public Vector2 Position { get; }
+        public int Chain { get; }
     }
 
     public enum PlayerOrbitState
@@ -49,17 +63,24 @@ namespace OrbitBreaker
         private int score;
         private float capturedAt;
         private float shieldEndsAt;
+        private float nearMissBoost;
+        private float launchJuice;
+        private float captureJuice;
+        private int nearMissCount;
         private readonly HashSet<int> visitedSequences = new HashSet<int>();
+        private readonly HashSet<int> nearbyFreeDebris = new HashSet<int>();
+        private readonly HashSet<int> rewardedFreeDebris = new HashSet<int>();
 
         public PlayerOrbitState State { get; private set; }
         public OrbitAnchor CurrentAnchor { get; private set; }
         public int LastSequence { get; private set; }
         public Vector2 Velocity => velocity;
-        public float FlightMultiplier => State == PlayerOrbitState.Flying ? GameTuning.FlightMultiplier(flightTime) : 1f;
+        public float FlightMultiplier => State == PlayerOrbitState.Flying ? Mathf.Min(GameTuning.MaxDistanceMultiplier, GameTuning.FlightMultiplier(flightTime) + nearMissBoost) : 1f;
         public float FlightDanger01 => State == PlayerOrbitState.Flying ? GameTuning.FlightDanger01(flightTime) : 0f;
 
         public event Action<CaptureResult> Captured;
         public event Action<DeathReason> Died;
+        public event Action<NearMissResult> NearMissed;
 
         public void Initialize()
         {
@@ -75,6 +96,10 @@ namespace OrbitBreaker
             LastSequence = anchor.Sequence;
             angleRadians = -Mathf.PI * 0.5f;
             flightTime = 0f;
+            nearMissBoost = 0f;
+            nearMissCount = 0;
+            nearbyFreeDebris.Clear();
+            rewardedFreeDebris.Clear();
             velocity = Vector2.zero;
             trail.Clear();
             trail.emitting = false;
@@ -84,6 +109,7 @@ namespace OrbitBreaker
             fuelFill.enabled = true;
             SetEngine(false);
             SetFuel(1f);
+            ApplyStyle(GameProgression.SelectedStyle);
             Capture(anchor);
         }
 
@@ -105,15 +131,21 @@ namespace OrbitBreaker
             CurrentAnchor.SetCurrent(false);
             CurrentAnchor = null;
             flightTime = 0f;
+            nearMissBoost = 0f;
+            nearMissCount = 0;
+            nearbyFreeDebris.Clear();
+            rewardedFreeDebris.Clear();
             State = PlayerOrbitState.Flying;
             trail.emitting = true;
             transform.up = velocity.normalized;
             SetEngine(true);
             SetShield(false);
+            launchJuice = 0.16f;
+            ApplyStyle(GameProgression.SelectedStyle);
             return true;
         }
 
-        public void Tick(float deltaTime, IReadOnlyList<OrbitAnchor> anchors, IReadOnlyList<OrbitHazard> hazards, float cameraY)
+        public void Tick(float deltaTime, IReadOnlyList<OrbitAnchor> anchors, IReadOnlyList<OrbitHazard> hazards, IReadOnlyList<FreeDebris> freeDebris, float cameraY)
         {
             if (State == PlayerOrbitState.Dead) return;
 
@@ -124,11 +156,13 @@ namespace OrbitBreaker
             else
             {
                 TickFlight(deltaTime, anchors);
+                if (State == PlayerOrbitState.Flying) CheckNearMisses(freeDebris);
             }
 
             UpdateShield();
+            UpdateMotionJuice(deltaTime);
 
-            if (CheckHazards(hazards))
+            if (CheckHazards(hazards, freeDebris))
             {
                 Die(DeathReason.Breaker);
             }
@@ -187,12 +221,19 @@ namespace OrbitBreaker
 
             if (best != null)
             {
-                float multiplier = GameTuning.FlightMultiplier(flightTime);
+                Vector2 radial = ((Vector2)transform.position - (Vector2)best.transform.position).normalized;
+                bool inSynchronizationZone = GameTuning.IsWithinSynchronizationZone(radial, best.Sequence, best.SynchronizationAngle);
+                bool synchronized = GameTuning.IsSynchronizedCapture(radial, velocity, best.Direction, best.Sequence, best.SynchronizationAngle);
+                SynchronizationResult synchronization = synchronized ? SynchronizationResult.Success
+                    : inSynchronizationZone ? SynchronizationResult.WrongDirection : SynchronizationResult.None;
+                float multiplier = Mathf.Min(GameTuning.MaxDistanceMultiplier,
+                    FlightMultiplier + (synchronized ? GameTuning.SynchronizationMultiplierBonus : 0f));
                 int fromSequence = LastSequence;
                 int skippedAnchors = Mathf.Max(0, best.Sequence - LastSequence - 1);
+                int completedNearMisses = nearMissCount;
                 Capture(best);
                 visitedSequences.Add(best.Sequence);
-                Captured?.Invoke(new CaptureResult(best, multiplier, skippedAnchors, fromSequence));
+                Captured?.Invoke(new CaptureResult(best, multiplier, skippedAnchors, fromSequence, synchronization, completedNearMisses));
                 return;
             }
 
@@ -216,6 +257,7 @@ namespace OrbitBreaker
             velocity = Vector2.zero;
             flightTime = 0f;
             State = PlayerOrbitState.Orbiting;
+            captureJuice = 0.18f;
             capturedAt = Time.time;
             shieldEndsAt = capturedAt + GameTuning.CaptureGraceDuration(anchor.Sequence);
             SetShield(true);
@@ -224,14 +266,42 @@ namespace OrbitBreaker
             SetFuel(1f);
         }
 
-        private bool CheckHazards(IReadOnlyList<OrbitHazard> hazards)
+        private void CheckNearMisses(IReadOnlyList<FreeDebris> freeDebris)
+        {
+            for (int i = 0; i < freeDebris.Count; i++)
+            {
+                FreeDebris debris = freeDebris[i];
+                if (!debris.gameObject.activeInHierarchy || rewardedFreeDebris.Contains(debris.Id)) continue;
+                float distance = Vector2.Distance(transform.position, debris.transform.position);
+                float nearRadius = debris.CollisionRadius + GameTuning.PlayerCollisionRadius + GameTuning.NearMissExtraRadius;
+                bool isNear = distance <= nearRadius;
+                if (isNear)
+                {
+                    nearbyFreeDebris.Add(debris.Id);
+                }
+                else if (nearbyFreeDebris.Remove(debris.Id))
+                {
+                    rewardedFreeDebris.Add(debris.Id);
+                    nearMissCount++;
+                    nearMissBoost = Mathf.Min(1.2f, nearMissBoost + GameTuning.NearMissMultiplierBonus);
+                    NearMissed?.Invoke(new NearMissResult(debris.transform.position, nearMissCount));
+                }
+            }
+        }
+
+        private bool CheckHazards(IReadOnlyList<OrbitHazard> hazards, IReadOnlyList<FreeDebris> freeDebris)
         {
             for (int i = 0; i < hazards.Count; i++)
             {
                 OrbitHazard hazard = hazards[i];
                 if (!hazard.gameObject.activeInHierarchy) continue;
                 if (CurrentAnchor != null && hazard.Sequence == CurrentAnchor.Sequence && Time.time - capturedAt < GameTuning.CaptureGraceDuration(CurrentAnchor.Sequence)) continue;
-                if (Vector2.Distance(transform.position, hazard.transform.position) <= hazard.CollisionRadius + 0.17f) return true;
+                if (Vector2.Distance(transform.position, hazard.transform.position) <= hazard.CollisionRadius + GameTuning.PlayerCollisionRadius) return true;
+            }
+            for (int i = 0; i < freeDebris.Count; i++)
+            {
+                FreeDebris debris = freeDebris[i];
+                if (debris.gameObject.activeInHierarchy && Vector2.Distance(transform.position, debris.transform.position) <= debris.CollisionRadius + GameTuning.PlayerCollisionRadius) return true;
             }
             return false;
         }
@@ -337,6 +407,36 @@ namespace OrbitBreaker
             innerFlame.transform.localScale = new Vector3(0.52f, 0.62f, 1f);
             outerFlame.color = Color.Lerp(new Color(0.18f, 0.92f, 1f, 0.9f), new Color(1f, 0.2f, 0.62f, 0.96f), multiplier01);
             SetFuel(1f - danger);
+        }
+
+        public void ApplyStyle(int style)
+        {
+            Color accent = GameProgression.TrailColor(style);
+            if (trail != null)
+            {
+                trail.startColor = new Color(accent.r, accent.g, accent.b, 0.9f);
+                trail.endColor = new Color(accent.r, accent.g, accent.b, 0f);
+            }
+            if (outerFlame != null) outerFlame.color = new Color(accent.r, accent.g, accent.b, 0.94f);
+            if (body != null && State != PlayerOrbitState.Dead) body.color = Color.Lerp(Color.white, accent, 0.13f);
+        }
+
+        private void UpdateMotionJuice(float deltaTime)
+        {
+            launchJuice = Mathf.Max(0f, launchJuice - deltaTime);
+            captureJuice = Mathf.Max(0f, captureJuice - deltaTime);
+            Vector3 targetScale = Vector3.one * 0.72f;
+            if (launchJuice > 0f)
+            {
+                float t = launchJuice / 0.16f;
+                targetScale = new Vector3(0.62f, 0.86f + t * 0.08f, 1f);
+            }
+            else if (captureJuice > 0f)
+            {
+                float wave = Mathf.Sin((1f - captureJuice / 0.18f) * Mathf.PI);
+                targetScale = new Vector3(0.72f + wave * 0.13f, 0.72f - wave * 0.08f, 1f);
+            }
+            transform.localScale = Vector3.Lerp(transform.localScale, targetScale, 1f - Mathf.Exp(-deltaTime * 28f));
         }
 
         private void SetEngine(bool active)

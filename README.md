@@ -17,6 +17,13 @@ Le joueur tourne automatiquement autour d'une ancre. Une pression le propulse se
 - Fond spatial dynamique avec nébuleuse et étoiles en parallaxe réversible
 - Indicateurs animés montrant le sens de rotation de chaque orbite
 - Dangers mobiles déterministes, télégraphiés et introduits progressivement
+- Validateur de parcours échantillonnant les fenêtres de lancement avant d'accepter une orbite
+- Portes de synchronisation calculées depuis une trajectoire réellement atteignable, optionnelles et progressivement plus précises
+- Débris libres réservés aux corridors de skip N−2 → N réellement atteignables, avec bonus de frôlement en vol
+- Motifs procéduraux et phases de respiration répartis sur des cycles de difficulté
+- Quatre styles cosmétiques de traînée et propulseur débloqués par la distance cumulée
+- Mission quotidienne locale et récapitulatif des performances de chaque partie
+- Transitions progressives de couleur du décor selon l'altitude
 - Musique chiptune originale en boucle et mixage séparé général/musique/effets
 - Menu audio accessible depuis l'accueil et l'écran de fin
 - Réglages persistants par onglets : son, aides visuelles, vibrations, modes 30/60/120 FPS, caméra stable et secousses indépendantes
@@ -28,7 +35,7 @@ Le joueur tourne automatiquement autour d'une ancre. Une pression le propulse se
 - Effets visuels, explosion, traînée, sons synthétisés et retours haptiques différenciés
 - Contrôles tactiles, souris et clavier
 - Build Android portrait avec IL2CPP
-- Tests EditMode du réglage de difficulté et du calcul du score
+- Tests EditMode du réglage de difficulté, du calcul du score et de la synchronisation
 - Kit graphique original stocké dans `Assets/OrbitBreaker/Resources/Art`
 
 ## Contrôles
