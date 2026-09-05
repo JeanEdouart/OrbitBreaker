@@ -1,4 +1,5 @@
 using NUnit.Framework;
+using UnityEngine;
 
 namespace OrbitBreaker.Tests
 {
@@ -86,6 +87,38 @@ namespace OrbitBreaker.Tests
             Assert.That(GameTuning.HasHazard(7), Is.True);
             Assert.That(GameTuning.HasHazard(8), Is.False);
             Assert.That(GameTuning.HasHazard(10), Is.True);
+        }
+
+        [TestCase(0)]
+        [TestCase(12)]
+        [TestCase(40)]
+        public void TypicalNextOrbit_HasAComfortableLaunchWindow(int sequence)
+        {
+            int samples = GameTuning.CountReachableLaunchSamples(
+                Vector2.zero, 1.2f, 1,
+                new Vector2(1.4f, 3.8f), 1.2f,
+                sequence);
+
+            Assert.That(samples, Is.GreaterThanOrEqualTo(GameTuning.MinimumReachableLaunchSamples(sequence)));
+        }
+
+        [Test]
+        public void OrbitOutsideFlightRange_IsRejected()
+        {
+            bool reachable = GameTuning.IsAnchorReachable(
+                Vector2.zero, 1.1f, 1,
+                new Vector2(0f, 40f), 1.1f,
+                0);
+
+            Assert.That(reachable, Is.False);
+        }
+
+        [Test]
+        public void HazardRequiresExtraLandingOptions()
+        {
+            int minimum = GameTuning.MinimumReachableLaunchSamples(20);
+            Assert.That(GameTuning.CanAddHazardToLayout(minimum, 20), Is.False);
+            Assert.That(GameTuning.CanAddHazardToLayout(minimum + 3, 20), Is.True);
         }
     }
 }

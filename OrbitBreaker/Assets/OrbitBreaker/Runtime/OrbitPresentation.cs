@@ -410,13 +410,13 @@ namespace OrbitBreaker
             gameOverPanel.SetActive(false);
 
             settingsButton = CreateIconButton(safe, "Settings Button", RuntimeAssets.SettingsIcon, ToggleSettings);
-            SetRect(settingsButton.GetComponent<RectTransform>(), new Vector2(0.855f, 0.465f), new Vector2(0.965f, 0.535f), Vector2.zero, Vector2.zero);
+            SetSquareRect(settingsButton.GetComponent<RectTransform>(), new Vector2(0.91f, 0.5f), 112f);
 
             infoButton = CreateRoundTextButton(safe, "Credits Button", "i", ToggleCredits);
-            SetRect(infoButton.GetComponent<RectTransform>(), new Vector2(0.035f, 0.475f), new Vector2(0.105f, 0.525f), Vector2.zero, Vector2.zero);
+            SetSquareRect(infoButton.GetComponent<RectTransform>(), new Vector2(0.07f, 0.5f), 76f);
 
             pauseButton = CreateIconButton(safe, "Pause Button", RuntimeAssets.PauseIcon, PauseGame);
-            SetRect(pauseButton.GetComponent<RectTransform>(), new Vector2(0.045f, 0.89f), new Vector2(0.145f, 0.95f), Vector2.zero, Vector2.zero);
+            SetSquareRect(pauseButton.GetComponent<RectTransform>(), new Vector2(0.095f, 0.92f), 104f);
             pauseButton.SetActive(false);
 
             pausePanel = CreatePausePanel(safe);
@@ -900,6 +900,15 @@ namespace OrbitBreaker
             rect.anchorMax = anchorMax;
             rect.offsetMin = offsetMin;
             rect.offsetMax = offsetMax;
+        }
+
+        private static void SetSquareRect(RectTransform rect, Vector2 normalizedPosition, float size)
+        {
+            rect.anchorMin = normalizedPosition;
+            rect.anchorMax = normalizedPosition;
+            rect.pivot = Vector2.one * 0.5f;
+            rect.anchoredPosition = Vector2.zero;
+            rect.sizeDelta = Vector2.one * size;
         }
     }
 

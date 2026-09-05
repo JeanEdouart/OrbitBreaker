@@ -212,6 +212,7 @@ namespace OrbitBreaker
         private System.Random random;
         private int nextSequence;
         private Vector2 lastPosition;
+        private OrbitAnchor lastAnchor;
 
         public IReadOnlyList<OrbitAnchor> Anchors => anchors;
         public IReadOnlyList<OrbitHazard> Hazards => hazards;
@@ -227,6 +228,7 @@ namespace OrbitBreaker
             nextSequence = 0;
             lastPosition = new Vector2(0f, GameTuning.StartingHeight);
             OrbitAnchor first = SpawnAnchor(lastPosition, 1.25f, 1);
+            lastAnchor = first;
             EnsureAhead(0);
             return first;
         }
@@ -263,15 +265,52 @@ namespace OrbitBreaker
         private void GenerateNext()
         {
             int score = nextSequence;
-            float gap = GameTuning.AnchorGap(score, NextFloat());
-            float horizontalStep = Mathf.Lerp(-2.2f, 2.2f, NextFloat());
-            float x = Mathf.Clamp(lastPosition.x + horizontalStep, -2.45f, 2.45f);
-            lastPosition = new Vector2(x, lastPosition.y + gap);
-            float radius = Mathf.Lerp(1.02f, 1.38f, NextFloat());
-            int direction = NextFloat() > 0.5f ? 1 : -1;
-            OrbitAnchor anchor = SpawnAnchor(lastPosition, radius, direction);
+            Vector2 candidatePosition = default;
+            float candidateRadius = 1.2f;
+            int candidateDirection = 1;
+            int reachableSamples = 0;
 
-            if (GameTuning.HasHazard(score))
+            for (int attempt = 0; attempt < GameTuning.GenerationAttempts; attempt++)
+            {
+                float gap = GameTuning.AnchorGap(score, NextFloat());
+                float horizontalStep = Mathf.Lerp(-2.2f, 2.2f, NextFloat());
+                float x = Mathf.Clamp(lastPosition.x + horizontalStep, -2.45f, 2.45f);
+                candidatePosition = new Vector2(x, lastPosition.y + gap);
+                candidateRadius = Mathf.Lerp(1.02f, 1.38f, NextFloat());
+                candidateDirection = NextFloat() > 0.5f ? 1 : -1;
+                reachableSamples = GameTuning.CountReachableLaunchSamples(
+                    lastAnchor.transform.position,
+                    lastAnchor.Radius,
+                    lastAnchor.Direction,
+                    candidatePosition,
+                    candidateRadius,
+                    score);
+
+                if (reachableSamples >= GameTuning.MinimumReachableLaunchSamples(score)) break;
+            }
+
+            if (reachableSamples < GameTuning.MinimumReachableLaunchSamples(score))
+            {
+                // Deterministic fallback: a centered, generously sized orbit instead of an unfair roll.
+                candidatePosition = new Vector2(
+                    Mathf.Lerp(lastPosition.x, 0f, 0.35f),
+                    lastPosition.y + GameTuning.AnchorGap(score, 0.25f));
+                candidateRadius = 1.34f;
+                candidateDirection = lastAnchor.Direction;
+                reachableSamples = GameTuning.CountReachableLaunchSamples(
+                    lastAnchor.transform.position,
+                    lastAnchor.Radius,
+                    lastAnchor.Direction,
+                    candidatePosition,
+                    candidateRadius,
+                    score);
+            }
+
+            lastPosition = candidatePosition;
+            OrbitAnchor anchor = SpawnAnchor(candidatePosition, candidateRadius, candidateDirection);
+            lastAnchor = anchor;
+
+            if (GameTuning.HasHazard(score) && GameTuning.CanAddHazardToLayout(reachableSamples, score))
             {
                 float angle = Mathf.Repeat(score * 0.381966f, 1f) * Mathf.PI * 2f;
                 hazards.Add(GetHazard(anchor, angle));
