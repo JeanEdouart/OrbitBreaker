@@ -55,16 +55,17 @@
     const status = document.querySelector("#status");
     const warning = document.querySelector("#warning");
     const buildUrl = "Build";
-    const loaderUrl = buildUrl + "/Web.loader.js";
+    const releaseQuery = "?v=" + encodeURIComponent("0.2.0");
+    const loaderUrl = buildUrl + "/Web.loader.js" + releaseQuery;
     const config = {
       arguments: [],
-      dataUrl: buildUrl + "/Web.data",
-      frameworkUrl: buildUrl + "/Web.framework.js",
-      codeUrl: buildUrl + "/Web.wasm",
+      dataUrl: buildUrl + "/Web.data" + releaseQuery,
+      frameworkUrl: buildUrl + "/Web.framework.js" + releaseQuery,
+      codeUrl: buildUrl + "/Web.wasm" + releaseQuery,
       streamingAssetsUrl: "StreamingAssets",
       companyName: "Orbit Breaker Studio",
       productName: "Orbit Breaker",
-      productVersion: "0.1.0",
+      productVersion: "0.2.0",
       showBanner(message, type) {
         const item = document.createElement("div");
         item.textContent = message;
