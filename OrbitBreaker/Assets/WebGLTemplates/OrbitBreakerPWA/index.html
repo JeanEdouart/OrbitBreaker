@@ -55,13 +55,14 @@
     const status = document.querySelector("#status");
     const warning = document.querySelector("#warning");
     const buildUrl = "Build";
-    const loaderUrl = buildUrl + "/{{{ LOADER_FILENAME }}}";
+    const releaseQuery = "?v=" + encodeURIComponent({{{ JSON.stringify(PRODUCT_VERSION) }}});
+    const loaderUrl = buildUrl + "/{{{ LOADER_FILENAME }}}" + releaseQuery;
     const config = {
       arguments: [],
-      dataUrl: buildUrl + "/{{{ DATA_FILENAME }}}",
-      frameworkUrl: buildUrl + "/{{{ FRAMEWORK_FILENAME }}}",
+      dataUrl: buildUrl + "/{{{ DATA_FILENAME }}}" + releaseQuery,
+      frameworkUrl: buildUrl + "/{{{ FRAMEWORK_FILENAME }}}" + releaseQuery,
 #if USE_WASM
-      codeUrl: buildUrl + "/{{{ CODE_FILENAME }}}",
+      codeUrl: buildUrl + "/{{{ CODE_FILENAME }}}" + releaseQuery,
 #endif
       streamingAssetsUrl: "StreamingAssets",
       companyName: {{{ JSON.stringify(COMPANY_NAME) }}},

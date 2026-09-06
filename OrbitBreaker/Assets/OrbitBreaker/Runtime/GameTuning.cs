@@ -4,17 +4,18 @@ namespace OrbitBreaker
 {
     public static class GameTuning
     {
-        public const float BaseAngularSpeed = 125f;
-        public const float MaxAngularSpeed = 230f;
+        public const float BaseAngularSpeed = 158f;
+        public const float MaxAngularSpeed = 222f;
         public const float BaseLaunchSpeed = 7.4f;
-        public const float MaxLaunchSpeed = 10.2f;
+        public const float MaxLaunchSpeed = 9.55f;
         public const float CaptureBand = 0.34f;
         public const float MaxFlightTime = 2.65f;
         public const float HorizontalLimit = 5.4f;
         public const float DeathDistanceBelowCamera = 12.5f;
         public const int AnchorsAhead = 9;
         public const int BackwardOrbitRetention = 8;
-        public const int HazardIntroductionSequence = 7;
+        public const int HazardIntroductionSequence = 4;
+        public const int DifficultyCapDistance = 3000;
         public const float StartingHeight = -2.1f;
         public const float MultiplierStepDuration = 0.12f;
         public const float MaxDistanceMultiplier = 6f;
@@ -28,7 +29,8 @@ namespace OrbitBreaker
 
         public static float Difficulty01(int score)
         {
-            return 1f - Mathf.Exp(-Mathf.Max(0, score) / 22f);
+            // Input is displayed distance, never orbit sequence. Linear ramp then a hard cap.
+            return Mathf.Clamp01(score / (float)DifficultyCapDistance);
         }
 
         public static float AngularSpeed(int score)
@@ -43,32 +45,31 @@ namespace OrbitBreaker
 
         public static float AnchorGap(int score, float random01)
         {
-            float minimum = Mathf.Lerp(3.1f, 3.65f, Difficulty01(score));
-            float maximum = Mathf.Lerp(3.75f, 4.45f, Difficulty01(score));
+            float minimum = Mathf.Lerp(3.05f, 3.45f, Difficulty01(score));
+            float maximum = Mathf.Lerp(3.7f, 4.18f, Difficulty01(score));
             return Mathf.Lerp(minimum, maximum, Mathf.Clamp01(random01));
         }
 
-        public static bool HasHazard(int sequence)
+        public static bool HasHazard(int sequence, int distance = 0)
         {
             if (sequence < HazardIntroductionSequence) return false;
-            if (sequence < 18) return sequence % 3 == 1;
-            if (sequence < 34) return sequence % 2 == 0;
-            return true;
+            // Stable per-orbit roll, with density rising smoothly from 55% to 85%.
+            return Mathf.Repeat(sequence * 0.6180339f, 1f) < Mathf.Lerp(0.55f, 0.85f, Difficulty01(distance));
         }
 
         public static float HazardCollisionRadius(int sequence)
         {
-            return Mathf.Lerp(0.2f, 0.32f, Difficulty01(sequence - HazardIntroductionSequence));
+            return Mathf.Lerp(0.22f, 0.27f, Difficulty01(sequence));
         }
 
         public static float CaptureGraceDuration(int sequence)
         {
-            return Mathf.Lerp(1.05f, 0.58f, Difficulty01(sequence));
+            return Mathf.Lerp(0.80f, 0.52f, Difficulty01(sequence));
         }
 
         public static int MinimumReachableLaunchSamples(int sequence)
         {
-            return Mathf.RoundToInt(Mathf.Lerp(9f, 5f, Difficulty01(sequence)));
+            return Mathf.RoundToInt(Mathf.Lerp(10f, 7f, Difficulty01(sequence)));
         }
 
         public static int CountReachableLaunchSamples(
@@ -172,17 +173,57 @@ namespace OrbitBreaker
                    >= MinimumReachableLaunchSamples(sequence);
         }
 
+        public static bool TryFindTransferPickupPoint(
+            Vector2 fromCenter, float fromRadius, int fromDirection,
+            Vector2 targetCenter, float targetRadius, int sequence,
+            out Vector2 point)
+        {
+            point = Vector2.zero;
+            float maximumTravel = LaunchSpeed(sequence) * Mathf.Max(0.1f, MaxFlightTime - FlightTimeReserve);
+            float captureRadius = targetRadius + CaptureBand;
+            float bestClearance = float.MinValue;
+            for (int sample = 0; sample < ReachabilitySamples; sample++)
+            {
+                float angle = sample * Mathf.PI * 2f / ReachabilitySamples;
+                Vector2 radial = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
+                Vector2 origin = fromCenter + radial * fromRadius;
+                Vector2 direction = fromDirection > 0 ? new Vector2(-radial.y, radial.x) : new Vector2(radial.y, -radial.x);
+                Vector2 relative = origin - targetCenter;
+                float b = Vector2.Dot(relative, direction);
+                float c = relative.sqrMagnitude - captureRadius * captureRadius;
+                float discriminant = b * b - c;
+                if (discriminant < 0f) continue;
+                float travel = -b - Mathf.Sqrt(discriminant);
+                if (travel < 0f) travel = -b + Mathf.Sqrt(discriminant);
+                if (travel <= 0f || travel > maximumTravel) continue;
+                Vector2 candidate = origin + direction * (travel * 0.52f);
+                if (Mathf.Abs(candidate.x) > HorizontalLimit - 0.35f) continue;
+                float clearance = Mathf.Min(Vector2.Distance(candidate, fromCenter) - fromRadius,
+                    Vector2.Distance(candidate, targetCenter) - targetRadius);
+                if (clearance < 0.28f || clearance <= bestClearance) continue;
+                bestClearance = clearance; point = candidate;
+            }
+            return bestClearance > float.MinValue;
+        }
+
         public static bool CanAddHazardToLayout(int reachableSamples, int sequence)
         {
             // A dangerous landing must retain a wider timing window than an empty orbit.
             return reachableSamples >= MinimumReachableLaunchSamples(sequence) + 3;
         }
 
-        public static bool CanAddSkipChallenge(int reachableSamples, int sequence)
+        public static bool IsOrbitFullyVisibleForHazard(float centerX, float orbitRadius)
+        {
+            // Portrait gameplay safe width. The extra margin includes the debris radius,
+            // preventing an off-screen obstacle from entering the orbit unexpectedly.
+            return Mathf.Abs(centerX) + orbitRadius + 0.42f <= 2.9f;
+        }
+
+        public static bool CanAddSkipChallenge(int reachableSamples, int sequence, int distance = 0)
         {
             // A two-orbit jump is intentionally narrower than a normal transfer, but still
             // needs several viable launch timings before a moving challenge can be added.
-            int minimumSkipSamples = Mathf.Max(4, MinimumReachableLaunchSamples(sequence) - 2);
+            int minimumSkipSamples = Mathf.Max(4, MinimumReachableLaunchSamples(distance) - 2);
             return sequence >= 11 && reachableSamples >= minimumSkipSamples;
         }
 
@@ -273,12 +314,12 @@ namespace OrbitBreaker
 
         public static float SynchronizationHalfAngle(int sequence)
         {
-            return Mathf.Lerp(42f, 27f, Difficulty01(sequence));
+            return Mathf.Lerp(44f, 31f, Difficulty01(sequence));
         }
 
         public static float SynchronizationAlignment(int sequence)
         {
-            return Mathf.Lerp(0.52f, 0.68f, Difficulty01(sequence));
+            return Mathf.Lerp(0.5f, 0.63f, Difficulty01(sequence));
         }
 
         public static bool IsSynchronizedCapture(Vector2 radial, Vector2 velocity, int orbitDirection, int sequence, float zoneAngleRadians)

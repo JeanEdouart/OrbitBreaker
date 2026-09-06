@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
@@ -34,6 +35,10 @@ namespace OrbitBreaker
         private int runMaterials;
         private int runSkips;
         private readonly bool[] challengeCompletionNotified = new bool[3];
+        private readonly int[] powerUpInventory = new int[5];
+        private int powerUpInventoryCount;
+        private bool warpInProgress;
+        private int pendingWarpDistance;
 
         private void Awake()
         {
@@ -69,8 +74,10 @@ namespace OrbitBreaker
             feedback.Initialize();
             hud.Initialize(feedback, onlineLeaderboard);
             hud.CosmeticsChanged += HandleCosmeticsChanged;
+            hud.PowerUpRequested += HandlePowerUpRequested;
             player.Captured += HandleCaptured;
             player.MaterialCollected += HandleMaterialCollected;
+            player.PowerUpCollected += HandlePowerUpCollected;
             player.Died += HandleDeath;
             player.NearMissed += HandleNearMiss;
             bestScore = PlayerPrefs.GetInt(BestScoreKey, 0);
@@ -100,17 +107,21 @@ namespace OrbitBreaker
 
             float deltaTime = Mathf.Min(Time.deltaTime, 1f / 20f);
 
+            if (warpInProgress) return;
+
             if (runActive)
             {
                 if (!hud.SettingsOpen && WasGameplayPressedThisFrame() && player.Launch())
                 {
                     tutorialVisible = false;
                     hud.HideTutorial();
+                    hud.UpdatePowerUpInventory(powerUpInventory, true);
                     feedback.Launch(player.transform.position);
                 }
 
-                player.Tick(deltaTime, world.Anchors, world.Hazards, world.FreeDebris, world.Materials, cameraRig.CameraY);
+                player.Tick(deltaTime, world.Anchors, world.Hazards, world.FreeDebris, world.Materials, world.PowerUps, cameraRig.CameraY);
                 hud.UpdateFlightDisplay(player.transform.position, player.FlightMultiplier, player.FlightDanger01, player.State == PlayerOrbitState.Flying);
+                hud.UpdateActivePowerUps(player);
                 feedback.UpdateCharge(player.FlightMultiplier, player.State == PlayerOrbitState.Flying);
                 bestRunMultiplier = Mathf.Max(bestRunMultiplier, player.FlightMultiplier);
                 CheckChallengeCompletions();
@@ -132,7 +143,9 @@ namespace OrbitBreaker
             player.Died -= HandleDeath;
             player.NearMissed -= HandleNearMiss;
             player.MaterialCollected -= HandleMaterialCollected;
+            player.PowerUpCollected -= HandlePowerUpCollected;
             hud.CosmeticsChanged -= HandleCosmeticsChanged;
+            hud.PowerUpRequested -= HandlePowerUpRequested;
         }
 
         private void StartRun()
@@ -149,6 +162,11 @@ namespace OrbitBreaker
             bestRunMultiplier = 1f;
             runMaterials = 0;
             runSkips = 0;
+            spaceBackground.SetDistance(0, true);
+            powerUpInventoryCount = PowerUpProgression.TotalStored();
+            warpInProgress = false;
+            pendingWarpDistance = 0;
+            for (int i = 0; i < powerUpInventory.Length; i++) powerUpInventory[i] = PowerUpProgression.StoredCount((PowerUpType)i);
             for (int i = 0; i < challengeCompletionNotified.Length; i++)
             {
                 ChallengeDefinition challenge = MetaProgression.Challenge(MetaProgression.ActiveChallengeId(i));
@@ -164,6 +182,7 @@ namespace OrbitBreaker
             player.SetScore(0);
             cameraRig.Snap(first.transform.position);
             hud.ShowPlaying(distanceScore, bestScore, tutorialVisible);
+            hud.UpdatePowerUpInventory(powerUpInventory, true);
         }
 
         private void HandleCaptured(CaptureResult result)
@@ -185,10 +204,21 @@ namespace OrbitBreaker
                 anchorsCaptured++;
             }
             int scoreDelta = distanceScore - previousScore;
+            if (pendingWarpDistance > 0)
+            {
+                distanceScore += pendingWarpDistance;
+                scoreDelta += pendingWarpDistance;
+                pendingWarpDistance = 0;
+                checkpointScores[result.Anchor.Sequence] = distanceScore;
+            }
             furthestSequence = Mathf.Max(furthestSequence, result.Anchor.Sequence);
-            player.SetScore(furthestSequence);
+            spaceBackground.SetDistance(distanceScore);
+            if (SpaceBackground.SectorForDistance(distanceScore) > SpaceBackground.SectorForDistance(previousScore))
+                hud.ShowSector(SpaceBackground.SectorForDistance(distanceScore));
+            player.SetScore(distanceScore);
+            world.SetDifficultyDistance(distanceScore);
             world.EnsureAhead(furthestSequence);
-            int rewardedSkips = !revisited && !result.IsBacktrack ? result.SkippedAnchors : 0;
+            int rewardedSkips = !revisited && !result.IsBacktrack && !warpInProgress ? result.SkippedAnchors : 0;
             if (rewardedSkips > 0) runSkips++;
             if (result.Synchronized && !result.IsBacktrack) runSynchronizations++;
             bestRunSkip = Mathf.Max(bestRunSkip, rewardedSkips);
@@ -227,6 +257,124 @@ namespace OrbitBreaker
             CheckChallengeCompletions();
         }
 
+        private void HandlePowerUpCollected(PowerUpType type, Vector2 position)
+        {
+            if (!PowerUpProgression.TryStore(type))
+            {
+                hud.ShowPowerUpPickup(type, PowerUpProgression.MaxInventory, false);
+                feedback.PowerUp(position, type, false);
+                return;
+            }
+            powerUpInventory[(int)type] = PowerUpProgression.StoredCount(type);
+            powerUpInventoryCount = PowerUpProgression.TotalStored();
+            hud.UpdatePowerUpInventory(powerUpInventory, true);
+            hud.ShowPowerUpPickup(type, powerUpInventory[(int)type], true);
+            feedback.PowerUp(position, type, true);
+        }
+
+        private void HandlePowerUpRequested(PowerUpType type)
+        {
+            int index = (int)type;
+            if (!runActive || warpInProgress || hud.IsPaused || hud.SettingsOpen || player.State == PlayerOrbitState.Dead
+                || index < 0 || index >= powerUpInventory.Length || powerUpInventory[index] <= 0) return;
+            if (player.PowerUpRemaining(type) > 0f) return;
+            tutorialVisible = false;
+            hud.HideTutorial();
+            hud.UpdatePowerUpInventory(powerUpInventory, true);
+            int level = PowerUpProgression.Level(type);
+            if (type == PowerUpType.Wormhole)
+            {
+                StartCoroutine(ActivateWormhole(level));
+                return;
+            }
+            if (!PowerUpProgression.TryConsume(type)) return;
+            powerUpInventory[index] = PowerUpProgression.StoredCount(type);
+            powerUpInventoryCount = PowerUpProgression.TotalStored();
+            switch (type)
+            {
+                case PowerUpType.OrbitMagnet: player.ActivateMagnet(level); break;
+                case PowerUpType.Shield: player.ActivateShield(level); break;
+                case PowerUpType.IonOverdrive: player.ActivateOverdrive(level); break;
+                case PowerUpType.QuantumExtractor: player.ActivateExtractor(level); break;
+            }
+            hud.UpdatePowerUpInventory(powerUpInventory, true);
+            hud.ShowPowerUpActivated(type);
+            feedback.PowerUp(player.transform.position, type, true);
+        }
+
+        private IEnumerator ActivateWormhole(int level)
+        {
+            OrbitAnchor target = world.PrepareSafeWarpTarget(player.LastSequence, PowerUpProgression.WormholeOrbitSkip(level));
+            if (target == null) yield break;
+            if (!PowerUpProgression.TryConsume(PowerUpType.Wormhole)) yield break;
+            powerUpInventory[(int)PowerUpType.Wormhole] = PowerUpProgression.StoredCount(PowerUpType.Wormhole);
+            powerUpInventoryCount = PowerUpProgression.TotalStored();
+            hud.UpdatePowerUpInventory(powerUpInventory, true); hud.ShowPowerUpActivated(PowerUpType.Wormhole);
+            feedback.PowerUp(player.transform.position, PowerUpType.Wormhole, true);
+            warpInProgress = true;
+            hud.BeginHyperspace();
+            Vector3 originalScale = player.transform.localScale;
+            Vector3 startPosition = player.transform.position;
+            Vector3 destination = target.transform.position + Vector3.down * target.Radius;
+            Vector2 cameraStart = Camera.main.transform.position;
+            Vector2 cameraDestination = new Vector2(destination.x * 0.12f, Mathf.Max(0f, destination.y + 2.25f));
+            Quaternion startRotation = player.transform.rotation;
+            float elapsed = 0f;
+            while (elapsed < 0.48f)
+            {
+                elapsed += Time.deltaTime;
+                float t = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(elapsed / 0.48f));
+                hud.UpdateHyperspace(t * 0.72f);
+                spaceBackground.SetHyperspace(t);
+                feedback.UpdateWarpAudio(t * 0.5f);
+                player.transform.localScale = originalScale * Mathf.Lerp(1f, 0.72f, t);
+                player.transform.rotation = Quaternion.Slerp(startRotation, Quaternion.FromToRotation(Vector3.up, destination - startPosition), t);
+                player.SetWarpEngine(t * 0.5f);
+                yield return null;
+            }
+            elapsed = 0f;
+            const float travelDuration = 2.1f;
+            while (elapsed < travelDuration)
+            {
+                elapsed += Time.deltaTime;
+                float t = Mathf.Clamp01(elapsed / travelDuration);
+                float progress = t * t * t * (t * (t * 6f - 15f) + 10f);
+                float intensity = Mathf.Sin(t * Mathf.PI);
+                hud.UpdateHyperspace(intensity);
+                spaceBackground.SetHyperspace(intensity);
+                feedback.UpdateWarpAudio(intensity);
+                player.transform.position = Vector3.Lerp(startPosition, destination, progress);
+                player.transform.up = (destination - startPosition).normalized;
+                cameraRig.SetCinematicPosition(Vector2.Lerp(cameraStart, cameraDestination, progress));
+                player.SetWarpEngine(intensity);
+                player.transform.localScale = Vector3.Scale(originalScale, new Vector3(1f - intensity * 0.12f, 1f + intensity * 0.2f, 1f));
+                hud.UpdateFlightDisplay(player.transform.position, 1f, 0f, false);
+                yield return null;
+            }
+            pendingWarpDistance = PowerUpProgression.WormholeDistance(level);
+            player.WarpTo(target);
+            player.SetWarpEngine(0f);
+            feedback.UpdateWarpAudio(0f);
+            Quaternion arrivalRotation = player.transform.rotation;
+            elapsed = 0f;
+            while (elapsed < 0.62f)
+            {
+                elapsed += Time.deltaTime;
+                float t = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(elapsed / 0.62f));
+                hud.UpdateHyperspace(0f);
+                spaceBackground.SetHyperspace(0f);
+                player.transform.localScale = originalScale;
+                player.transform.rotation = Quaternion.Slerp(arrivalRotation, Quaternion.FromToRotation(Vector3.up, Vector3.right * target.Direction), t);
+                yield return null;
+            }
+            player.transform.localScale = originalScale;
+            spaceBackground.SetHyperspace(0f);
+            hud.EndHyperspace();
+            player.RefreshCaptureProtection();
+            warpInProgress = false;
+            hud.UpdatePowerUpInventory(powerUpInventory, true);
+        }
+
         private void CheckChallengeCompletions()
         {
             for (int slot = 0; slot < challengeCompletionNotified.Length; slot++)
@@ -254,7 +402,8 @@ namespace OrbitBreaker
             MetaProgression.RecordRun(distanceScore, anchorsCaptured, runSkips, runSynchronizations, runNearMisses, runMaterials, bestRunMultiplier);
             PlayerPrefs.Save();
             _ = onlineLeaderboard.SubmitBestScoreAsync(bestScore);
-            hud.ShowGameOver(distanceScore, bestScore, anchorsCaptured, reason, runSynchronizations, runNearMisses, bestRunSkip, bestRunMultiplier);
+            hud.UpdatePowerUpInventory(powerUpInventory, false);
+            hud.ShowGameOver(distanceScore, bestScore, anchorsCaptured, reason, runSynchronizations, runNearMisses, bestRunSkip, bestRunMultiplier, runMaterials);
         }
 
         private void UpdateBestScore(int currentScore)

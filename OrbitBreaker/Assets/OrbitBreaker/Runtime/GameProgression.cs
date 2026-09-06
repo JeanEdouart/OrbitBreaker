@@ -77,7 +77,7 @@ namespace OrbitBreaker
 
         public static Color TrailColor(int style)
         {
-            Color[] colors = { new Color(0.25f, 0.9f, 1f), new Color(1f, 0.33f, 0.65f), new Color(0.54f, 1f, 0.4f), new Color(1f, 0.72f, 0.18f) };
+            Color[] colors = { new Color(0.25f, 0.9f, 1f), new Color(1f, 0.33f, 0.65f), new Color(0.54f, 1f, 0.4f), new Color(1f, 0.72f, 0.18f), new Color(0.2f, 1f, 0.76f), new Color(0.7f, 0.4f, 1f) };
             return colors[Mathf.Clamp(style, 0, colors.Length - 1)];
         }
 

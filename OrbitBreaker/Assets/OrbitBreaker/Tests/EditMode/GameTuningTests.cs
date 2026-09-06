@@ -6,18 +6,63 @@ namespace OrbitBreaker.Tests
     public sealed class GameTuningTests
     {
         [Test]
+        public void WorldDifficulty_UsesDistanceAndDoesNotMutateExistingOrbits()
+        {
+            var root = new GameObject("Difficulty Test World");
+            try
+            {
+                var world = root.AddComponent<OrbitWorld>();
+                OrbitAnchor first = world.ResetWorld();
+                world.SetDifficultyDistance(1500);
+                world.EnsureAhead(20);
+                Assert.That(first.DifficultyDistance, Is.Zero);
+                Assert.That(world.FindAnchor(20).DifficultyDistance, Is.EqualTo(1500));
+                world.SetDifficultyDistance(300);
+                world.EnsureAhead(40);
+                Assert.That(world.FindAnchor(40).DifficultyDistance, Is.EqualTo(1500));
+                world.SetDifficultyDistance(6000);
+                world.EnsureAhead(60);
+                Assert.That(world.FindAnchor(60).DifficultyDistance, Is.EqualTo(3000));
+                Assert.That(world.ResetWorld().DifficultyDistance, Is.Zero);
+            }
+            finally { Object.DestroyImmediate(root); }
+        }
+
+        [TestCase(-1, 0)]
+        [TestCase(499, 0)]
+        [TestCase(500, 1)]
+        [TestCase(999, 1)]
+        [TestCase(1000, 2)]
+        [TestCase(3500, 7)]
+        public void BackgroundSectors_FollowDisplayedDistance(int distance, int expected)
+        {
+            Assert.That(SpaceBackground.SectorForDistance(distance), Is.EqualTo(expected));
+        }
+
+        [Test]
         public void Difficulty_IsBoundedAndMonotonic()
         {
             float previous = GameTuning.Difficulty01(0);
             Assert.That(previous, Is.InRange(0f, 1f));
 
-            for (int score = 1; score <= 200; score++)
+            for (int score = 1; score <= 6000; score++)
             {
                 float current = GameTuning.Difficulty01(score);
                 Assert.That(current, Is.InRange(0f, 1f));
                 Assert.That(current, Is.GreaterThanOrEqualTo(previous));
                 previous = current;
             }
+        }
+
+        [Test]
+        public void Difficulty_ReachesTheNewLongRunMilestonesGradually()
+        {
+            Assert.That(GameTuning.Difficulty01(0), Is.Zero);
+            Assert.That(GameTuning.Difficulty01(300), Is.EqualTo(0.1f).Within(0.001f));
+            Assert.That(GameTuning.Difficulty01(1500), Is.EqualTo(0.5f).Within(0.001f));
+            Assert.That(GameTuning.Difficulty01(3000), Is.EqualTo(1f));
+            Assert.That(GameTuning.Difficulty01(6000), Is.EqualTo(1f));
+            Assert.That(GameTuning.AngularSpeed(10000), Is.LessThanOrEqualTo(GameTuning.MaxAngularSpeed));
         }
 
         [TestCase(0)]
@@ -84,14 +129,21 @@ namespace OrbitBreaker.Tests
         [Test]
         public void HazardPattern_IsDeterministicAfterOnboarding()
         {
-            Assert.That(GameTuning.HasHazard(7), Is.True);
-            Assert.That(GameTuning.HasHazard(8), Is.False);
-            Assert.That(GameTuning.HasHazard(10), Is.True);
+            int initial = 0, capped = 0;
+            for (int sequence = 4; sequence < 200; sequence++)
+            {
+                if (GameTuning.HasHazard(sequence, 0)) initial++;
+                if (GameTuning.HasHazard(sequence, 3000)) capped++;
+                if (GameTuning.HasHazard(sequence, 0)) Assert.That(GameTuning.HasHazard(sequence, 3000), Is.True);
+            }
+            Assert.That(capped, Is.GreaterThan(initial));
         }
 
         [TestCase(0)]
         [TestCase(12)]
         [TestCase(40)]
+        [TestCase(1500)]
+        [TestCase(3000)]
         public void TypicalNextOrbit_HasAComfortableLaunchWindow(int sequence)
         {
             int samples = GameTuning.CountReachableLaunchSamples(
@@ -125,8 +177,19 @@ namespace OrbitBreaker.Tests
         public void SkipChallenge_OnlyUsesComfortableOptionalRoutes()
         {
             Assert.That(GameTuning.CanAddSkipChallenge(3, 20), Is.False);
-            Assert.That(GameTuning.CanAddSkipChallenge(5, 20), Is.True);
+            int comfortable = Mathf.Max(4, GameTuning.MinimumReachableLaunchSamples(20) - 2);
+            Assert.That(GameTuning.CanAddSkipChallenge(comfortable, 20), Is.True);
             Assert.That(GameTuning.CanAddSkipChallenge(99, 8), Is.False);
+        }
+
+        [Test]
+        public void TransferPickupPoint_IsOnAReachableFlight()
+        {
+            bool found = GameTuning.TryFindTransferPickupPoint(Vector2.zero, 1.2f, 1,
+                new Vector2(1.4f, 3.8f), 1.2f, 20, out Vector2 point);
+            Assert.That(found, Is.True);
+            Assert.That(point.y, Is.GreaterThan(0.5f).And.LessThan(3.4f));
+            Assert.That(Mathf.Abs(point.x), Is.LessThan(GameTuning.HorizontalLimit));
         }
 
         [Test]
@@ -199,6 +262,14 @@ namespace OrbitBreaker.Tests
             for (int sequence = 0; sequence < 100; sequence++)
             for (int sample = 0; sample <= 10; sample++)
                 Assert.That(Mathf.Abs(GameTuning.PatternHorizontalStep(sequence, sample / 10f)), Is.LessThanOrEqualTo(2.2f));
+        }
+
+        [Test]
+        public void HazardsAreRejectedWhenAnyPartOfOrbitLeavesPortraitView()
+        {
+            Assert.That(GameTuning.IsOrbitFullyVisibleForHazard(0.8f, 1.25f), Is.True);
+            Assert.That(GameTuning.IsOrbitFullyVisibleForHazard(1.55f, 1.25f), Is.False);
+            Assert.That(GameTuning.IsOrbitFullyVisibleForHazard(-1.55f, 1.25f), Is.False);
         }
     }
 }

@@ -24,6 +24,11 @@ namespace OrbitBreaker
         private static Sprite[] cosmeticPlanets;
         private static Sprite[] cosmeticBackgrounds;
         private static Sprite materialCrystalSprite;
+        private static Sprite[] powerUpIcons;
+        private static Sprite powerUpUpgradeIcon;
+        private static Sprite auroraRocket;
+        private static Sprite auroraBackground;
+        private static Sprite[] auroraPlanets;
 
         public static Sprite CircleSprite
         {
@@ -192,6 +197,7 @@ namespace OrbitBreaker
 
         public static Sprite GetRocketSprite(int index)
         {
+            if (index == 10) return auroraRocket != null ? auroraRocket : auroraRocket = LoadSingleSprite("Art/aurora-rocket", "Aurore");
             if (index <= 0) return RocketSprite;
             if (cosmeticRockets == null) cosmeticRockets = LoadGridSprites("Art/cosmetics-rockets-atlas", 5, 2, "Rocket Cosmetic");
             // Sprite.Create uses texture coordinates from the bottom row upward.
@@ -203,8 +209,64 @@ namespace OrbitBreaker
 
         public static Sprite MaterialCrystalSprite => materialCrystalSprite != null ? materialCrystalSprite : materialCrystalSprite = CreateFacetedCrystal();
 
+        // Three rising bars and an upward arrow: upgrades, not a sixth power-up.
+        public static Sprite PowerUpUpgradeIcon => powerUpUpgradeIcon != null ? powerUpUpgradeIcon : powerUpUpgradeIcon = CreateIcon("Bonus Upgrades", (x, y) =>
+        {
+            bool bars = y > -0.4f && ((x > -0.4f && x < -0.24f && y < -0.13f)
+                || (x > -0.1f && x < 0.06f && y < 0.02f) || (x > 0.2f && x < 0.36f && y < 0.15f));
+            bool shaft = Mathf.Abs(x + 0.19f) < 0.05f && y > 0.04f && y < 0.37f;
+            bool arrow = y > 0.23f && y < 0.44f && Mathf.Abs(x + 0.19f) < (0.44f - y);
+            return bars || shaft || arrow;
+        }, 128, 2);
+
+        public static Sprite GetPowerUpIcon(PowerUpType type)
+        {
+            if (powerUpIcons == null)
+            {
+                powerUpIcons = new Sprite[5];
+                powerUpIcons[0] = CreateIcon("Wormhole Icon", (x, y) =>
+                {
+                    float ellipse = Mathf.Sqrt((x - 0.12f) * (x - 0.12f) / 0.075f + y * y / 0.1764f);
+                    bool portal = ellipse > 0.76f && ellipse < 1f && !(x < 0.12f && Mathf.Abs(y) < 0.13f);
+                    bool shaft = x > -0.43f && x < 0.12f && Mathf.Abs(y) < 0.05f;
+                    bool arrow = x > -0.03f && x < 0.2f && Mathf.Abs(y) < (0.2f - x) * 0.85f;
+                    return portal || shaft || arrow;
+                }, 128, 2);
+                powerUpIcons[1] = CreateIcon("Orbit Magnet Icon", (x, y) =>
+                {
+                    float r = Mathf.Sqrt(x * x + (y + 0.04f) * (y + 0.04f));
+                    bool curve = y < -0.04f && r < 0.35f && r > 0.18f;
+                    bool arms = Mathf.Abs(x) > 0.18f && Mathf.Abs(x) < 0.35f && y >= -0.04f && y < 0.32f && !(y > 0.16f && y < 0.21f);
+                    return curve || arms;
+                }, 128, 2);
+                powerUpIcons[2] = CreateIcon("Shield Power Icon", (x, y) =>
+                {
+                    float ax = Mathf.Abs(x);
+                    float width = y < -0.08f ? (y + 0.44f) * 0.95f : 0.34f;
+                    float top = 0.4f - ax * 0.3f;
+                    bool shell = y > -0.44f && y < top && ax < width;
+                    bool inset = y > -0.29f && y < top - 0.09f && ax < width - 0.09f;
+                    bool crest = Mathf.Abs(x) < 0.04f && y > -0.12f && y < 0.16f;
+                    return (shell && !inset) || crest;
+                }, 128, 2);
+                Vector2[] bolt = { new(-0.03f, 0.44f), new(-0.31f, -0.05f), new(-0.06f, -0.05f), new(-0.15f, -0.44f), new(0.33f, 0.12f), new(0.06f, 0.12f), new(0.2f, 0.44f) };
+                powerUpIcons[3] = CreateIcon("Ion Overdrive Icon", (x, y) => IconContains(bolt, x, y), 128, 2);
+                powerUpIcons[4] = CreateIcon("Quantum Extractor Icon", (x, y) =>
+                {
+                    float diamond = Mathf.Abs(x) / 0.19f + Mathf.Abs(y) / 0.31f;
+                    bool crystal = diamond < 1f && !(Mathf.Abs(x) < 0.022f && y > -0.16f && y < 0.17f);
+                    float ax = Mathf.Abs(x);
+                    bool arrows = ax > 0.24f && ax < 0.4f && Mathf.Abs(y) < (ax - 0.24f) * 0.8f;
+                    bool tails = ax > 0.33f && ax < 0.46f && Mathf.Abs(y) < 0.035f;
+                    return crystal || arrows || tails;
+                }, 128, 2);
+            }
+            return powerUpIcons[Mathf.Clamp((int)type, 0, powerUpIcons.Length - 1)];
+        }
+
         public static Sprite GetBackgroundSprite(int index)
         {
+            if (index == 3) return auroraBackground != null ? auroraBackground : auroraBackground = LoadSingleSprite("Art/aurora-background", "Voile Boreal");
             if (index <= 0) return SpaceBackgroundSprite;
             if (cosmeticBackgrounds == null) cosmeticBackgrounds = LoadGridSprites("Art/cosmetics-backgrounds-atlas", 2, 1, "Background Cosmetic");
             return cosmeticBackgrounds.Length > 0 ? cosmeticBackgrounds[Mathf.Clamp(index - 1, 0, cosmeticBackgrounds.Length - 1)] : SpaceBackgroundSprite;
@@ -223,6 +285,11 @@ namespace OrbitBreaker
 
         public static Sprite GetPlanetPackSprite(int pack, int sequence)
         {
+            if (pack == 3)
+            {
+                if (auroraPlanets == null) auroraPlanets = LoadGridSprites("Art/aurora-planets", 2, 2, "Mondes Aurore");
+                if (auroraPlanets.Length == 4) return auroraPlanets[Mathf.Abs(sequence % 4)];
+            }
             if (pack > 0)
             {
                 if (cosmeticPlanets == null) cosmeticPlanets = LoadGridSprites("Art/cosmetics-planets-atlas", 4, 2, "Planet Cosmetic", true);
@@ -334,9 +401,19 @@ namespace OrbitBreaker
         }
 
 
-        private static Sprite CreateIcon(string name, Func<float, float, bool> sample)
+        private static bool IconContains(Vector2[] polygon, float x, float y)
         {
-            const int size = 64;
+            bool inside = false;
+            for (int i = 0, j = polygon.Length - 1; i < polygon.Length; j = i++)
+            {
+                Vector2 a = polygon[i], b = polygon[j];
+                if ((a.y > y) != (b.y > y) && x < (b.x - a.x) * (y - a.y) / (b.y - a.y) + a.x) inside = !inside;
+            }
+            return inside;
+        }
+
+        private static Sprite CreateIcon(string name, Func<float, float, bool> sample, int size = 64, int samples = 1)
+        {
             var texture = new Texture2D(size, size, TextureFormat.RGBA32, false)
             {
                 name = name,
@@ -349,9 +426,11 @@ namespace OrbitBreaker
             {
                 for (int x = 0; x < size; x++)
                 {
-                    float px = (x + 0.5f) / size - 0.5f;
-                    float py = (y + 0.5f) / size - 0.5f;
-                    pixels[y * size + x] = sample(px, py) ? Color.white : Color.clear;
+                    float coverage = 0f;
+                    for (int sy = 0; sy < samples; sy++)
+                    for (int sx = 0; sx < samples; sx++)
+                        if (sample((x + (sx + 0.5f) / samples) / size - 0.5f, (y + (sy + 0.5f) / samples) / size - 0.5f)) coverage++;
+                    pixels[y * size + x] = new Color(1f, 1f, 1f, coverage / (samples * samples));
                 }
             }
             texture.SetPixels32(pixels);

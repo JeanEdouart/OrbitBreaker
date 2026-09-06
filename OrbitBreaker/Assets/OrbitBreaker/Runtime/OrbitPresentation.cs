@@ -18,10 +18,30 @@ namespace OrbitBreaker
         private readonly float[] starSeedX = new float[52];
         private readonly float[] starSeedY = new float[52];
         private float tileWorldHeight = TileSize;
+        private float hyperspaceIntensity;
+        private float hyperspaceDrift;
+        private Material sectorMaterial;
+        private float sectorHue;
+        private float targetSectorHue;
+
+        public static int SectorForDistance(int distance) => Mathf.Max(0, distance) / 500;
+
+        public void SetDistance(int distance, bool immediate = false)
+        {
+            targetSectorHue = (SectorForDistance(distance) % 6) * 60f;
+            if (immediate) sectorHue = targetSectorHue;
+        }
+
+        public void SetHyperspace(float intensity)
+        {
+            hyperspaceIntensity = Mathf.Clamp01(intensity);
+        }
 
         public void Initialize(Camera camera)
         {
             targetCamera = camera;
+            Shader sectorShader = Resources.Load<Shader>("Shaders/BackgroundSector");
+            if (sectorShader != null) sectorMaterial = new Material(sectorShader);
             for (int i = 0; i < nebulaTiles.Length; i++)
             {
                 var tile = new GameObject("Nebula Tile " + (i + 1));
@@ -30,6 +50,7 @@ namespace OrbitBreaker
                 nebulaTiles[i].sprite = RuntimeAssets.GetBackgroundSprite(MetaProgression.Selected(CosmeticKind.Background));
                 nebulaTiles[i].color = new Color(0.72f, 0.78f, 0.92f, 0.72f);
                 nebulaTiles[i].sortingOrder = -100;
+                if (sectorMaterial != null) nebulaTiles[i].sharedMaterial = sectorMaterial;
             }
             ResizeTilesToCoverCamera();
 
@@ -80,7 +101,15 @@ namespace OrbitBreaker
 
         private void LateUpdate()
         {
+            if (GamePreferences.DynamicBackground) hyperspaceDrift += Time.deltaTime * hyperspaceIntensity * 12f;
+            sectorHue = Mathf.MoveTowardsAngle(sectorHue, targetSectorHue, Time.deltaTime * 45f);
+            if (sectorMaterial != null) sectorMaterial.SetFloat("_HueShift", sectorHue / 360f);
             RefreshPositions();
+        }
+
+        private void OnDestroy()
+        {
+            if (sectorMaterial != null) Destroy(sectorMaterial);
         }
 
         private void RefreshPositions()
@@ -88,13 +117,7 @@ namespace OrbitBreaker
             if (targetCamera == null) return;
             float cameraY = targetCamera.transform.position.y;
             float cameraX = targetCamera.transform.position.x;
-            float biomeProgress = Mathf.Repeat(Mathf.Max(0f, cameraY) / 34f, 1f);
-            int biome = Mathf.FloorToInt(Mathf.Max(0f, cameraY) / 34f) % 3;
-            Color biomeA = biome == 0 ? new Color(0.72f, 0.78f, 0.92f, 0.72f)
-                : biome == 1 ? new Color(0.72f, 0.52f, 1f, 0.72f) : new Color(0.42f, 0.9f, 0.88f, 0.72f);
-            Color biomeB = biome == 0 ? new Color(0.72f, 0.52f, 1f, 0.72f)
-                : biome == 1 ? new Color(0.42f, 0.9f, 0.88f, 0.72f) : new Color(0.72f, 0.78f, 0.92f, 0.72f);
-            Color biomeTint = Color.Lerp(biomeA, biomeB, biomeProgress);
+            Color biomeTint = new Color(0.72f, 0.78f, 0.92f, 0.72f);
             float nebulaOffset = GamePreferences.DynamicBackground
                 ? Mathf.Repeat(cameraY * 0.2f + tileWorldHeight * 0.5f, tileWorldHeight) - tileWorldHeight * 0.5f
                 : 0f;
@@ -108,8 +131,12 @@ namespace OrbitBreaker
             {
                 stars[i].gameObject.SetActive(GamePreferences.EnhancedEffects);
                 float drift = GamePreferences.DynamicBackground ? cameraY * 0.48f : 0f;
+                drift += hyperspaceDrift * (0.7f + (i % 4) * 0.1f);
                 float relativeY = Mathf.Repeat(starSeedY[i] - drift + StarSpan * 0.5f, StarSpan) - StarSpan * 0.5f;
                 stars[i].position = new Vector3(cameraX + starSeedX[i], cameraY + relativeY, 1f);
+                float width = Mathf.Lerp(1f, 0.42f, hyperspaceIntensity);
+                float length = 1f;
+                stars[i].localScale = new Vector3(width, length, 1f) * Mathf.Lerp(0.018f, 0.052f, (i % 13) / 12f);
             }
         }
     }
@@ -163,6 +190,16 @@ namespace OrbitBreaker
             float desiredY = Mathf.Max(0f, Mathf.Max(playerPosition.y, anchorPosition.y) + 2.15f);
             targetY = desiredY >= targetY ? desiredY : Mathf.MoveTowards(targetY, desiredY, 5.5f * Time.deltaTime);
             targetX = Mathf.Lerp(playerPosition.x, anchorPosition.x, 0.65f) * 0.12f;
+        }
+
+        public void SetCinematicPosition(Vector2 position)
+        {
+            targetX = position.x;
+            targetY = position.y;
+            basePosition = new Vector3(targetX, targetY, -10f);
+            targetCamera.transform.position = basePosition;
+            velocity = Vector3.zero;
+            impactShakeRemaining = flightShakeStrength = 0f;
         }
 
         public void ShakeCapture()
@@ -288,6 +325,7 @@ namespace OrbitBreaker
     {
         private Text scoreText;
         private Text bestText;
+        private Text sectorText;
         private Text comboText;
         private Text multiplierText;
         private GameObject multiplierBadge;
@@ -313,6 +351,7 @@ namespace OrbitBreaker
         private GameObject styleButton;
         private GameObject missionsButton;
         private GameObject leaderboardButton;
+        private GameObject powerUpButton;
         private GameObject leaderboardPanel;
         private GameObject playerNamePanel;
         private InputField playerNameInput;
@@ -324,6 +363,25 @@ namespace OrbitBreaker
         private Action identityAccepted;
         private GameObject missionsPanel;
         private GameObject hangarPanel;
+        private GameObject powerUpPanel;
+        private Text powerUpCurrencyText;
+        private Text powerUpMenuStatus;
+        private readonly Text[] powerUpLevelTexts = new Text[5];
+        private readonly Text[] powerUpPriceTexts = new Text[5];
+        private readonly Button[] powerUpUpgradeButtons = new Button[5];
+        private readonly GameObject[] powerUpInventoryButtons = new GameObject[5];
+        private readonly Text[] powerUpInventoryCounts = new Text[5];
+        private readonly GameObject[] activePowerRows = new GameObject[5];
+        private readonly Image[] activePowerFills = new Image[5];
+        private readonly Text[] activePowerTimes = new Text[5];
+        private readonly Image[,] powerUpLevelPips = new Image[5, 5];
+        private readonly Text[] powerUpStats = new Text[5];
+        private readonly Text[] powerUpStockTexts = new Text[5];
+        private GameObject powerUpToast;
+        private Text powerUpToastText;
+        private GameObject hyperspaceOverlay;
+        private Image hyperspaceVeil;
+        private QuantumTunnelGraphic hyperspaceTunnel;
         private readonly Text[] challengeLabels = new Text[3];
         private readonly Text[] challengeProgressTexts = new Text[3];
         private readonly Image[] challengeFills = new Image[3];
@@ -367,10 +425,12 @@ namespace OrbitBreaker
             || (creditsPanel != null && creditsPanel.activeSelf)
             || (missionsPanel != null && missionsPanel.activeSelf)
             || (hangarPanel != null && hangarPanel.activeSelf)
+            || (powerUpPanel != null && powerUpPanel.activeSelf)
             || (leaderboardPanel != null && leaderboardPanel.activeSelf)
             || (playerNamePanel != null && playerNamePanel.activeSelf);
         public bool IsPaused => pausePanel != null && pausePanel.activeSelf;
         public event Action CosmeticsChanged;
+        public event Action<PowerUpType> PowerUpRequested;
         public event Action<int> StyleSelected;
 
         public void Initialize(OrbitFeedback audio, OnlineLeaderboard leaderboard)
@@ -407,7 +467,7 @@ namespace OrbitBreaker
             floatingHud.pivot = new Vector2(0.5f, 0f);
             floatingHud.sizeDelta = new Vector2(390f, 190f);
 
-            scoreText = CreateText(floatingHud, "Distance", "0 m", 76, TextAnchor.MiddleCenter, FontStyle.Bold);
+            scoreText = CreateText(floatingHud, "Distance", "0 UA", 76, TextAnchor.MiddleCenter, FontStyle.Bold);
             scoreText.color = new Color(0.9f, 1f, 1f, 1f);
             scoreText.gameObject.AddComponent<Outline>().effectColor = new Color(0.03f, 0.12f, 0.2f, 0.95f);
             SetRect(scoreText.rectTransform, new Vector2(0f, 0.46f), new Vector2(1f, 1f), Vector2.zero, Vector2.zero);
@@ -433,6 +493,9 @@ namespace OrbitBreaker
             SetRect(bestText.rectTransform, new Vector2(0.55f, 0.87f), new Vector2(0.94f, 0.97f), Vector2.zero, Vector2.zero);
 
             comboText = CreateText(safe, "Combo", string.Empty, 34, TextAnchor.UpperLeft, FontStyle.Bold);
+            sectorText = CreateText(safe, "Sector", string.Empty, 27, TextAnchor.MiddleCenter, FontStyle.Bold);
+            sectorText.color = new Color(0.6f, 1f, 0.95f);
+            SetRect(sectorText.rectTransform, new Vector2(0.15f, 0.855f), new Vector2(0.85f, 0.9f), Vector2.zero, Vector2.zero);
             comboText.color = new Color(1f, 0.72f, 0.24f, 1f);
             SetRect(comboText.rectTransform, new Vector2(0.06f, 0.87f), new Vector2(0.45f, 0.97f), Vector2.zero, Vector2.zero);
 
@@ -473,6 +536,13 @@ namespace OrbitBreaker
             challengeToastText.resizeTextMaxSize = 21;
             SetRect(challengeToastText.rectTransform, new Vector2(0.04f, 0f), new Vector2(0.96f, 1f), Vector2.zero, Vector2.zero);
             challengeToast.SetActive(false);
+
+            Image powerToastImage = CreateImage(safe, "Power Up Toast", new Color(0.045f, 0.08f, 0.18f, 0.96f));
+            powerUpToast = powerToastImage.gameObject; ApplyRounded(powerToastImage); powerToastImage.raycastTarget = false;
+            SetRect(powerToastImage.rectTransform, new Vector2(0.24f, 0.665f), new Vector2(0.76f, 0.725f), Vector2.zero, Vector2.zero);
+            powerUpToastText = CreateText(powerUpToast.transform, "Power Up Message", string.Empty, 22, TextAnchor.MiddleCenter, FontStyle.Bold);
+            powerUpToastText.color = new Color(0.72f, 0.98f, 1f); SetRect(powerUpToastText.rectTransform, new Vector2(0.05f, 0f), new Vector2(0.95f, 1f), Vector2.zero, Vector2.zero);
+            powerUpToast.SetActive(false);
 
             titleText = CreateText(safe, "Title", "ORBIT\nBREAKER", 78, TextAnchor.MiddleCenter, FontStyle.Bold);
             titleText.color = new Color(0.76f, 0.98f, 1f, 1f);
@@ -542,6 +612,9 @@ namespace OrbitBreaker
             styleButton = CreateIconButton(safe, "Hangar Button", RuntimeAssets.RocketSprite, ToggleHangar);
             SetSquareRect(styleButton.GetComponent<RectTransform>(), new Vector2(0.91f, 0.405f), 92f);
 
+            powerUpButton = CreateIconButton(safe, "Power Ups Button", RuntimeAssets.PowerUpUpgradeIcon, TogglePowerUps);
+            SetSquareRect(powerUpButton.GetComponent<RectTransform>(), new Vector2(0.91f, 0.31f), 92f);
+
             missionsButton = CreateIconButton(safe, "Missions Button", RuntimeAssets.TrophyIcon, ToggleMissions);
             SetSquareRect(missionsButton.GetComponent<RectTransform>(), new Vector2(0.07f, 0.405f), 92f);
 
@@ -551,6 +624,40 @@ namespace OrbitBreaker
             pauseButton = CreateIconButton(safe, "Pause Button", RuntimeAssets.PauseIcon, PauseGame);
             SetSquareRect(pauseButton.GetComponent<RectTransform>(), new Vector2(0.095f, 0.92f), 104f);
             pauseButton.SetActive(false);
+
+            for (int i = 0; i < powerUpInventoryButtons.Length; i++)
+            {
+                int index = i;
+                PowerUpType type = (PowerUpType)i;
+                GameObject button = CreateIconButton(safe, type + " Inventory", RuntimeAssets.GetPowerUpIcon(type), () => PowerUpRequested?.Invoke((PowerUpType)index));
+                SetSquareRect(button.GetComponent<RectTransform>(), new Vector2(0.31f + i * 0.095f, 0.075f), 78f);
+                Image icon = button.transform.Find("Icon").GetComponent<Image>(); icon.color = PowerUpProgression.Definition(type).Color;
+                Text count = CreateText(button.transform, "Count", string.Empty, 21, TextAnchor.LowerRight, FontStyle.Bold);
+                count.color = Color.white; count.gameObject.AddComponent<Outline>().effectColor = new Color(0f, 0f, 0f, 0.9f);
+                count.resizeTextForBestFit = false;
+                count.horizontalOverflow = HorizontalWrapMode.Overflow;
+                SetRect(count.rectTransform, new Vector2(0.1f, -0.13f), new Vector2(0.9f, 0.16f), Vector2.zero, Vector2.zero);
+                count.alignment = TextAnchor.MiddleCenter;
+                powerUpInventoryButtons[i] = button; powerUpInventoryCounts[i] = count; button.SetActive(false);
+            }
+
+            for (int i = 1; i < activePowerRows.Length; i++)
+            {
+                PowerUpType type = (PowerUpType)i;
+                Image row = CreateImage(safe, type + " Active Timer", new Color(0.018f, 0.07f, 0.13f, 0.92f)); ApplyRounded(row);
+                SetRect(row.rectTransform, new Vector2(0.68f, 0.79f - (i - 1) * 0.055f), new Vector2(0.95f, 0.835f - (i - 1) * 0.055f), Vector2.zero, Vector2.zero);
+                Image icon = CreateImage(row.transform, "Icon", PowerUpProgression.Definition(type).Color); icon.sprite = RuntimeAssets.GetPowerUpIcon(type); icon.preserveAspect = true;
+                SetRect(icon.rectTransform, new Vector2(0.03f, 0.12f), new Vector2(0.2f, 0.88f), Vector2.zero, Vector2.zero);
+                Image track = CreateImage(row.transform, "Timer Track", new Color(0.05f, 0.14f, 0.2f, 1f)); ApplyRounded(track);
+                SetRect(track.rectTransform, new Vector2(0.23f, 0.17f), new Vector2(0.76f, 0.38f), Vector2.zero, Vector2.zero);
+                Image fill = CreateImage(track.transform, "Timer Fill", PowerUpProgression.Definition(type).Color); ApplyRounded(fill);
+                SetRect(fill.rectTransform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+                Text timer = CreateText(row.transform, "Time", string.Empty, 17, TextAnchor.MiddleRight, FontStyle.Bold);
+                timer.color = Color.white; SetRect(timer.rectTransform, new Vector2(0.74f, 0f), new Vector2(0.96f, 1f), Vector2.zero, Vector2.zero);
+                activePowerRows[i] = row.gameObject; activePowerFills[i] = fill; activePowerTimes[i] = timer; row.gameObject.SetActive(false);
+            }
+
+            CreateHyperspaceOverlay(safe);
 
             pausePanel = CreatePausePanel(safe);
             pausePanel.SetActive(false);
@@ -563,6 +670,8 @@ namespace OrbitBreaker
             missionsPanel.SetActive(false);
             hangarPanel = CreateHangarPanel(safe);
             hangarPanel.SetActive(false);
+            powerUpPanel = CreatePowerUpPanel(safe);
+            powerUpPanel.SetActive(false);
             leaderboardPanel = CreateLeaderboardPanel(safe);
             leaderboardPanel.SetActive(false);
             playerNamePanel = CreatePlayerNamePanel(safe);
@@ -586,6 +695,8 @@ namespace OrbitBreaker
 
         public void ShowPlaying(int distance, int best, bool tutorial)
         {
+            CancelInvoke(nameof(ClearSector));
+            ClearSector();
             UpdateProgress(distance, best);
             stuntText.text = string.Empty;
             nearMissText.text = string.Empty;
@@ -595,6 +706,7 @@ namespace OrbitBreaker
             settingsButton.SetActive(tutorial);
             infoButton.SetActive(tutorial);
             styleButton.SetActive(tutorial);
+            powerUpButton.SetActive(tutorial);
             missionsButton.SetActive(tutorial);
             leaderboardButton.SetActive(tutorial);
             pauseButton.SetActive(!tutorial);
@@ -602,20 +714,33 @@ namespace OrbitBreaker
             creditsPanel.SetActive(false);
             missionsPanel.SetActive(false);
             hangarPanel.SetActive(false);
+            powerUpPanel.SetActive(false);
             leaderboardPanel.SetActive(false);
             gameOverPanel.SetActive(false);
             gameOverVisible = false;
             if (materialToast != null) materialToast.SetActive(false);
             if (challengeToast != null) challengeToast.SetActive(false);
             if (nearMissText != null) nearMissText.text = string.Empty;
+            if (powerUpToast != null) powerUpToast.SetActive(false);
+            for (int i = 1; i < activePowerRows.Length; i++) if (activePowerRows[i] != null) activePowerRows[i].SetActive(false);
+            UpdatePowerUpInventory(new int[5], false);
         }
 
         public void UpdateProgress(int distance, int best)
         {
-            scoreText.text = distance + " m";
-            bestText.text = "RECORD " + best + " m";
+            scoreText.text = distance + " UA";
+            bestText.text = "RECORD " + best + " UA";
             comboText.text = string.Empty;
         }
+
+        public void ShowSector(int sector)
+        {
+            sectorText.text = "SECTEUR " + (sector + 1) + "  ·  " + sector * 500 + " UA";
+            CancelInvoke(nameof(ClearSector));
+            Invoke(nameof(ClearSector), 2.4f);
+        }
+
+        private void ClearSector() { if (sectorText != null) sectorText.text = string.Empty; }
 
         public void UpdateFlightDisplay(Vector3 worldPosition, float multiplier, float danger01, bool flying)
         {
@@ -667,7 +792,7 @@ namespace OrbitBreaker
                 : synchronization == SynchronizationResult.WrongDirection ? "ZONE ATTEINTE  MAUVAIS SENS"
                 : skippedAnchors > 0 ? "SKIP x" + (skippedAnchors + 1) : multiplier >= 2f ? "LONG VOL" : string.Empty;
             string delta = gainedDistance > 0 ? "+" + gainedDistance : gainedDistance < 0 ? gainedDistance.ToString() : string.Empty;
-            stuntText.text = string.IsNullOrEmpty(label) ? string.Empty : label + (string.IsNullOrEmpty(delta) ? string.Empty : "  " + delta + " m");
+            stuntText.text = string.IsNullOrEmpty(label) ? string.Empty : label + (string.IsNullOrEmpty(delta) ? string.Empty : "  " + delta + " UA");
             stuntShownAt = Time.unscaledTime;
             CancelInvoke(nameof(ClearStunt));
             Invoke(nameof(ClearStunt), 1.15f);
@@ -695,6 +820,59 @@ namespace OrbitBreaker
         {
             if (missionsPanel != null && missionsPanel.activeSelf) RefreshMissions();
             if (hangarPanel != null && hangarPanel.activeSelf) RefreshHangar(string.Empty);
+            if (powerUpPanel != null && powerUpPanel.activeSelf) RefreshPowerUps(string.Empty);
+        }
+
+        public void UpdatePowerUpInventory(int[] counts, bool playing)
+        {
+            for (int i = 0; i < powerUpInventoryButtons.Length; i++)
+            {
+                int count = counts != null && i < counts.Length ? counts[i] : 0;
+                powerUpInventoryButtons[i].SetActive(playing);
+                SetSquareRect(powerUpInventoryButtons[i].GetComponent<RectTransform>(),
+                    new Vector2(0.16f + i * 0.17f, tutorialTips.activeSelf ? 0.285f : 0.075f), 112f);
+                powerUpInventoryButtons[i].GetComponent<Button>().interactable = count > 0;
+                powerUpInventoryButtons[i].transform.Find("Icon").GetComponent<Image>().color = count > 0
+                    ? PowerUpProgression.Definition((PowerUpType)i).Color : new Color(0.3f, 0.38f, 0.44f, 0.6f);
+                powerUpInventoryCounts[i].text = count + "/" + PowerUpProgression.MaxInventory;
+            }
+        }
+
+        public void UpdateActivePowerUps(OrbitPlayer player)
+        {
+            if (player == null) return;
+            for (int i = 1; i < activePowerRows.Length; i++)
+            {
+                if (activePowerRows[i] == null) continue;
+                PowerUpType type = (PowerUpType)i;
+                float remaining = player.PowerUpRemaining(type);
+                bool active = remaining > 0.01f && player.State != PlayerOrbitState.Dead && !gameOverVisible;
+                powerUpInventoryButtons[i].GetComponent<Button>().interactable = !active && PowerUpProgression.StoredCount(type) > 0 && !IsPaused && !SettingsOpen;
+                activePowerRows[i].SetActive(active);
+                if (!active) continue;
+                float duration = Mathf.Max(0.01f, player.PowerUpDuration(type));
+                RectTransform fill = activePowerFills[i].rectTransform;
+                fill.anchorMax = new Vector2(Mathf.Clamp01(remaining / duration), 1f);
+                fill.offsetMin = fill.offsetMax = Vector2.zero;
+                activePowerTimes[i].text = remaining.ToString("0.0") + "s";
+            }
+        }
+
+        public void ShowPowerUpPickup(PowerUpType type, int inventoryCount, bool collected)
+        {
+            PowerUpDefinition definition = PowerUpProgression.Definition(type);
+            powerUpToastText.text = definition.Name + (collected ? "  AJOUTÉ · " : "  STOCK PLEIN · ") + inventoryCount + "/" + PowerUpProgression.MaxInventory;
+            powerUpToastText.color = collected ? definition.Color : new Color(1f, 0.45f, 0.28f);
+            powerUpToast.SetActive(true); powerUpToast.transform.localScale = Vector3.one * 1.13f;
+            CancelInvoke(nameof(ClearPowerUpToast)); Invoke(nameof(ClearPowerUpToast), 1.35f);
+        }
+
+        public void ShowPowerUpActivated(PowerUpType type)
+        {
+            PowerUpDefinition definition = PowerUpProgression.Definition(type);
+            powerUpToastText.text = definition.Name + "  ACTIVÉ"; powerUpToastText.color = definition.Color;
+            powerUpToast.SetActive(true); powerUpToast.transform.localScale = Vector3.one * 1.18f;
+            CancelInvoke(nameof(ClearPowerUpToast)); Invoke(nameof(ClearPowerUpToast), 1.2f);
         }
 
         public void ShowChallengeComplete(string objective)
@@ -714,6 +892,7 @@ namespace OrbitBreaker
             settingsButton.SetActive(false);
             infoButton.SetActive(false);
             styleButton.SetActive(false);
+            powerUpButton.SetActive(false);
             missionsButton.SetActive(false);
             leaderboardButton.SetActive(false);
             settingsPanel.SetActive(false);
@@ -721,24 +900,26 @@ namespace OrbitBreaker
             pauseButton.SetActive(true);
         }
 
-        public void ShowGameOver(int distance, int best, int anchors, DeathReason reason, int synchronizations, int nearMisses, int bestSkip, float bestMultiplier)
+        public void ShowGameOver(int distance, int best, int anchors, DeathReason reason, int synchronizations, int nearMisses, int bestSkip, float bestMultiplier, int runMaterials)
         {
+            for (int i = 1; i < activePowerRows.Length; i++) if (activePowerRows[i] != null) activePowerRows[i].SetActive(false);
             if (materialToast != null) materialToast.SetActive(false);
             if (challengeToast != null) challengeToast.SetActive(false);
             if (nearMissText != null) nearMissText.text = string.Empty;
-            scoreText.text = distance + " m";
+            scoreText.text = distance + " UA";
             multiplierBadge.SetActive(false);
-            bestText.text = "RECORD " + best + " m";
-            gameOverDistance.text = "DISTANCE     " + distance + " m";
+            bestText.text = "RECORD " + best + " UA";
+            gameOverDistance.text = "DISTANCE     " + distance + " UA";
             gameOverOrbits.text = "ORBITES      " + anchors;
-            gameOverRecord.text = "RECORD       " + best + " m";
-            gameOverSummary.text = "SYNCHRO " + synchronizations + "   FRÔLEMENTS " + nearMisses + "   SKIP " + bestSkip + "   MAX x" + bestMultiplier.ToString("0.0") + "   STYLES " + GameProgression.UnlockedStyleCount + "/4";
+            gameOverRecord.text = "RECORD       " + best + " UA";
+            gameOverSummary.text = "MATÉRIAUX +" + runMaterials + "   ·   SYNCHRO " + synchronizations + "   ·   FRÔLEMENTS " + nearMisses + "   ·   SKIP " + bestSkip + "   ·   MAX x" + bestMultiplier.ToString("0.0");
             gameOverTitle.text = reason == DeathReason.Breaker ? "VOTRE VAISSEAU\nA EXPLOSÉ" : "VOUS VOUS ÊTES PERDU\nDANS L'ESPACE";
             gameOverTitle.color = reason == DeathReason.Breaker ? new Color(1f, 0.28f, 0.38f) : new Color(0.45f, 0.82f, 1f);
             gameOverPanel.SetActive(true);
             settingsButton.SetActive(true);
             infoButton.SetActive(true);
             styleButton.SetActive(true);
+            powerUpButton.SetActive(true);
             missionsButton.SetActive(true);
             leaderboardButton.SetActive(true);
             pauseButton.SetActive(false);
@@ -767,6 +948,8 @@ namespace OrbitBreaker
             if (challengeToast != null) challengeToast.SetActive(false);
         }
 
+        private void ClearPowerUpToast() { if (powerUpToast != null) powerUpToast.SetActive(false); }
+
         private void ToggleSettings()
         {
             bool opening = !settingsPanel.activeSelf;
@@ -774,6 +957,7 @@ namespace OrbitBreaker
             missionsPanel.SetActive(false);
             hangarPanel.SetActive(false);
             leaderboardPanel.SetActive(false);
+            powerUpPanel.SetActive(false);
             settingsPanel.SetActive(opening);
             if (opening) ShowSettingsTab(0);
             gameOverPanel.SetActive(!opening && gameOverVisible);
@@ -786,6 +970,7 @@ namespace OrbitBreaker
             missionsPanel.SetActive(false);
             hangarPanel.SetActive(false);
             leaderboardPanel.SetActive(false);
+            powerUpPanel.SetActive(false);
             creditsPanel.SetActive(opening);
             gameOverPanel.SetActive(!opening && gameOverVisible);
         }
@@ -797,6 +982,7 @@ namespace OrbitBreaker
             creditsPanel.SetActive(false);
             hangarPanel.SetActive(false);
             leaderboardPanel.SetActive(false);
+            powerUpPanel.SetActive(false);
             missionsPanel.SetActive(opening);
             if (opening) RefreshMission();
             gameOverPanel.SetActive(!opening && gameOverVisible);
@@ -809,8 +995,18 @@ namespace OrbitBreaker
             creditsPanel.SetActive(false);
             missionsPanel.SetActive(false);
             leaderboardPanel.SetActive(false);
+            powerUpPanel.SetActive(false);
             hangarPanel.SetActive(opening);
             if (opening) RefreshHangar(string.Empty);
+            gameOverPanel.SetActive(!opening && gameOverVisible);
+        }
+
+        private void TogglePowerUps()
+        {
+            bool opening = !powerUpPanel.activeSelf;
+            settingsPanel.SetActive(false); creditsPanel.SetActive(false); missionsPanel.SetActive(false);
+            hangarPanel.SetActive(false); leaderboardPanel.SetActive(false); powerUpPanel.SetActive(opening);
+            if (opening) RefreshPowerUps(string.Empty);
             gameOverPanel.SetActive(!opening && gameOverVisible);
         }
 
@@ -836,6 +1032,7 @@ namespace OrbitBreaker
             creditsPanel.SetActive(false);
             missionsPanel.SetActive(false);
             hangarPanel.SetActive(false);
+            powerUpPanel.SetActive(false);
             leaderboardPanel.SetActive(opening);
             gameOverPanel.SetActive(!opening && gameOverVisible);
             if (!opening) return;
@@ -865,7 +1062,7 @@ namespace OrbitBreaker
                 row.gameObject.SetActive(visible);
                 if (!visible) continue;
                 OrbitLeaderboardEntry entry = entries[i];
-                row.text = entry.Rank.ToString().PadLeft(3) + "    " + entry.PlayerName.ToUpperInvariant() + "    " + entry.Score + " m";
+                row.text = entry.Rank.ToString().PadLeft(3) + "    " + entry.PlayerName.ToUpperInvariant() + "    " + entry.Score + " UA";
                 row.color = entry.IsLocalPlayer ? new Color(1f, 0.75f, 0.24f) : new Color(0.72f, 0.92f, 1f);
             }
         }
@@ -1013,7 +1210,7 @@ namespace OrbitBreaker
         {
             int progress = Mathf.Min(GameProgression.MissionProgress, GameProgression.MissionTarget);
             string objective = GameProgression.MissionType == DailyMissionType.Distance
-                ? "PARCOURIR " + GameProgression.MissionTarget + " m"
+                ? "PARCOURIR " + GameProgression.MissionTarget + " UA"
                 : GameProgression.MissionType == DailyMissionType.Synchronizations
                     ? "RÉUSSIR " + GameProgression.MissionTarget + " SYNCHRONISATIONS"
                     : "RÉUSSIR " + GameProgression.MissionTarget + " FRÔLEMENTS";
@@ -1076,7 +1273,7 @@ namespace OrbitBreaker
             if (!GameProgression.SelectStyle(style))
             {
                 int remaining = Mathf.Max(0, GameProgression.UnlockDistanceForStyle(style) - GameProgression.LifetimeDistance);
-                RefreshHangar("ENCORE " + remaining + " m POUR DÉBLOQUER " + GameProgression.StyleName(style));
+                RefreshHangar("ENCORE " + remaining + " UA POUR DÉBLOQUER " + GameProgression.StyleName(style));
                 return;
             }
             StyleSelected?.Invoke(style);
@@ -1086,13 +1283,13 @@ namespace OrbitBreaker
         private void RefreshHangarLegacy(string message)
         {
             hangarStatus.text = string.IsNullOrEmpty(message)
-                ? "DISTANCE CUMULÉE  " + GameProgression.LifetimeDistance + " m"
+                ? "DISTANCE CUMULÉE  " + GameProgression.LifetimeDistance + " UA"
                 : message;
             for (int i = 0; i < styleRowLabels.Length; i++)
             {
                 bool unlocked = i < GameProgression.UnlockedStyleCount;
                 bool selected = i == GameProgression.SelectedStyle;
-                string state = selected ? "ÉQUIPÉ" : unlocked ? "CHOISIR" : "À " + GameProgression.UnlockDistanceForStyle(i) + " m";
+                string state = selected ? "ÉQUIPÉ" : unlocked ? "CHOISIR" : "À " + GameProgression.UnlockDistanceForStyle(i) + " UA";
                 styleRowLabels[i].text = GameProgression.StyleName(i) + "                         " + state;
                 styleRowLabels[i].color = unlocked ? new Color(0.78f, 0.96f, 1f, 1f) : new Color(0.42f, 0.56f, 0.68f, 1f);
                 styleRowImages[i].color = selected
@@ -1212,6 +1409,135 @@ namespace OrbitBreaker
         }
         private static Sprite CosmeticPreview(CosmeticDefinition item){return item.Kind==CosmeticKind.Rocket?RuntimeAssets.GetRocketSprite(item.VisualIndex):item.Kind==CosmeticKind.PlanetPack?RuntimeAssets.GetPlanetPackSprite(item.VisualIndex,item.VisualIndex*7+1):item.Kind==CosmeticKind.Background?RuntimeAssets.GetBackgroundSprite(item.VisualIndex):RuntimeAssets.CircleSprite;}
         private static Color CosmeticColor(CosmeticDefinition item){return item.Kind==CosmeticKind.Trail?GameProgression.TrailColor(item.VisualIndex):Color.white;}
+
+        private void CreateHyperspaceOverlay(Transform safe)
+        {
+            hyperspaceVeil = CreateImage(safe, "Hyperspace", new Color(0.015f, 0.025f, 0.12f, 0f));
+            hyperspaceOverlay = hyperspaceVeil.gameObject;
+            SetRect(hyperspaceVeil.rectTransform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            hyperspaceVeil.raycastTarget = false;
+            var tunnel = new GameObject("Quantum Energy Tunnel", typeof(RectTransform), typeof(CanvasRenderer), typeof(QuantumTunnelGraphic));
+            tunnel.transform.SetParent(hyperspaceOverlay.transform, false);
+            hyperspaceTunnel = tunnel.GetComponent<QuantumTunnelGraphic>();
+            hyperspaceTunnel.raycastTarget = false;
+            SetRect(hyperspaceTunnel.rectTransform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            hyperspaceOverlay.transform.SetAsLastSibling();
+            hyperspaceOverlay.SetActive(false);
+        }
+
+        public void BeginHyperspace()
+        {
+            for (int i = 0; i < powerUpInventoryButtons.Length; i++) powerUpInventoryButtons[i].GetComponent<Button>().interactable = false;
+            hyperspaceOverlay.transform.SetAsLastSibling();
+            hyperspaceOverlay.SetActive(true);
+            hyperspaceTunnel.ResetTunnel();
+            UpdateHyperspace(0f);
+        }
+
+        public void UpdateHyperspace(float intensity)
+        {
+            if (hyperspaceOverlay == null) return;
+            intensity = Mathf.Clamp01(intensity);
+            intensity *= GamePreferences.EnhancedEffects ? 1f : 0.2f;
+            hyperspaceVeil.color = new Color(0.012f, 0.025f, 0.13f, intensity * 0.12f);
+            hyperspaceTunnel.SetIntensity(intensity);
+        }
+
+        public void EndHyperspace()
+        {
+            if (hyperspaceOverlay != null) hyperspaceOverlay.SetActive(false);
+        }
+
+        private GameObject CreatePowerUpPanel(Transform safe)
+        {
+            GameObject panel = new GameObject("Power Ups Panel", typeof(RectTransform), typeof(Image));
+            panel.transform.SetParent(safe, false); SetRect(panel.GetComponent<RectTransform>(), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            panel.GetComponent<Image>().color = new Color(0.006f, 0.018f, 0.05f, 0.94f);
+            Image card = CreateImage(panel.transform, "Power Ups Card", new Color(0.025f, 0.075f, 0.14f, 0.99f)); ApplyRounded(card);
+            SetRect(card.rectTransform, new Vector2(0.055f, 0.08f), new Vector2(0.945f, 0.92f), Vector2.zero, Vector2.zero);
+            Text title = CreateText(card.transform, "Title", "MODULES BONUS", 45, TextAnchor.MiddleLeft, FontStyle.Bold);
+            title.fontSize = 36;
+            title.color = new Color(0.72f, 0.98f, 1f); SetRect(title.rectTransform, new Vector2(0.06f, 0.91f), new Vector2(0.94f, 0.98f), Vector2.zero, Vector2.zero);
+            powerUpCurrencyText = CreateText(card.transform, "Currency", string.Empty, 22, TextAnchor.MiddleRight, FontStyle.Bold);
+            powerUpCurrencyText.color = new Color(1f, 0.72f, 0.24f); SetRect(powerUpCurrencyText.rectTransform, new Vector2(0.06f, 0.87f), new Vector2(0.94f, 0.91f), Vector2.zero, Vector2.zero);
+            Text hint = CreateText(card.transform, "Hint", "5 CHARGES PAR BONUS · CONSERVÉES ENTRE LES PARTIES\nAPPUIE SUR UNE ICÔNE EN JEU POUR L'ACTIVER", 16, TextAnchor.MiddleCenter, FontStyle.Bold);
+            hint.color = new Color(0.5f, 0.76f, 0.9f); hint.resizeTextForBestFit = true; hint.resizeTextMinSize = 11;
+            hint.resizeTextMaxSize = 22;
+            hint.verticalOverflow = VerticalWrapMode.Truncate;
+            SetRect(hint.rectTransform, new Vector2(0.05f, 0.82f), new Vector2(0.95f, 0.88f), Vector2.zero, Vector2.zero);
+
+            for (int i = 0; i < PowerUpProgression.Catalog.Length; i++)
+            {
+                int index = i; PowerUpDefinition definition = PowerUpProgression.Catalog[i];
+                float top = 0.805f - i * 0.135f; float bottom = top - 0.12f;
+                Image row = CreateImage(card.transform, definition.Type + " Row", new Color(0.035f, 0.12f, 0.2f, 0.96f)); ApplyRounded(row);
+                SetRect(row.rectTransform, new Vector2(0.045f, bottom), new Vector2(0.955f, top), Vector2.zero, Vector2.zero);
+                Image icon = CreateImage(row.transform, "Icon", definition.Color); icon.sprite = RuntimeAssets.GetPowerUpIcon(definition.Type); icon.preserveAspect = true;
+                SetRect(icon.rectTransform, new Vector2(0.025f, 0.25f), new Vector2(0.14f, 0.9f), Vector2.zero, Vector2.zero);
+                Text name = CreateText(row.transform, "Name", definition.Name, 21, TextAnchor.UpperLeft, FontStyle.Bold);
+                name.fontSize = 28;
+                name.resizeTextForBestFit = true; name.resizeTextMinSize = 20; name.resizeTextMaxSize = 28;
+                name.verticalOverflow = VerticalWrapMode.Truncate;
+                name.color = definition.Color; SetRect(name.rectTransform, new Vector2(0.16f, 0.76f), new Vector2(0.68f, 0.96f), Vector2.zero, Vector2.zero);
+                powerUpStockTexts[i] = CreateText(row.transform, "Stock", string.Empty, 23, TextAnchor.MiddleCenter, FontStyle.Bold);
+                powerUpStockTexts[i].resizeTextForBestFit = false;
+                powerUpStockTexts[i].horizontalOverflow = HorizontalWrapMode.Overflow;
+                powerUpStockTexts[i].color = definition.Color; SetRect(powerUpStockTexts[i].rectTransform, new Vector2(0.025f, 0.025f), new Vector2(0.14f, 0.24f), Vector2.zero, Vector2.zero);
+                Text description = CreateText(row.transform, "Description", definition.Description, 14, TextAnchor.LowerLeft, FontStyle.Normal);
+                description.color = new Color(0.67f, 0.84f, 0.94f); description.resizeTextForBestFit = true; description.resizeTextMinSize = 10;
+                description.resizeTextMaxSize = 22;
+                description.verticalOverflow = VerticalWrapMode.Truncate;
+                SetRect(description.rectTransform, new Vector2(0.16f, 0.53f), new Vector2(0.68f, 0.74f), Vector2.zero, Vector2.zero);
+                powerUpStats[i] = CreateText(row.transform, "Stats", string.Empty, 13, TextAnchor.MiddleLeft, FontStyle.Bold);
+                powerUpStats[i].color = new Color(0.92f, 0.98f, 1f); powerUpStats[i].resizeTextForBestFit = true; powerUpStats[i].resizeTextMinSize = 9;
+                powerUpStats[i].fontSize = 17;
+                powerUpStats[i].resizeTextMinSize = 14;
+                powerUpStats[i].resizeTextMaxSize = 22;
+                powerUpStats[i].verticalOverflow = VerticalWrapMode.Truncate;
+                SetRect(powerUpStats[i].rectTransform, new Vector2(0.16f, 0.04f), new Vector2(0.68f, 0.5f), Vector2.zero, Vector2.zero);
+                powerUpLevelTexts[i] = CreateText(row.transform, "Level", string.Empty, 18, TextAnchor.UpperRight, FontStyle.Bold);
+                powerUpLevelTexts[i].color = Color.white; SetRect(powerUpLevelTexts[i].rectTransform, new Vector2(0.72f, 0.76f), new Vector2(0.96f, 0.96f), Vector2.zero, Vector2.zero);
+                for (int pip = 0; pip < 5; pip++)
+                {
+                    Image levelPip = CreateImage(row.transform, "Level " + (pip + 1), new Color(0.08f, 0.2f, 0.28f, 1f)); ApplyRounded(levelPip);
+                    float left = 0.72f + pip * 0.048f;
+                    SetRect(levelPip.rectTransform, new Vector2(left, 0.59f), new Vector2(left + 0.038f, 0.69f), Vector2.zero, Vector2.zero);
+                    powerUpLevelPips[i, pip] = levelPip;
+                }
+                GameObject upgrade = CreateButton(row.transform, "Upgrade", string.Empty, new Color(0.08f, 0.42f, 0.54f), () => UpgradePowerUp((PowerUpType)index));
+                powerUpUpgradeButtons[i] = upgrade.GetComponent<Button>(); powerUpPriceTexts[i] = upgrade.transform.Find("Label").GetComponent<Text>(); powerUpPriceTexts[i].fontSize = 16;
+                SetRect(upgrade.GetComponent<RectTransform>(), new Vector2(0.72f, 0.08f), new Vector2(0.96f, 0.46f), Vector2.zero, Vector2.zero);
+            }
+            powerUpMenuStatus = CreateText(card.transform, "Status", string.Empty, 17, TextAnchor.MiddleCenter, FontStyle.Bold);
+            powerUpMenuStatus.color = new Color(1f, 0.72f, 0.24f); SetRect(powerUpMenuStatus.rectTransform, new Vector2(0.06f, 0.075f), new Vector2(0.94f, 0.13f), Vector2.zero, Vector2.zero);
+            GameObject close = CreateButton(card.transform, "Close", "FERMER", new Color(0.06f, 0.22f, 0.32f), TogglePowerUps);
+            SetRect(close.GetComponent<RectTransform>(), new Vector2(0.31f, 0.015f), new Vector2(0.69f, 0.07f), Vector2.zero, Vector2.zero);
+            return panel;
+        }
+
+        private void UpgradePowerUp(PowerUpType type)
+        {
+            string message = PowerUpProgression.Upgrade(type) ? PowerUpProgression.Definition(type).Name + " AMÉLIORÉ" :
+                PowerUpProgression.Level(type) >= 5 ? "NIVEAU MAXIMUM" : "MATÉRIAUX INSUFFISANTS";
+            if (message.Contains("AMÉLIORÉ")) hudFeedback.ChallengeRewardClaimed();
+            RefreshPowerUps(message);
+        }
+
+        private void RefreshPowerUps(string message)
+        {
+            powerUpCurrencyText.text = MetaProgression.Materials + " MAT";
+            for (int i = 0; i < PowerUpProgression.Catalog.Length; i++)
+            {
+                PowerUpDefinition definition = PowerUpProgression.Catalog[i]; int level = PowerUpProgression.Level(definition.Type);
+                powerUpLevelTexts[i].text = "NIV. " + level + "/5";
+                powerUpStockTexts[i].text = PowerUpProgression.StoredCount(definition.Type) + "/" + PowerUpProgression.MaxInventory;
+                powerUpStats[i].text = PowerUpProgression.Stats(definition.Type, level) + (level < 5 ? "\nSuivant : " + PowerUpProgression.Stats(definition.Type, level + 1) : "\nNiveau maximum");
+                for (int pip = 0; pip < 5; pip++) powerUpLevelPips[i, pip].color = pip < level ? definition.Color : new Color(0.08f, 0.2f, 0.28f, 1f);
+                powerUpPriceTexts[i].text = level >= 5 ? "MAX" : "AMÉLIORER\n" + definition.UpgradePrice(level) + " MAT";
+                powerUpUpgradeButtons[i].interactable = level < 5 && MetaProgression.Materials >= definition.UpgradePrice(level);
+            }
+            powerUpMenuStatus.text = message;
+        }
 
         private GameObject CreateCreditsPanel(Transform safe)
         {
@@ -1560,6 +1886,7 @@ namespace OrbitBreaker
         private AudioSource musicSource;
         private AudioSource chargeSource;
         private AudioSource skipSource;
+        private AudioSource warpSource;
         private AudioClip launchClip;
         private AudioClip captureClip;
         private AudioClip perfectClip;
@@ -1570,6 +1897,7 @@ namespace OrbitBreaker
         private AudioClip materialClip;
         private AudioClip challengeCompleteClip;
         private AudioClip challengeRewardClip;
+        private AudioClip powerUpClip;
 
         public float MasterVolume { get; private set; }
         public float MusicVolume { get; private set; }
@@ -1589,6 +1917,10 @@ namespace OrbitBreaker
             chargeSource.clip = RuntimeAssets.CreateChargeLoop();
             skipSource = gameObject.AddComponent<AudioSource>();
             skipSource.playOnAwake = false;
+            warpSource = gameObject.AddComponent<AudioSource>();
+            warpSource.playOnAwake = false;
+            warpSource.loop = true;
+            warpSource.clip = RuntimeAssets.CreateChargeLoop();
             launchClip = RuntimeAssets.CreateTone("Launch", 340f, 0.09f, 0.32f);
             captureClip = RuntimeAssets.CreateTone("Capture", 620f, 0.12f, 0.34f);
             perfectClip = RuntimeAssets.CreateTone("Perfect", 880f, 0.16f, 0.34f);
@@ -1599,6 +1931,7 @@ namespace OrbitBreaker
             materialClip = RuntimeAssets.CreateTone("Material", 1320f, 0.13f, 0.32f);
             challengeCompleteClip = RuntimeAssets.CreateTone("Challenge Complete", 940f, 0.2f, 0.3f);
             challengeRewardClip = RuntimeAssets.CreateSkipStinger();
+            powerUpClip = RuntimeAssets.CreateTone("Power Up", 740f, 0.22f, 0.34f);
             MasterVolume = PlayerPrefs.GetFloat(MasterVolumeKey, 0.85f);
             MusicVolume = PlayerPrefs.GetFloat(MusicVolumeKey, 0.55f);
             EffectsVolume = PlayerPrefs.GetFloat(EffectsVolumeKey, 0.8f);
@@ -1611,6 +1944,16 @@ namespace OrbitBreaker
             MasterVolume = Mathf.Clamp01(value);
             PlayerPrefs.SetFloat(MasterVolumeKey, MasterVolume);
             ApplyVolumes();
+        }
+
+        public void UpdateWarpAudio(float intensity)
+        {
+            if (warpSource == null) return;
+            if (intensity <= 0.001f) { warpSource.Stop(); return; }
+            UpdateCharge(1f, false);
+            warpSource.volume = EffectsVolume * intensity * 0.3f;
+            warpSource.pitch = Mathf.Lerp(0.55f, 1.8f, intensity);
+            if (!warpSource.isPlaying) warpSource.Play();
         }
 
         public void SetMusicVolume(float value)
@@ -1709,6 +2052,16 @@ namespace OrbitBreaker
             audioSource.PlayOneShot(challengeRewardClip, 0.78f);
             audioSource.pitch = 1f;
             TriggerHaptic(48L, 120);
+        }
+
+        public void PowerUp(Vector2 position, PowerUpType type, bool success)
+        {
+            PowerUpDefinition definition = PowerUpProgression.Definition(type);
+            audioSource.pitch = success ? 1f + (int)type * 0.08f : 0.7f;
+            audioSource.PlayOneShot(powerUpClip, success ? 0.9f : 0.45f);
+            audioSource.pitch = 1f;
+            if (success) TriggerHaptic(30L, 85);
+            StartCoroutine(Pulse(position, success ? definition.Color : new Color(1f, 0.28f, 0.3f), 0.3f, success ? 1.15f : 0.6f));
         }
 
         public void Death(Vector2 position, DeathReason reason)

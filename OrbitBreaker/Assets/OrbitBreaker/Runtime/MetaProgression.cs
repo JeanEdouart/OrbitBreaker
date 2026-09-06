@@ -16,7 +16,7 @@ namespace OrbitBreaker
         public int Target { get; }
         public int Reward { get; }
         public string Label => Kind switch {
-            ChallengeKind.Distance => "PARCOURIR " + Target + " m",
+            ChallengeKind.Distance => "PARCOURIR " + Target + " UA",
             ChallengeKind.Orbits => "CAPTURER " + Target + " ORBITES",
             ChallengeKind.Skips => "RÉUSSIR " + Target + " SKIPS",
             ChallengeKind.Synchronizations => "RÉUSSIR " + Target + " SYNCHRONISATIONS",
@@ -51,7 +51,12 @@ namespace OrbitBreaker
             new("planets_default","ORBIT BREAKER",CosmeticKind.PlanetPack,0,0), new("planets_solar","SYSTÈME SOLAIRE",CosmeticKind.PlanetPack,900,1),
             new("planets_anime","MONDES DU DRAGON",CosmeticKind.PlanetPack,1600,2),
             new("background_default","ESPACE PROFOND",CosmeticKind.Background,0,0), new("background_ion","NÉBULEUSE ION",CosmeticKind.Background,700,1),
-            new("background_inferno","TEMPÊTE SOLAIRE",CosmeticKind.Background,1300,2)
+            new("background_inferno","TEMPÊTE SOLAIRE",CosmeticKind.Background,1300,2),
+            new("rocket_aurora","AURORE",CosmeticKind.Rocket,1800,10),
+            new("trail_boreal","SILLAGE BORÉAL",CosmeticKind.Trail,750,4),
+            new("trail_amethyst","FLUX AMÉTHYSTE",CosmeticKind.Trail,1100,5),
+            new("planets_aurora","MONDES D'AURORE",CosmeticKind.PlanetPack,1900,3),
+            new("background_aurora","VOILE BORÉAL",CosmeticKind.Background,1500,3)
         };
 
         public static int Materials => PlayerPrefs.GetInt(P+"Materials",0);
@@ -63,6 +68,14 @@ namespace OrbitBreaker
             PlayerPrefs.SetInt(P+"Selected."+item.Kind,item.VisualIndex); PlayerPrefs.Save(); return true;
         }
         public static void AddMaterials(int amount){if(amount<=0)return;PlayerPrefs.SetInt(P+"Materials",Materials+amount);PlayerPrefs.Save();}
+        public static bool TrySpendMaterials(int amount)
+        {
+            if (amount <= 0) return true;
+            if (Materials < amount) return false;
+            PlayerPrefs.SetInt(P+"Materials", Materials-amount);
+            PlayerPrefs.Save();
+            return true;
+        }
 
         public static ChallengeDefinition Challenge(int id)
         {

@@ -70,18 +70,38 @@ namespace OrbitBreaker
         private readonly HashSet<int> visitedSequences = new HashSet<int>();
         private readonly HashSet<int> nearbyFreeDebris = new HashSet<int>();
         private readonly HashSet<int> rewardedFreeDebris = new HashSet<int>();
+        private float magnetEndsAt;
+        private float shieldPowerEndsAt;
+        private float overdriveEndsAt;
+        private float extractorEndsAt;
+        private float magnetStrength;
+        private float extraFlightTime;
+        private float extractorRadius;
+        private int extractorMultiplier = 1;
 
         public PlayerOrbitState State { get; private set; }
         public OrbitAnchor CurrentAnchor { get; private set; }
         public int LastSequence { get; private set; }
         public Vector2 Velocity => velocity;
         public float FlightMultiplier => State == PlayerOrbitState.Flying ? Mathf.Min(GameTuning.MaxDistanceMultiplier, GameTuning.FlightMultiplier(flightTime) + nearMissBoost) : 1f;
-        public float FlightDanger01 => State == PlayerOrbitState.Flying ? GameTuning.FlightDanger01(flightTime) : 0f;
+        public float FlightDanger01 => State == PlayerOrbitState.Flying ? Mathf.Clamp01(flightTime / EffectiveMaxFlightTime) : 0f;
+        public bool HasPowerShield => Time.time < shieldPowerEndsAt;
+        public float PowerUpRemaining(PowerUpType type) => Mathf.Max(0f, type switch
+        {
+            PowerUpType.OrbitMagnet => magnetEndsAt - Time.time,
+            PowerUpType.Shield => shieldPowerEndsAt - Time.time,
+            PowerUpType.IonOverdrive => overdriveEndsAt - Time.time,
+            PowerUpType.QuantumExtractor => extractorEndsAt - Time.time,
+            _ => 0f
+        });
+        public float PowerUpDuration(PowerUpType type) => PowerUpProgression.Duration(type, PowerUpProgression.Level(type));
+        private float EffectiveMaxFlightTime => GameTuning.MaxFlightTime + (Time.time < overdriveEndsAt ? extraFlightTime : 0f);
 
         public event Action<CaptureResult> Captured;
         public event Action<DeathReason> Died;
         public event Action<NearMissResult> NearMissed;
         public event Action<int, Vector2> MaterialCollected;
+        public event Action<PowerUpType, Vector2> PowerUpCollected;
 
         public void Initialize()
         {
@@ -102,6 +122,9 @@ namespace OrbitBreaker
             nearbyFreeDebris.Clear();
             rewardedFreeDebris.Clear();
             velocity = Vector2.zero;
+            magnetEndsAt = shieldPowerEndsAt = overdriveEndsAt = extractorEndsAt = 0f;
+            magnetStrength = extraFlightTime = extractorRadius = 0f;
+            extractorMultiplier = 1;
             trail.Clear();
             trail.emitting = false;
             body.color = Color.white;
@@ -116,7 +139,7 @@ namespace OrbitBreaker
 
         public void SetScore(int value)
         {
-            score = Mathf.Max(0, value);
+            score = Mathf.Max(score, Mathf.Clamp(value, 0, GameTuning.DifficultyCapDistance));
         }
 
         public bool Launch()
@@ -129,6 +152,8 @@ namespace OrbitBreaker
                 : new Vector2(radial.y, -radial.x);
 
             velocity = tangent * GameTuning.LaunchSpeed(score);
+            if (PowerUpRemaining(PowerUpType.IonOverdrive) > 0f)
+                velocity *= PowerUpProgression.OverdriveSpeed(PowerUpProgression.Level(PowerUpType.IonOverdrive));
             CurrentAnchor.SetCurrent(false);
             CurrentAnchor = null;
             flightTime = 0f;
@@ -146,7 +171,7 @@ namespace OrbitBreaker
             return true;
         }
 
-        public void Tick(float deltaTime, IReadOnlyList<OrbitAnchor> anchors, IReadOnlyList<OrbitHazard> hazards, IReadOnlyList<FreeDebris> freeDebris, IReadOnlyList<MaterialPickup> materials, float cameraY)
+        public void Tick(float deltaTime, IReadOnlyList<OrbitAnchor> anchors, IReadOnlyList<OrbitHazard> hazards, IReadOnlyList<FreeDebris> freeDebris, IReadOnlyList<MaterialPickup> materials, IReadOnlyList<PowerUpPickup> powerUps, float cameraY)
         {
             if (State == PlayerOrbitState.Dead) return;
 
@@ -163,6 +188,7 @@ namespace OrbitBreaker
             UpdateShield();
             UpdateMotionJuice(deltaTime);
             CheckMaterials(materials);
+            CheckPowerUps(powerUps);
 
             if (CheckHazards(hazards, freeDebris))
             {
@@ -180,11 +206,80 @@ namespace OrbitBreaker
             {
                 MaterialPickup pickup = materials[i];
                 if (!pickup.gameObject.activeInHierarchy) continue;
-                if (Vector2.Distance(transform.position, pickup.transform.position) > pickup.Radius + GameTuning.PlayerCollisionRadius) continue;
+                float radius = pickup.Radius + GameTuning.PlayerCollisionRadius + (Time.time < extractorEndsAt ? extractorRadius : 0f);
+                if (Vector2.Distance(transform.position, pickup.transform.position) > radius) continue;
                 Vector2 position = pickup.transform.position;
-                int value = pickup.Value;
-                if (pickup.Collect()) MaterialCollected?.Invoke(value, position);
+                int value = pickup.Value * (Time.time < extractorEndsAt ? extractorMultiplier : 1);
+                pickup.BeginCollection(transform, () => MaterialCollected?.Invoke(value, position));
             }
+        }
+
+        private void CheckPowerUps(IReadOnlyList<PowerUpPickup> powerUps)
+        {
+            for (int i = 0; i < powerUps.Count; i++)
+            {
+                PowerUpPickup pickup = powerUps[i];
+                if (!pickup.gameObject.activeInHierarchy) continue;
+                if (PowerUpProgression.StoredCount(pickup.Type) >= PowerUpProgression.MaxInventory) continue;
+                if (Vector2.Distance(transform.position, pickup.transform.position) > PowerUpPickup.Radius + GameTuning.PlayerCollisionRadius) continue;
+                Vector2 position = pickup.transform.position;
+                PowerUpType type = pickup.Type;
+                if (pickup.Collect()) PowerUpCollected?.Invoke(type, position);
+            }
+        }
+
+        public void ActivateMagnet(int level)
+        {
+            magnetStrength = PowerUpProgression.MagnetStrength(level);
+            magnetEndsAt = Time.time + PowerUpProgression.Duration(PowerUpType.OrbitMagnet, level);
+        }
+
+        public void ActivateShield(int level)
+        {
+            shieldPowerEndsAt = Time.time + PowerUpProgression.Duration(PowerUpType.Shield, level);
+            SetShield(true);
+        }
+
+        public void ActivateOverdrive(int level)
+        {
+            if (State == PlayerOrbitState.Flying) velocity *= PowerUpProgression.OverdriveSpeed(level);
+            extraFlightTime = PowerUpProgression.ExtraFlightTime(level);
+            overdriveEndsAt = Time.time + PowerUpProgression.Duration(PowerUpType.IonOverdrive, level);
+        }
+
+        public void ActivateExtractor(int level)
+        {
+            extractorRadius = PowerUpProgression.ExtractorRadius(level);
+            extractorMultiplier = PowerUpProgression.ExtractorMultiplier(level);
+            extractorEndsAt = Time.time + PowerUpProgression.Duration(PowerUpType.QuantumExtractor, level);
+        }
+
+        public void WarpTo(OrbitAnchor anchor)
+        {
+            if (anchor == null || State == PlayerOrbitState.Dead) return;
+            int fromSequence = LastSequence;
+            transform.position = (Vector2)anchor.transform.position + Vector2.down * anchor.Radius;
+            Capture(anchor);
+            visitedSequences.Add(anchor.Sequence);
+            Captured?.Invoke(new CaptureResult(anchor, 1f, Mathf.Max(0, anchor.Sequence - fromSequence - 1), fromSequence, SynchronizationResult.None, 0));
+        }
+
+        public void RefreshCaptureProtection()
+        {
+            if (CurrentAnchor == null) return;
+            capturedAt = Time.time;
+            shieldEndsAt = capturedAt + GameTuning.CaptureGraceDuration(score);
+        }
+
+        public void SetWarpEngine(float intensity)
+        {
+            SetEngine(intensity > 0f);
+            trail.emitting = intensity > 0f;
+            if (intensity <= 0f) { trail.Clear(); return; }
+            SetShield(false);
+            fuelTrack.enabled = fuelFill.enabled = false;
+            outerFlame.transform.localScale = new Vector3(0.32f, 0.6f + intensity * 1.1f, 1f);
+            outerFlame.color = new Color(0.45f, 0.8f, 1f, 0.95f);
         }
 
         public void Kill()
@@ -213,6 +308,7 @@ namespace OrbitBreaker
         private void TickFlight(float deltaTime, IReadOnlyList<OrbitAnchor> anchors)
         {
             flightTime += deltaTime;
+            if (Time.time < magnetEndsAt) ApplyOrbitMagnet(deltaTime, anchors);
             transform.position += (Vector3)(velocity * deltaTime);
             if (velocity.sqrMagnitude > 0.01f) transform.up = velocity.normalized;
             UpdateFlightVisuals();
@@ -237,8 +333,8 @@ namespace OrbitBreaker
             if (best != null)
             {
                 Vector2 radial = ((Vector2)transform.position - (Vector2)best.transform.position).normalized;
-                bool inSynchronizationZone = GameTuning.IsWithinSynchronizationZone(radial, best.Sequence, best.SynchronizationAngle);
-                bool synchronized = GameTuning.IsSynchronizedCapture(radial, velocity, best.Direction, best.Sequence, best.SynchronizationAngle);
+                bool inSynchronizationZone = GameTuning.IsWithinSynchronizationZone(radial, best.DifficultyDistance, best.SynchronizationAngle);
+                bool synchronized = GameTuning.IsSynchronizedCapture(radial, velocity, best.Direction, best.DifficultyDistance, best.SynchronizationAngle);
                 SynchronizationResult synchronization = synchronized ? SynchronizationResult.Success
                     : inSynchronizationZone ? SynchronizationResult.WrongDirection : SynchronizationResult.None;
                 float multiplier = Mathf.Min(GameTuning.MaxDistanceMultiplier,
@@ -252,10 +348,29 @@ namespace OrbitBreaker
                 return;
             }
 
-            if (flightTime >= GameTuning.MaxFlightTime)
+            if (flightTime >= EffectiveMaxFlightTime)
             {
                 Die(DeathReason.LostInSpace);
             }
+        }
+
+        private void ApplyOrbitMagnet(float deltaTime, IReadOnlyList<OrbitAnchor> anchors)
+        {
+            OrbitAnchor target = null;
+            float bestDistance = float.MaxValue;
+            for (int i = 0; i < anchors.Count; i++)
+            {
+                OrbitAnchor candidate = anchors[i];
+                if (!candidate.gameObject.activeInHierarchy || candidate.Sequence == LastSequence) continue;
+                if (candidate.Sequence < LastSequence && !visitedSequences.Contains(candidate.Sequence)) continue;
+                Vector2 to = (Vector2)candidate.transform.position - (Vector2)transform.position;
+                if (Vector2.Dot(velocity, to) <= 0f || to.sqrMagnitude >= bestDistance) continue;
+                bestDistance = to.sqrMagnitude;
+                target = candidate;
+            }
+            if (target == null || velocity.sqrMagnitude < 0.01f) return;
+            Vector2 desired = ((Vector2)target.transform.position - (Vector2)transform.position).normalized * velocity.magnitude;
+            velocity = Vector2.Lerp(velocity, desired, Mathf.Clamp01(magnetStrength * deltaTime));
         }
 
         private void Capture(OrbitAnchor anchor)
@@ -274,7 +389,7 @@ namespace OrbitBreaker
             State = PlayerOrbitState.Orbiting;
             captureJuice = 0.18f;
             capturedAt = Time.time;
-            shieldEndsAt = capturedAt + GameTuning.CaptureGraceDuration(anchor.Sequence);
+            shieldEndsAt = capturedAt + GameTuning.CaptureGraceDuration(score);
             SetShield(true);
             trail.emitting = false;
             SetEngine(false);
@@ -306,11 +421,12 @@ namespace OrbitBreaker
 
         private bool CheckHazards(IReadOnlyList<OrbitHazard> hazards, IReadOnlyList<FreeDebris> freeDebris)
         {
+            if (Time.time < shieldPowerEndsAt) return false;
             for (int i = 0; i < hazards.Count; i++)
             {
                 OrbitHazard hazard = hazards[i];
                 if (!hazard.gameObject.activeInHierarchy) continue;
-                if (CurrentAnchor != null && hazard.Sequence == CurrentAnchor.Sequence && Time.time - capturedAt < GameTuning.CaptureGraceDuration(CurrentAnchor.Sequence)) continue;
+                if (CurrentAnchor != null && hazard.Sequence == CurrentAnchor.Sequence && Time.time < shieldEndsAt) continue;
                 if (Vector2.Distance(transform.position, hazard.transform.position) <= hazard.CollisionRadius + GameTuning.PlayerCollisionRadius) return true;
             }
             for (int i = 0; i < freeDebris.Count; i++)
@@ -415,12 +531,17 @@ namespace OrbitBreaker
 
         private void UpdateFlightVisuals()
         {
-            float danger = GameTuning.FlightDanger01(flightTime);
+            float danger = FlightDanger01;
             float multiplier01 = Mathf.InverseLerp(1f, GameTuning.MaxDistanceMultiplier, FlightMultiplier);
             float flicker = 1f + Mathf.Sin(Time.unscaledTime * 42f) * 0.09f;
-            outerFlame.transform.localScale = new Vector3(0.24f, Mathf.Lerp(0.38f, 0.9f, multiplier01) * flicker, 1f);
+            bool overdrive = Time.time < overdriveEndsAt;
+            float boostScale = overdrive ? 1.55f : 1f;
+            outerFlame.transform.localScale = new Vector3(0.24f * (overdrive ? 1.2f : 1f), Mathf.Lerp(0.38f, 0.9f, multiplier01) * flicker * boostScale, 1f);
             innerFlame.transform.localScale = new Vector3(0.52f, 0.62f, 1f);
-            outerFlame.color = Color.Lerp(new Color(0.18f, 0.92f, 1f, 0.9f), new Color(1f, 0.2f, 0.62f, 0.96f), multiplier01);
+            Color accent = GameProgression.TrailColor(MetaProgression.Selected(CosmeticKind.Trail));
+            outerFlame.color = overdrive ? new Color(1f, 0.42f, 0.12f, 1f)
+                : Color.Lerp(accent, Color.white, multiplier01 * 0.35f);
+            innerFlame.color = Color.Lerp(accent, Color.white, 0.7f);
             SetFuel(1f - danger);
         }
 
@@ -431,6 +552,8 @@ namespace OrbitBreaker
             {
                 trail.startColor = new Color(accent.r, accent.g, accent.b, 0.9f);
                 trail.endColor = new Color(accent.r, accent.g, accent.b, 0f);
+                trail.time = style == 4 ? 0.48f : style == 5 ? 0.42f : 0.34f;
+                trail.startWidth = style == 4 ? 0.27f : style == 5 ? 0.17f : 0.22f;
             }
             if (outerFlame != null) outerFlame.color = new Color(accent.r, accent.g, accent.b, 0.94f);
             if (body != null && State != PlayerOrbitState.Dead) body.color = Color.Lerp(Color.white, accent, 0.13f);
@@ -458,6 +581,15 @@ namespace OrbitBreaker
                 targetScale = new Vector3(0.72f + wave * 0.13f, 0.72f - wave * 0.08f, 1f);
             }
             transform.localScale = Vector3.Lerp(transform.localScale, targetScale, 1f - Mathf.Exp(-deltaTime * 28f));
+            if (body != null && State != PlayerOrbitState.Dead)
+            {
+                Color effect = Time.time < extractorEndsAt ? new Color(1f, 0.78f, 0.2f)
+                    : Time.time < magnetEndsAt ? new Color(0.2f, 0.92f, 1f)
+                    : Time.time < overdriveEndsAt ? new Color(1f, 0.42f, 0.14f)
+                    : Time.time < shieldPowerEndsAt ? new Color(0.25f, 1f, 0.7f) : Color.white;
+                float strength = effect == Color.white ? 0f : 0.18f + (Mathf.Sin(Time.unscaledTime * 8f) + 1f) * 0.06f;
+                body.color = Color.Lerp(Color.white, effect, strength);
+            }
         }
 
         private void SetEngine(bool active)
@@ -482,21 +614,26 @@ namespace OrbitBreaker
         private void UpdateShield()
         {
             if (shield == null) return;
-            float remaining = shieldEndsAt - Time.time;
-            if (!GamePreferences.Shield || remaining <= 0f || State != PlayerOrbitState.Orbiting)
+            bool powerShield = Time.time < shieldPowerEndsAt;
+            float remaining = powerShield ? shieldPowerEndsAt - Time.time : shieldEndsAt - Time.time;
+            if (!GamePreferences.Shield || remaining <= 0f || (!powerShield && State != PlayerOrbitState.Orbiting))
             {
                 SetShield(false);
                 return;
             }
             shield.enabled = true;
 
-            float alpha = remaining <= 0.36f
+            float alpha = remaining <= (powerShield ? 0.7f : 0.36f)
                 ? Mathf.Lerp(0.08f, 0.9f, (Mathf.Sin(Time.unscaledTime * 38f) + 1f) * 0.5f)
                 : 0.68f;
-            Color color = new Color(0.2f, 0.96f, 1f, alpha);
+            Color baseColor = powerShield ? new Color(0.25f, 1f, 0.68f) : new Color(0.2f, 0.96f, 1f);
+            Color color = new Color(baseColor.r, baseColor.g, baseColor.b, alpha);
             shield.startColor = color;
             shield.endColor = color;
-            shield.transform.localScale = Vector3.one * (1f + Mathf.Sin(Time.unscaledTime * 7f) * 0.035f);
+            float pulse = (Mathf.Sin(Time.unscaledTime * (powerShield ? 10f : 7f)) + 1f) * 0.5f;
+            shield.widthMultiplier = powerShield ? Mathf.Lerp(0.07f, 0.115f, pulse) : 0.055f;
+            shield.transform.localScale = Vector3.one * (1f + Mathf.Sin(Time.unscaledTime * 7f) * (powerShield ? 0.065f : 0.035f));
+            shield.transform.localRotation = Quaternion.Euler(0f, 0f, powerShield ? Time.unscaledTime * 42f : 0f);
 
         }
 

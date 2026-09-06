@@ -1,0 +1,767 @@
+fileFormatVersion: 2
+guid: acc71adf8c053c5459b1f9d5fcec645a
+TextureImporter:
+  internalIDToNameTable:
+  - first:
+      213: 2074074093854302475
+    second: aurora-planets_0
+  - first:
+      213: -1458734606830779816
+    second: aurora-planets_1
+  - first:
+      213: -1418949657721611235
+    second: aurora-planets_2
+  - first:
+      213: -1989278218746451704
+    second: aurora-planets_3
+  - first:
+      213: 8370871856843254056
+    second: aurora-planets_4
+  - first:
+      213: -3688443747442946
+    second: aurora-planets_5
+  - first:
+      213: 2695185788417361554
+    second: aurora-planets_6
+  - first:
+      213: 5525130507297298165
+    second: aurora-planets_7
+  - first:
+      213: -369104003476087089
+    second: aurora-planets_8
+  - first:
+      213: -1608734085953210071
+    second: aurora-planets_9
+  - first:
+      213: -778810311745943574
+    second: aurora-planets_10
+  - first:
+      213: -1388016490613019257
+    second: aurora-planets_11
+  - first:
+      213: 891723269802267520
+    second: aurora-planets_12
+  - first:
+      213: -8990146223348112681
+    second: aurora-planets_13
+  - first:
+      213: 9176280278316829880
+    second: aurora-planets_14
+  - first:
+      213: -2569179880141062709
+    second: aurora-planets_15
+  - first:
+      213: -2083073372988570633
+    second: aurora-planets_16
+  - first:
+      213: -3209212007387114661
+    second: aurora-planets_17
+  - first:
+      213: 1054325656553107870
+    second: aurora-planets_18
+  - first:
+      213: -5947376700292679156
+    second: aurora-planets_19
+  - first:
+      213: 6827221418322647126
+    second: aurora-planets_20
+  - first:
+      213: 7762064684518807511
+    second: aurora-planets_21
+  - first:
+      213: -7390722971956375110
+    second: aurora-planets_22
+  - first:
+      213: -1843864009398352722
+    second: aurora-planets_23
+  externalObjects: {}
+  serializedVersion: 13
+  mipmaps:
+    mipMapMode: 0
+    enableMipMap: 0
+    sRGBTexture: 1
+    linearTexture: 0
+    fadeOut: 0
+    borderMipMap: 0
+    mipMapsPreserveCoverage: 0
+    alphaTestReferenceValue: 0.5
+    mipMapFadeDistanceStart: 1
+    mipMapFadeDistanceEnd: 3
+  bumpmap:
+    convertToNormalMap: 0
+    externalNormalMap: 0
+    heightScale: 0.25
+    normalMapFilter: 0
+    flipGreenChannel: 0
+  isReadable: 0
+  streamingMipmaps: 0
+  streamingMipmapsPriority: 0
+  vTOnly: 0
+  ignoreMipmapLimit: 0
+  grayScaleToAlpha: 0
+  generateCubemap: 6
+  cubemapConvolution: 0
+  seamlessCubemap: 0
+  textureFormat: 1
+  maxTextureSize: 2048
+  textureSettings:
+    serializedVersion: 2
+    filterMode: 1
+    aniso: 1
+    mipBias: 0
+    wrapU: 1
+    wrapV: 1
+    wrapW: 1
+  nPOTScale: 0
+  lightmap: 0
+  compressionQuality: 50
+  spriteMode: 2
+  spriteExtrude: 1
+  spriteMeshType: 1
+  alignment: 0
+  spritePivot: {x: 0.5, y: 0.5}
+  spritePixelsToUnits: 100
+  spriteBorder: {x: 0, y: 0, z: 0, w: 0}
+  spriteGenerateFallbackPhysicsShape: 1
+  alphaUsage: 1
+  alphaIsTransparency: 1
+  spriteTessellationDetail: -1
+  textureType: 0
+  textureShape: 1
+  singleChannelComponent: 0
+  flipbookRows: 1
+  flipbookColumns: 1
+  maxTextureSizeSet: 0
+  compressionQualitySet: 0
+  textureFormatSet: 0
+  ignorePngGamma: 0
+  applyGammaDecoding: 0
+  swizzle: 50462976
+  cookieLightType: 0
+  platformSettings:
+  - serializedVersion: 4
+    buildTarget: DefaultTexturePlatform
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: Standalone
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: Android
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: WebGL
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  spriteSheet:
+    serializedVersion: 2
+    sprites:
+    - serializedVersion: 2
+      name: aurora-planets_0
+      rect:
+        serializedVersion: 2
+        x: 796
+        y: 1249
+        width: 17
+        height: 5
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: b01a602466798cc10800000000000000
+      internalID: 2074074093854302475
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: aurora-planets_1
+      rect:
+        serializedVersion: 2
+        x: 798
+        y: 1240
+        width: 13
+        height: 10
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 85248429a9881cbe0800000000000000
+      internalID: -1458734606830779816
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: aurora-planets_2
+      rect:
+        serializedVersion: 2
+        x: 944
+        y: 1213
+        width: 18
+        height: 39
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: d1c5751edc0ee4ce0800000000000000
+      internalID: -1418949657721611235
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: aurora-planets_3
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 600
+        width: 640
+        height: 636
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 809223ceff9a464e0800000000000000
+      internalID: -1989278218746451704
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: aurora-planets_4
+      rect:
+        serializedVersion: 2
+        x: 32
+        y: 1169
+        width: 17
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 829e47f5a9f4b2470800000000000000
+      internalID: 8370871856843254056
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: aurora-planets_5
+      rect:
+        serializedVersion: 2
+        x: 609
+        y: 1175
+        width: 69
+        height: 33
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: efed8a44165e2fff0800000000000000
+      internalID: -3688443747442946
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: aurora-planets_6
+      rect:
+        serializedVersion: 2
+        x: 669
+        y: 602
+        width: 570
+        height: 646
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 2964c42e139376520800000000000000
+      internalID: 2695185788417361554
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: aurora-planets_7
+      rect:
+        serializedVersion: 2
+        x: 1205
+        y: 1157
+        width: 16
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 5f611294ce43dac40800000000000000
+      internalID: 5525130507297298165
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: aurora-planets_8
+      rect:
+        serializedVersion: 2
+        x: 601
+        y: 721
+        width: 9
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: fce12ab4ddda0eaf0800000000000000
+      internalID: -369104003476087089
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: aurora-planets_9
+      rect:
+        serializedVersion: 2
+        x: 1212
+        y: 722
+        width: 9
+        height: 14
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 92932bc4fd0aca9e0800000000000000
+      internalID: -1608734085953210071
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: aurora-planets_10
+      rect:
+        serializedVersion: 2
+        x: 609
+        y: 690
+        width: 9
+        height: 11
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: ae7c8f4d52c1135f0800000000000000
+      internalID: -778810311745943574
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: aurora-planets_11
+      rect:
+        serializedVersion: 2
+        x: 348
+        y: 638
+        width: 9
+        height: 15
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 78d60a61b56ccbce0800000000000000
+      internalID: -1388016490613019257
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: aurora-planets_12
+      rect:
+        serializedVersion: 2
+        x: 362
+        y: 634
+        width: 17
+        height: 20
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 083938ed699006c00800000000000000
+      internalID: 891723269802267520
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: aurora-planets_13
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 0
+        width: 614
+        height: 599
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 7d2248644a59c3380800000000000000
+      internalID: -8990146223348112681
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: aurora-planets_14
+      rect:
+        serializedVersion: 2
+        x: 617
+        y: 0
+        width: 624
+        height: 599
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 8bc4f7c8b42b85f70800000000000000
+      internalID: 9176280278316829880
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: aurora-planets_15
+      rect:
+        serializedVersion: 2
+        x: 1200
+        y: 578
+        width: 31
+        height: 22
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: bcd7c18d280785cd0800000000000000
+      internalID: -2569179880141062709
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: aurora-planets_16
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 467
+        width: 33
+        height: 74
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 7f301f9cdcf6713e0800000000000000
+      internalID: -2083073372988570633
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: aurora-planets_17
+      rect:
+        serializedVersion: 2
+        x: 46
+        y: 453
+        width: 13
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: b53d5c2bea69673d0800000000000000
+      internalID: -3209212007387114661
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: aurora-planets_18
+      rect:
+        serializedVersion: 2
+        x: 613
+        y: 81
+        width: 7
+        height: 10
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: e91bd6c3997b1ae00800000000000000
+      internalID: 1054325656553107870
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: aurora-planets_19
+      rect:
+        serializedVersion: 2
+        x: 619
+        y: 83
+        width: 7
+        height: 6
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: c0abe91d66ca67da0800000000000000
+      internalID: -5947376700292679156
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: aurora-planets_20
+      rect:
+        serializedVersion: 2
+        x: 627
+        y: 81
+        width: 7
+        height: 10
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 6585f0235b92fbe50800000000000000
+      internalID: 6827221418322647126
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: aurora-planets_21
+      rect:
+        serializedVersion: 2
+        x: 100
+        y: 69
+        width: 14
+        height: 12
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 7d7195494b468bb60800000000000000
+      internalID: 7762064684518807511
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: aurora-planets_22
+      rect:
+        serializedVersion: 2
+        x: 719
+        y: 33
+        width: 16
+        height: 24
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: ab1983f5d90ee6990800000000000000
+      internalID: -7390722971956375110
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: aurora-planets_23
+      rect:
+        serializedVersion: 2
+        x: 898
+        y: 55
+        width: 16
+        height: 11
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: ea40fa1e3774966e0800000000000000
+      internalID: -1843864009398352722
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    outline: []
+    customData: 
+    physicsShape: []
+    bones: []
+    spriteID: 
+    internalID: 0
+    vertices: []
+    indices: 
+    edges: []
+    weights: []
+    secondaryTextures: []
+    spriteCustomMetadata:
+      entries: []
+    nameFileIdTable:
+      aurora-planets_0: 2074074093854302475
+      aurora-planets_1: -1458734606830779816
+      aurora-planets_10: -778810311745943574
+      aurora-planets_11: -1388016490613019257
+      aurora-planets_12: 891723269802267520
+      aurora-planets_13: -8990146223348112681
+      aurora-planets_14: 9176280278316829880
+      aurora-planets_15: -2569179880141062709
+      aurora-planets_16: -2083073372988570633
+      aurora-planets_17: -3209212007387114661
+      aurora-planets_18: 1054325656553107870
+      aurora-planets_19: -5947376700292679156
+      aurora-planets_2: -1418949657721611235
+      aurora-planets_20: 6827221418322647126
+      aurora-planets_21: 7762064684518807511
+      aurora-planets_22: -7390722971956375110
+      aurora-planets_23: -1843864009398352722
+      aurora-planets_3: -1989278218746451704
+      aurora-planets_4: 8370871856843254056
+      aurora-planets_5: -3688443747442946
+      aurora-planets_6: 2695185788417361554
+      aurora-planets_7: 5525130507297298165
+      aurora-planets_8: -369104003476087089
+      aurora-planets_9: -1608734085953210071
+  mipmapLimitGroupName: 
+  pSDRemoveMatte: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

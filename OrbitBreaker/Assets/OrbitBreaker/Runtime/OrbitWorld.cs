@@ -15,14 +15,16 @@ namespace OrbitBreaker
         private float markerPhase;
 
         public int Sequence { get; private set; }
+        public int DifficultyDistance { get; private set; }
         public float Radius { get; private set; }
         public int Direction { get; private set; }
         public bool IsCurrent { get; private set; }
         public bool IsVisited { get; private set; }
         public float SynchronizationAngle { get; private set; }
 
-        public void Initialize(int sequence, Vector2 position, float radius, int direction, float synchronizationAngle = 0f)
+        public void Initialize(int sequence, Vector2 position, float radius, int direction, float synchronizationAngle = 0f, int difficultyDistance = 0)
         {
+            DifficultyDistance = difficultyDistance;
             Sequence = sequence;
             Radius = radius;
             Direction = direction;
@@ -88,7 +90,7 @@ namespace OrbitBreaker
             if (synchronizationMarker != null)
             {
                 synchronizationMarker.enabled = synchronizationArc != null && synchronizationArc.enabled;
-                float halfArc = GameTuning.SynchronizationHalfAngle(Sequence) * Mathf.Deg2Rad;
+                float halfArc = GameTuning.SynchronizationHalfAngle(DifficultyDistance) * Mathf.Deg2Rad;
                 float travel = Mathf.Repeat(Time.unscaledTime * 0.72f + Sequence * 0.13f, 1f);
                 float from = Direction > 0 ? -halfArc : halfArc;
                 float to = -from;
@@ -178,7 +180,7 @@ namespace OrbitBreaker
         private void DrawSynchronizationArc()
         {
             if (synchronizationArc == null) return;
-            float halfArc = GameTuning.SynchronizationHalfAngle(Sequence) * Mathf.Deg2Rad;
+            float halfArc = GameTuning.SynchronizationHalfAngle(DifficultyDistance) * Mathf.Deg2Rad;
             for (int i = 0; i < synchronizationArc.positionCount; i++)
             {
                 float t = i / (float)(synchronizationArc.positionCount - 1);
@@ -210,7 +212,7 @@ namespace OrbitBreaker
             gameObject.name = "Breaker " + Sequence;
             gameObject.SetActive(true);
             phase = UnityEngine.Random.value * 6f;
-            CollisionRadius = GameTuning.HazardCollisionRadius(Sequence);
+            CollisionRadius = GameTuning.HazardCollisionRadius(anchor.DifficultyDistance);
             activationTime = Time.time + 0.8f;
             EnsureVisuals();
             diamond.sprite = RuntimeAssets.GetDebrisSprite(Sequence);
@@ -219,7 +221,7 @@ namespace OrbitBreaker
         private void Update()
         {
             if (anchor == null) return;
-            orbitAngle += anchor.Direction * Mathf.Lerp(24f, 42f, GameTuning.Difficulty01(Sequence)) * Mathf.Deg2Rad * Time.deltaTime;
+            orbitAngle += anchor.Direction * Mathf.Lerp(24f, 42f, GameTuning.Difficulty01(anchor.DifficultyDistance)) * Mathf.Deg2Rad * Time.deltaTime;
             transform.position = PositionOnOrbit();
             float activation = Mathf.Clamp01((Time.time - activationTime) / 0.45f);
             float scale = (CollisionRadius * 4.1f + Mathf.Sin(Time.time * 4.5f + phase) * 0.055f) * Mathf.Lerp(0.35f, 1f, activation);
@@ -272,7 +274,7 @@ namespace OrbitBreaker
         public int Id { get; private set; }
         public float CollisionRadius { get; private set; }
 
-        public void Initialize(int id, Vector2 position, Vector2 movementAxis, float movementAmplitude, float movementSpeed)
+        public void Initialize(int id, Vector2 position, Vector2 movementAxis, float movementAmplitude, float movementSpeed, int difficultyDistance = 0)
         {
             Id = id;
             origin = position;
@@ -280,7 +282,7 @@ namespace OrbitBreaker
             amplitude = movementAmplitude;
             speed = movementSpeed;
             phase = Mathf.Repeat(id * 0.381966f, 1f) * Mathf.PI * 2f;
-            CollisionRadius = Mathf.Lerp(0.2f, 0.29f, GameTuning.Difficulty01(id));
+            CollisionRadius = Mathf.Lerp(0.2f, 0.29f, GameTuning.Difficulty01(difficultyDistance));
             gameObject.name = "Drifting Debris " + id;
             gameObject.SetActive(true);
             EnsureVisuals();
@@ -311,6 +313,11 @@ namespace OrbitBreaker
         private SpriteRenderer glow;
         private SpriteRenderer crystal;
         private float phase;
+        private Transform collectionTarget;
+        private Action collectionCompleted;
+        private float collectionProgress;
+        private Vector3 collectionStart;
+        private Vector3 collectionScale;
         public int Sequence { get; private set; }
         public int Value { get; private set; }
         public float Radius { get; private set; }
@@ -324,6 +331,9 @@ namespace OrbitBreaker
             gameObject.name = "Material " + value + " (" + sequence + ")";
             gameObject.SetActive(true);
             transform.position = position;
+            collectionTarget = null;
+            collectionCompleted = null;
+            collectionProgress = 0f;
             EnsureVisuals();
             float scale = value >= 7 ? 0.44f : value >= 3 ? 0.34f : 0.26f;
             transform.localScale = Vector3.one * scale;
@@ -338,8 +348,38 @@ namespace OrbitBreaker
             return true;
         }
 
+        public bool BeginCollection(Transform target, Action completed)
+        {
+            if (!gameObject.activeSelf || collectionTarget != null || target == null) return false;
+            collectionTarget = target;
+            collectionCompleted = completed;
+            collectionStart = transform.position;
+            collectionScale = transform.localScale;
+            collectionProgress = 0f;
+            return true;
+        }
+
         private void Update()
         {
+            if (collectionTarget != null)
+            {
+                collectionProgress = Mathf.Clamp01(collectionProgress + Time.deltaTime / 0.28f);
+                float eased = collectionProgress * collectionProgress * (3f - 2f * collectionProgress);
+                Vector3 target = collectionTarget.position;
+                Vector3 arc = Vector3.right * Mathf.Sin(collectionProgress * Mathf.PI) * 0.22f;
+                transform.position = Vector3.Lerp(collectionStart, target, eased) + arc;
+                transform.localScale = collectionScale * Mathf.Lerp(1f, 0.12f, eased);
+                transform.Rotate(0f, 0f, 520f * Time.deltaTime);
+                if (collectionProgress >= 1f)
+                {
+                    Action callback = collectionCompleted;
+                    collectionTarget = null;
+                    collectionCompleted = null;
+                    gameObject.SetActive(false);
+                    callback?.Invoke();
+                }
+                return;
+            }
             transform.Rotate(0f, 0f, 72f * Time.deltaTime);
             glow.transform.localScale = Vector3.one * (1.3f + Mathf.Sin(Time.unscaledTime * 4f + phase) * 0.1f);
         }
@@ -367,26 +407,40 @@ namespace OrbitBreaker
         private readonly List<OrbitHazard> hazards = new List<OrbitHazard>();
         private readonly List<FreeDebris> freeDebris = new List<FreeDebris>();
         private readonly List<MaterialPickup> materials = new List<MaterialPickup>();
+        private readonly List<PowerUpPickup> powerUps = new List<PowerUpPickup>();
         private readonly Queue<OrbitAnchor> anchorPool = new Queue<OrbitAnchor>();
         private readonly Queue<OrbitHazard> hazardPool = new Queue<OrbitHazard>();
         private readonly Queue<FreeDebris> freeDebrisPool = new Queue<FreeDebris>();
         private readonly Queue<MaterialPickup> materialPool = new Queue<MaterialPickup>();
+        private readonly Queue<PowerUpPickup> powerUpPool = new Queue<PowerUpPickup>();
         private Transform activeRoot;
         private Transform poolRoot;
         private System.Random random;
         private int nextSequence;
         private Vector2 lastPosition;
         private OrbitAnchor lastAnchor;
+        private int lastPowerUpSequence = -10;
 
         public IReadOnlyList<OrbitAnchor> Anchors => anchors;
         public IReadOnlyList<OrbitHazard> Hazards => hazards;
         public IReadOnlyList<FreeDebris> FreeDebris => freeDebris;
         public IReadOnlyList<MaterialPickup> Materials => materials;
+        public IReadOnlyList<PowerUpPickup> PowerUps => powerUps;
+
+        public void SetWarpVisible(bool visible)
+        {
+            EnsureRoots();
+            activeRoot.gameObject.SetActive(visible);
+        }
 
         public void RefreshCosmetics()
         {
             for (int i = 0; i < anchors.Count; i++) anchors[i].RefreshCosmetic();
         }
+
+        private int difficultyDistance;
+
+        public void SetDifficultyDistance(int distance) => difficultyDistance = Mathf.Max(difficultyDistance, Mathf.Clamp(distance, 0, GameTuning.DifficultyCapDistance));
 
         public OrbitAnchor ResetWorld()
         {
@@ -395,13 +449,17 @@ namespace OrbitBreaker
             foreach (OrbitHazard hazard in hazards) Recycle(hazard);
             foreach (FreeDebris debris in freeDebris) Recycle(debris);
             foreach (MaterialPickup material in materials) Recycle(material);
+            foreach (PowerUpPickup powerUp in powerUps) Recycle(powerUp);
             anchors.Clear();
             hazards.Clear();
             freeDebris.Clear();
             materials.Clear();
+            powerUps.Clear();
             random = new System.Random(Environment.TickCount);
             nextSequence = 0;
+            difficultyDistance = 0;
             lastPosition = new Vector2(0f, GameTuning.StartingHeight);
+            lastPowerUpSequence = -10;
             OrbitAnchor first = SpawnAnchor(lastPosition, 1.25f, 1);
             lastAnchor = first;
             EnsureAhead(0);
@@ -454,6 +512,15 @@ namespace OrbitBreaker
                     Recycle(material);
                 }
             }
+            for (int i = powerUps.Count - 1; i >= 0; i--)
+            {
+                PowerUpPickup powerUp = powerUps[i];
+                if (powerUp.Sequence < currentSequence - GameTuning.BackwardOrbitRetention && powerUp.transform.position.y < cameraY - 18f)
+                {
+                    powerUps.RemoveAt(i);
+                    Recycle(powerUp);
+                }
+            }
         }
 
         private void GenerateNext()
@@ -468,7 +535,7 @@ namespace OrbitBreaker
 
             for (int attempt = 0; attempt < GameTuning.GenerationAttempts; attempt++)
             {
-                float gap = GameTuning.AnchorGap(score, GameTuning.IsBreatherOrbit(score) ? NextFloat() * 0.35f : NextFloat());
+                float gap = GameTuning.AnchorGap(difficultyDistance, GameTuning.IsBreatherOrbit(score) ? NextFloat() * 0.35f : NextFloat());
                 float horizontalStep = GameTuning.PatternHorizontalStep(score, NextFloat());
                 float x = Mathf.Clamp(lastPosition.x + horizontalStep, -2.45f, 2.45f);
                 candidatePosition = new Vector2(x, lastPosition.y + gap);
@@ -480,17 +547,17 @@ namespace OrbitBreaker
                     lastAnchor.Direction,
                     candidatePosition,
                     candidateRadius,
-                    score);
+                    difficultyDistance);
 
-                if (reachableSamples >= GameTuning.MinimumReachableLaunchSamples(score)) break;
+                if (reachableSamples >= GameTuning.MinimumReachableLaunchSamples(difficultyDistance)) break;
             }
 
-            if (reachableSamples < GameTuning.MinimumReachableLaunchSamples(score))
+            if (reachableSamples < GameTuning.MinimumReachableLaunchSamples(difficultyDistance))
             {
                 // Deterministic fallback: a centered, generously sized orbit instead of an unfair roll.
                 candidatePosition = new Vector2(
                     Mathf.Lerp(lastPosition.x, 0f, 0.35f),
-                    lastPosition.y + GameTuning.AnchorGap(score, 0.25f));
+                    lastPosition.y + GameTuning.AnchorGap(difficultyDistance, 0.25f));
                 candidateRadius = 1.34f;
                 candidateDirection = lastAnchor.Direction;
                 reachableSamples = GameTuning.CountReachableLaunchSamples(
@@ -499,7 +566,7 @@ namespace OrbitBreaker
                     lastAnchor.Direction,
                     candidatePosition,
                     candidateRadius,
-                    score);
+                    difficultyDistance);
             }
 
             float positiveAngle;
@@ -508,11 +575,11 @@ namespace OrbitBreaker
             float negativeAlignment;
             bool positiveGate = GameTuning.TryFindSynchronizationGate(
                 lastAnchor.transform.position, lastAnchor.Radius, lastAnchor.Direction,
-                candidatePosition, candidateRadius, 1, score,
+                candidatePosition, candidateRadius, 1, difficultyDistance,
                 out positiveAngle, out positiveAlignment);
             bool negativeGate = GameTuning.TryFindSynchronizationGate(
                 lastAnchor.transform.position, lastAnchor.Radius, lastAnchor.Direction,
-                candidatePosition, candidateRadius, -1, score,
+                candidatePosition, candidateRadius, -1, difficultyDistance,
                 out negativeAngle, out negativeAlignment);
             if (positiveGate || negativeGate)
             {
@@ -542,13 +609,27 @@ namespace OrbitBreaker
                 materials.Add(GetMaterial(score, position, value));
             }
 
-            if (!GameTuning.IsBreatherOrbit(score) && GameTuning.HasHazard(score) && GameTuning.CanAddHazardToLayout(reachableSamples, score))
+            // Rare, readable pickups: never on consecutive transfers and always near
+            // the safe centre of a route so collecting one remains a choice, not a trap.
+            if (score >= 4 && score - lastPowerUpSequence >= 3 && NextFloat() < 0.22f)
+            {
+                if (GameTuning.TryFindTransferPickupPoint(previousAnchor.transform.position, previousAnchor.Radius, previousAnchor.Direction,
+                    anchor.transform.position, anchor.Radius, difficultyDistance, out Vector2 position))
+                {
+                    PowerUpType type = (PowerUpType)Mathf.Clamp(Mathf.FloorToInt(NextFloat() * 5f), 0, 4);
+                    powerUps.Add(GetPowerUp(score, position, type));
+                    lastPowerUpSequence = score;
+                }
+            }
+
+            bool orbitFullyVisible = GameTuning.IsOrbitFullyVisibleForHazard(anchor.transform.position.x, anchor.Radius);
+            if (orbitFullyVisible && !GameTuning.IsBreatherOrbit(score) && GameTuning.HasHazard(score, difficultyDistance) && GameTuning.CanAddHazardToLayout(reachableSamples, difficultyDistance))
             {
                 float angle = Mathf.Repeat(score * 0.381966f, 1f) * Mathf.PI * 2f;
                 hazards.Add(GetHazard(anchor, angle));
             }
 
-            if (score >= 11 && !GameTuning.IsBreatherOrbit(score) && NextFloat() < 0.52f)
+            if (score >= 11 && !GameTuning.IsBreatherOrbit(score) && NextFloat() < Mathf.Lerp(0.38f, 0.65f, GameTuning.Difficulty01(difficultyDistance)))
             {
                 OrbitAnchor skipSource = FindAnchor(score - 2);
                 OrbitAnchor bypassed = FindAnchor(score - 1);
@@ -556,15 +637,15 @@ namespace OrbitBreaker
                 {
                     int skipSamples = GameTuning.CountReachableLaunchSamples(
                         skipSource.transform.position, skipSource.Radius, skipSource.Direction,
-                        anchor.transform.position, anchor.Radius, score);
-                    if (GameTuning.CanAddSkipChallenge(skipSamples, score))
+                        anchor.transform.position, anchor.Radius, difficultyDistance);
+                    if (GameTuning.CanAddSkipChallenge(skipSamples, score, difficultyDistance))
                     {
                         Vector2 challengePosition;
                         float bypassClearance;
                         if (GameTuning.TryFindSkipChallengePoint(
                             skipSource.transform.position, skipSource.Radius, skipSource.Direction,
                             bypassed.transform.position, bypassed.Radius,
-                            anchor.transform.position, anchor.Radius, score,
+                            anchor.transform.position, anchor.Radius, difficultyDistance,
                             out challengePosition, out bypassClearance)
                             && IsClearOfEveryOrbit(challengePosition, skipSource.Sequence, anchor.Sequence, score))
                         {
@@ -580,7 +661,7 @@ namespace OrbitBreaker
 
         private bool IsClearOfEveryOrbit(Vector2 point, int sourceSequence, int targetSequence, int sequence)
         {
-            float requiredClearance = GameTuning.CaptureBand + 0.46f + GameTuning.HazardCollisionRadius(sequence) + 0.12f;
+            float requiredClearance = GameTuning.CaptureBand + 0.46f + GameTuning.HazardCollisionRadius(difficultyDistance) + 0.12f;
             for (int i = 0; i < anchors.Count; i++)
             {
                 OrbitAnchor other = anchors[i];
@@ -590,11 +671,25 @@ namespace OrbitBreaker
             return true;
         }
 
-        private OrbitAnchor FindAnchor(int sequence)
+        public OrbitAnchor FindAnchor(int sequence)
         {
             for (int i = anchors.Count - 1; i >= 0; i--)
                 if (anchors[i].Sequence == sequence) return anchors[i];
             return null;
+        }
+
+        public OrbitAnchor PrepareSafeWarpTarget(int fromSequence, int orbitSkip)
+        {
+            int targetSequence = Mathf.Max(fromSequence + 2, fromSequence + orbitSkip);
+            EnsureAhead(targetSequence);
+            OrbitAnchor target = FindAnchor(targetSequence);
+            if (target == null) return null;
+            for (int i = hazards.Count - 1; i >= 0; i--)
+            {
+                if (hazards[i].Sequence != targetSequence) continue;
+                OrbitHazard hazard = hazards[i]; hazards.RemoveAt(i); Recycle(hazard);
+            }
+            return target;
         }
 
         private OrbitAnchor SpawnAnchor(Vector2 position, float radius, int direction, float synchronizationAngle = 0f)
@@ -611,7 +706,7 @@ namespace OrbitBreaker
                 instance.transform.SetParent(activeRoot, true);
                 anchor = instance.AddComponent<OrbitAnchor>();
             }
-            anchor.Initialize(nextSequence, position, radius, direction, synchronizationAngle);
+            anchor.Initialize(nextSequence, position, radius, direction, synchronizationAngle, difficultyDistance);
             anchors.Add(anchor);
             nextSequence++;
             return anchor;
@@ -649,7 +744,7 @@ namespace OrbitBreaker
                 instance.transform.SetParent(activeRoot, true);
                 debris = instance.AddComponent<FreeDebris>();
             }
-            debris.Initialize(id, position, axis, 0.46f, Mathf.Lerp(0.72f, 1.28f, GameTuning.Difficulty01(id)));
+            debris.Initialize(id, position, axis, 0.46f, Mathf.Lerp(0.72f, 1.28f, GameTuning.Difficulty01(difficultyDistance)), difficultyDistance);
             return debris;
         }
 
@@ -658,6 +753,14 @@ namespace OrbitBreaker
             MaterialPickup pickup = materialPool.Count > 0 ? materialPool.Dequeue() : new GameObject().AddComponent<MaterialPickup>();
             pickup.transform.SetParent(activeRoot, true);
             pickup.Initialize(sequence, position, value);
+            return pickup;
+        }
+
+        private PowerUpPickup GetPowerUp(int sequence, Vector2 position, PowerUpType type)
+        {
+            PowerUpPickup pickup = powerUpPool.Count > 0 ? powerUpPool.Dequeue() : new GameObject().AddComponent<PowerUpPickup>();
+            pickup.transform.SetParent(activeRoot, true);
+            pickup.Initialize(sequence, position, type);
             return pickup;
         }
 
@@ -688,6 +791,13 @@ namespace OrbitBreaker
             material.gameObject.SetActive(false);
             material.transform.SetParent(poolRoot, false);
             materialPool.Enqueue(material);
+        }
+
+        private void Recycle(PowerUpPickup powerUp)
+        {
+            powerUp.gameObject.SetActive(false);
+            powerUp.transform.SetParent(poolRoot, false);
+            powerUpPool.Enqueue(powerUp);
         }
 
         private void EnsureRoots()

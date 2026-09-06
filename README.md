@@ -23,7 +23,10 @@ Le joueur tourne automatiquement autour d'une ancre. Une pression le propulse se
 - Motifs procéduraux et phases de respiration répartis sur des cycles de difficulté
 - Quatre styles cosmétiques de traînée et propulseur débloqués par la distance cumulée
 - Mission quotidienne locale et récapitulatif des performances de chaque partie
-- Transitions progressives de couleur du décor selon l'altitude
+- Transitions progressives de couleur du décor tous les 500 UA de score, y compris avec les fonds du hangar ; notification de nouveau secteur.
+- Distance affichée en UA (unités astronomiques, unité de jeu ; valeurs des sauvegardes et du classement inchangées).
+- Difficulté linéaire jusqu'à 3 000 UA puis plafonnée : rotation de 158 à 222 degrés/s, immunité de capture de 0,80 à 0,52 s, débris possibles dès la quatrième orbite, fenêtres de sécurité et orbites de répit conservées. Les orbites déjà générées ne changent pas brutalement et un retour arrière ne réduit pas la difficulté atteinte.
+- Bonus persistants : 5 charges **par type**, soit 25 au total ; icônes dédiées et compteurs `0/5` à `5/5` dans le HUD et le menu.
 - Musique chiptune originale en boucle et mixage séparé général/musique/effets
 - Menu audio accessible depuis l'accueil et l'écran de fin
 - Réglages persistants par onglets : son, aides visuelles, vibrations, modes 30/60/120 FPS, caméra stable et secousses indépendantes
