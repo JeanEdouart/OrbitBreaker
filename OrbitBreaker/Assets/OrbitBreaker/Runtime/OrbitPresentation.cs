@@ -1262,6 +1262,9 @@ namespace OrbitBreaker
             powerUpMenuStatus.text = message;
         }
 
+        private const string DiscordInviteUrl = "https://discord.gg/jGXyYbYQRX";
+        private void OpenDiscordInvite() => Application.OpenURL(DiscordInviteUrl);
+
         private GameObject CreateCreditsPanel(Transform safe)
         {
             var panel = new GameObject("Credits Panel", typeof(RectTransform), typeof(Image));
@@ -1292,6 +1295,10 @@ namespace OrbitBreaker
 
             GameObject close = CreateButton(card.transform, "Close Credits", "FERMER", new Color(0.12f, 0.48f, 0.58f, 0.95f), ToggleCredits);
             SetRect(close.GetComponent<RectTransform>(), new Vector2(0.25f, 0.055f), new Vector2(0.75f, 0.18f), Vector2.zero, Vector2.zero);
+
+            GameObject discord = CreateIconButton(card.transform, "Discord Button", RuntimeAssets.DiscordIcon, OpenDiscordInvite);
+            SetRect(discord.GetComponent<RectTransform>(), new Vector2(0.78f, 0.055f), new Vector2(0.91f, 0.18f), Vector2.zero, Vector2.zero);
+            discord.GetComponent<Image>().color = new Color(0.345f, 0.396f, 0.949f, 0.95f);
             return panel;
         }
 

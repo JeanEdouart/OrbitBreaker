@@ -30,7 +30,7 @@ namespace OrbitBreaker.Tests
         [Test]
         public void LeaderboardRows_OnlyExposeTheSelectedMode()
         {
-            var entry = new OrbitLeaderboardEntry(4, "Nova", 321, 999, 123, 8, false);
+            var entry = new OrbitLeaderboardEntry(4, "Nova", 321, 999, 123, false);
             string endless = OnlineLeaderboard.FormatRow(entry, RunMode.Endless);
             string sprint = OnlineLeaderboard.FormatRow(entry, RunMode.Sprint);
             Assert.That(endless, Does.Contain("321 UA").And.Not.Contain("90 S").And.Not.Contain("\n"));

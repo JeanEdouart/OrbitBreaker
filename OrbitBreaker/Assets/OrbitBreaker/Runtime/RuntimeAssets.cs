@@ -30,6 +30,7 @@ namespace OrbitBreaker
         private static Sprite auroraRocket;
         private static Sprite auroraBackground;
         private static Sprite musicIcon;
+        private static Sprite discordIcon;
         private static Sprite[] auroraPlanets;
         private static Sprite[] generatedRockets;
         private static Sprite[] generatedPlanetsA;
@@ -220,6 +221,19 @@ namespace OrbitBreaker
             ((x+.18f)*(x+.18f)/.025f+(y+.22f)*(y+.22f)/.017f<1f)
             || (x > -.09f && x < -.01f && y > -.22f && y < .4f)
             || (x > -.09f && x < .34f && y > .26f && y < .39f));
+
+        public static Sprite DiscordIcon => discordIcon != null ? discordIcon : discordIcon = CreateIcon("Discord Icon", (x, y) =>
+        {
+            // Silhouette générique "bulle à oreilles" évoquant une messagerie communautaire,
+            // dessinée en interne comme les autres icônes (pas de logo tiers importé).
+            float bx = x / 0.40f, by = (y - 0.03f) / 0.32f;
+            bool body = Mathf.Pow(Mathf.Abs(bx), 4f) + Mathf.Pow(Mathf.Abs(by), 4f) < 1f;
+            bool earL = (x + 0.27f) * (x + 0.27f) / 0.028f + (y - 0.24f) * (y - 0.24f) / 0.024f < 1f;
+            bool earR = (x - 0.27f) * (x - 0.27f) / 0.028f + (y - 0.24f) * (y - 0.24f) / 0.024f < 1f;
+            bool eyeL = (x + 0.145f) * (x + 0.145f) / 0.016f + (y - 0.02f) * (y - 0.02f) / 0.026f < 1f;
+            bool eyeR = (x - 0.145f) * (x - 0.145f) / 0.016f + (y - 0.02f) * (y - 0.02f) / 0.026f < 1f;
+            return (body || earL || earR) && !(eyeL || eyeR);
+        });
 
         public static Sprite GetRocketSprite(int index)
         {

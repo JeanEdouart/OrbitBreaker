@@ -197,6 +197,6 @@ namespace OrbitBreaker
         public static int TotalDiscovered(){int count=0;for(int pack=0;pack<16;pack++)count+=PackDiscovered(pack);return count;}
         public static int TotalPlanets(){int count=0;for(int pack=0;pack<16;pack++)count+=VariantCount(pack);return count;}
         public static void Record(int pack,int sequence)
-        {int variant=Mathf.Abs(sequence%VariantCount(pack));if(!Has(pack,variant))PlayerPrefs.SetInt("OrbitBreaker.Discovery."+pack+"."+variant,1);}
+        {int variant=Mathf.Abs(sequence%VariantCount(pack));if(!Has(pack,variant)){PlayerPrefs.SetInt("OrbitBreaker.Discovery."+pack+"."+variant,1);PlayerPrefs.Save();}}
     }
 }
