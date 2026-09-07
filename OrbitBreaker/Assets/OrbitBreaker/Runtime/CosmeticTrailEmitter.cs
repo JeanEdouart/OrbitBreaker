@@ -60,7 +60,7 @@ namespace OrbitBreaker
                 age[i]=Mathf.Min(1,age[i]+dt/.65f);
                 float t=age[i],spread=Mathf.Sin(i*2.3f+t*4)*.055f;
                 sprites[i].transform.position=positions[i]+new Vector3(spread*t,0,0);
-                float size=style==20 ? .38f+t*.25f : style==12 ? .24f+t*.16f : Mathf.Lerp(.31f,.07f,t);
+                float size=style==21 ? Mathf.Lerp(.48f,.18f,t) : style==20 ? .38f+t*.25f : style==12 ? .24f+t*.16f : Mathf.Lerp(.31f,.07f,t);
                 sprites[i].transform.localScale=Vector3.one*size;
                 Color color=accent;
                 if(style==7||style==17||style==18)color=Color.Lerp(accent,Color.HSVToRGB((i*.17f)%1,.42f,1),.65f);

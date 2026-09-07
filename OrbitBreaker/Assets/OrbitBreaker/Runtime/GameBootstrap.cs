@@ -47,6 +47,7 @@ namespace OrbitBreaker
         private int dailySeed;
         private DailyCourseDefinition dailyCourse;
         private DailyCourseProgress dailyProgress;
+        private bool currentRunOwnsDailyAttempt;
         public RunMode CurrentRunMode { get; private set; }
         public float RunElapsedSeconds => runElapsed;
         public float SprintRemainingSeconds => Mathf.Max(0f, 90f - runElapsed);
@@ -58,6 +59,8 @@ namespace OrbitBreaker
         public int DailyCaptures => dailyProgress != null ? dailyProgress.Captures : 0;
         public int DailyTarget => dailyProgress != null ? dailyProgress.Definition.RequiredCaptures : 0;
         public int DailyTier => dailyProgress != null ? dailyProgress.Definition.Tier : 0;
+        public bool DailyAttemptedToday => DailyCourse.IsAttempted(DailyCourse.ForDate(System.DateTime.UtcNow).DayKey);
+        public bool DailyCompletedToday => DailyCourse.IsClaimed(DailyCourse.ForDate(System.DateTime.UtcNow).DayKey);
         public bool SetRunMode(RunMode mode)
         {
             if (!identityReady || runActive && !tutorialVisible || warpInProgress) return false;
@@ -152,8 +155,14 @@ namespace OrbitBreaker
 
             if (runActive)
             {
-                if (!hud.SettingsOpen && WasGameplayPressedThisFrame() && player.Launch())
+                bool dailyLaunchAllowed = CurrentRunMode != RunMode.Daily || currentRunOwnsDailyAttempt || !DailyCourse.IsAttempted(dailyCourse.DayKey);
+                if (dailyLaunchAllowed && !hud.SettingsOpen && WasGameplayPressedThisFrame() && player.Launch())
                 {
+                    if (CurrentRunMode == RunMode.Daily && !currentRunOwnsDailyAttempt)
+                    {
+                        currentRunOwnsDailyAttempt = DailyCourse.TryBeginAttempt(dailyCourse.DayKey);
+                        if (!currentRunOwnsDailyAttempt) return;
+                    }
                     tutorialVisible = false;
                     hud.HideTutorial();
                     hud.UpdatePowerUpInventory(powerUpInventory, true);
@@ -214,6 +223,8 @@ namespace OrbitBreaker
             LastDailyReward = 0;
             LastDailyUnlock = string.Empty;
             dailySeed = LocalRunStats.DailySeed(System.DateTime.UtcNow);
+            dailyCourse = DailyCourse.ForDate(System.DateTime.UtcNow);
+            currentRunOwnsDailyAttempt = false;
             bestScore = CurrentRunMode == RunMode.Endless ? PlayerPrefs.GetInt(BestScoreKey, 0) : LocalRunStats.Best(CurrentRunMode, dailySeed);
             spaceBackground.SetDistance(0, true);
             powerUpInventoryCount = PowerUpProgression.TotalStored();
@@ -226,7 +237,6 @@ namespace OrbitBreaker
                 challengeCompletionNotified[i] = MetaProgression.ChallengeProgress(i) >= challenge.Target;
             }
             OrbitAnchor first = world.ResetWorld(CurrentRunMode == RunMode.Daily ? dailySeed : (int?)null);
-            dailyCourse = DailyCourse.ForDate(System.DateTime.UtcNow);
             dailyProgress = CurrentRunMode == RunMode.Daily ? new DailyCourseProgress(dailyCourse, first.Sequence) : null;
             if (dailyProgress != null) world.SetDifficultyDistance(dailyCourse.DifficultyDistance);
             checkpointScores.Clear();
@@ -238,6 +248,8 @@ namespace OrbitBreaker
             player.SetScore(0);
             cameraRig.Snap(first.transform.position);
             hud.ShowPlaying(distanceScore, bestScore, tutorialVisible);
+            if (CurrentRunMode == RunMode.Daily)
+                hud.ShowDailyAvailability(DailyCourse.IsAttempted(dailyCourse.DayKey), DailyCourse.IsClaimed(dailyCourse.DayKey));
             if (dailyProgress != null) hud.ShowDailyProgress(0, dailyProgress.Definition.RequiredCaptures, dailyProgress.Definition.Tier);
             // Les boutons d'inventaire restent masqués sur l'écran de préparation;
             // ils apparaissent au premier lancement via HideTutorial().

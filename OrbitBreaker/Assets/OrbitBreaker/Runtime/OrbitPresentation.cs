@@ -46,6 +46,8 @@ namespace OrbitBreaker
         private InputField leaderboardSearchInput;
         private Text leaderboardStatus;
         private Text leaderboardEndlessTab, leaderboardSprintTab;
+        private Image leaderboardEndlessTabImage, leaderboardSprintTabImage;
+        private Text leaderboardModeHint;
         private readonly Text[] leaderboardRows = new Text[100];
         private ScrollRect leaderboardScroll;
         private RectTransform leaderboardContent;
@@ -120,7 +122,9 @@ namespace OrbitBreaker
             || (hangarPanel != null && hangarPanel.activeSelf)
             || (powerUpPanel != null && powerUpPanel.activeSelf)
             || (leaderboardPanel != null && leaderboardPanel.activeSelf)
+            || (modePanel != null && modePanel.activeSelf)
             || (journalPanel != null && journalPanel.activeSelf)
+            || (statisticsPanel != null && statisticsPanel.activeSelf)
             || (playerNamePanel != null && playerNamePanel.activeSelf);
         public bool IsPaused => pausePanel != null && pausePanel.activeSelf;
         public event Action CosmeticsChanged;
@@ -142,7 +146,8 @@ namespace OrbitBreaker
             CanvasScaler scaler = canvasObject.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1080f, 1920f);
-            scaler.matchWidthOrHeight = 0.5f;
+            scaler.matchWidthOrHeight = Screen.width / Mathf.Max(1f, Screen.height) <= 0.5625f ? 0f : 1f;
+            canvasObject.AddComponent<ResponsiveCanvasScaler>();
 
             var safeObject = new GameObject("Safe Area", typeof(RectTransform), typeof(SafeAreaFitter));
             safeObject.transform.SetParent(canvasObject.transform, false);
@@ -399,6 +404,9 @@ namespace OrbitBreaker
             CancelInvoke(nameof(ClearSector));
             ClearSector();
             UpdateProgress(distance, best);
+            titleText.text = "ORBIT\nBREAKER";
+            instructionText.text = "TOUCHE POUR TE PROPULSER";
+            instructionText.color = new Color(0.67f, 0.84f, 0.95f, 0.95f);
             stuntText.text = string.Empty;
             nearMissText.text = string.Empty;
             titleText.gameObject.SetActive(tutorial);
@@ -419,6 +427,7 @@ namespace OrbitBreaker
             hangarPanel.SetActive(false);
             powerUpPanel.SetActive(false);
             leaderboardPanel.SetActive(false);
+            if (statisticsPanel != null) statisticsPanel.SetActive(false);
             gameOverPanel.SetActive(false);
             gameOverVisible = false;
             if (materialToast != null) materialToast.SetActive(false);
@@ -427,6 +436,14 @@ namespace OrbitBreaker
             if (powerUpToast != null) powerUpToast.SetActive(false);
             for (int i = 1; i < activePowerRows.Length; i++) if (activePowerRows[i] != null) activePowerRows[i].SetActive(false);
             UpdatePowerUpInventory(new int[5], false);
+        }
+
+        public void ShowDailyAvailability(bool attempted, bool completed)
+        {
+            if (!attempted) return;
+            titleText.text = completed ? "PARCOURS\nACCOMPLI" : "ESSAI\nTERMINÉ";
+            instructionText.text = completed ? "PARCOURS DU JOUR DÉJÀ TERMINÉ" : "ESSAI DU JOUR DÉJÀ EFFECTUÉ";
+            instructionText.color = completed ? new Color(0.42f, 1f, 0.72f) : new Color(1f, 0.72f, 0.24f);
         }
 
         public void UpdateProgress(int distance, int best)
@@ -601,6 +618,7 @@ namespace OrbitBreaker
         {
             if (modeButton != null) modeButton.SetActive(false);
             if (journalButton != null) journalButton.SetActive(false);
+            if (statisticsButton != null) statisticsButton.SetActive(false);
             hudFeedback.StopMusicPreview();
             titleText.gameObject.SetActive(false);
             hintGroup.gameObject.SetActive(false);
@@ -613,6 +631,7 @@ namespace OrbitBreaker
             leaderboardButton.SetActive(false);
             settingsPanel.SetActive(false);
             creditsPanel.SetActive(false);
+            if (statisticsPanel != null) statisticsPanel.SetActive(false);
             pauseButton.SetActive(true);
         }
 
@@ -655,6 +674,7 @@ namespace OrbitBreaker
             powerUpButton.SetActive(true);
             missionsButton.SetActive(true);
             leaderboardButton.SetActive(true);
+            statisticsButton.SetActive(true);
             pauseButton.SetActive(false);
             gameOverVisible = true;
         }
@@ -697,6 +717,7 @@ namespace OrbitBreaker
             hangarPanel.SetActive(false);
             leaderboardPanel.SetActive(false);
             powerUpPanel.SetActive(false);
+            statisticsPanel.SetActive(false);
             settingsPanel.SetActive(opening);
             if (opening) ShowSettingsTab(0);
             gameOverPanel.SetActive(!opening && gameOverVisible);
@@ -710,6 +731,7 @@ namespace OrbitBreaker
             hangarPanel.SetActive(false);
             leaderboardPanel.SetActive(false);
             powerUpPanel.SetActive(false);
+            statisticsPanel.SetActive(false);
             creditsPanel.SetActive(opening);
             gameOverPanel.SetActive(!opening && gameOverVisible);
         }
@@ -722,6 +744,7 @@ namespace OrbitBreaker
             hangarPanel.SetActive(false);
             leaderboardPanel.SetActive(false);
             powerUpPanel.SetActive(false);
+            statisticsPanel.SetActive(false);
             missionsPanel.SetActive(opening);
             if (opening) RefreshMission();
             gameOverPanel.SetActive(!opening && gameOverVisible);
@@ -736,6 +759,7 @@ namespace OrbitBreaker
             missionsPanel.SetActive(false);
             leaderboardPanel.SetActive(false);
             powerUpPanel.SetActive(false);
+            statisticsPanel.SetActive(false);
             hangarPanel.SetActive(opening);
             if (opening) RefreshHangar(string.Empty);
             gameOverPanel.SetActive(!opening && gameOverVisible);
@@ -745,7 +769,7 @@ namespace OrbitBreaker
         {
             bool opening = !powerUpPanel.activeSelf;
             settingsPanel.SetActive(false); creditsPanel.SetActive(false); missionsPanel.SetActive(false);
-            hangarPanel.SetActive(false); leaderboardPanel.SetActive(false); powerUpPanel.SetActive(opening);
+            hangarPanel.SetActive(false); leaderboardPanel.SetActive(false); statisticsPanel.SetActive(false); powerUpPanel.SetActive(opening);
             if (opening) RefreshPowerUps(string.Empty);
             gameOverPanel.SetActive(!opening && gameOverVisible);
         }
@@ -773,6 +797,7 @@ namespace OrbitBreaker
             missionsPanel.SetActive(false);
             hangarPanel.SetActive(false);
             powerUpPanel.SetActive(false);
+            statisticsPanel.SetActive(false);
             leaderboardPanel.SetActive(opening);
             gameOverPanel.SetActive(!opening && gameOverVisible);
             if (!opening) return;
@@ -795,6 +820,9 @@ namespace OrbitBreaker
             onlineLeaderboard.SelectBoard(mode);
             leaderboardEndlessTab.color = mode == RunMode.Endless ? new Color(1f,.75f,.24f) : new Color(.65f,.82f,.9f);
             leaderboardSprintTab.color = mode == RunMode.Sprint ? new Color(1f,.75f,.24f) : new Color(.65f,.82f,.9f);
+            leaderboardEndlessTabImage.color = mode == RunMode.Endless ? new Color(.08f,.4f,.5f) : new Color(.035f,.16f,.24f);
+            leaderboardSprintTabImage.color = mode == RunMode.Sprint ? new Color(.08f,.4f,.5f) : new Color(.035f,.16f,.24f);
+            leaderboardModeHint.text = mode == RunMode.Endless ? "MEILLEURE DISTANCE · TOP 100" : "MEILLEURE DISTANCE EN 90 S · TOP 100";
             leaderboardSearchInput.SetTextWithoutNotify(string.Empty);
             RenderLeaderboardRows(onlineLeaderboard.CachedEntries);
             RefreshLeaderboard();
@@ -828,8 +856,7 @@ namespace OrbitBreaker
                 }
                 if (!visible) continue;
                 OrbitLeaderboardEntry entry = entries[i];
-                row.text = entry.Rank.ToString().PadLeft(3) + "  " + entry.PlayerName.ToUpperInvariant() + "  ·  " + entry.Score + " UA\n"
-                    + "INFINI " + entry.EndlessBest + "  ·  90 S " + entry.SprintBest + "  ·  PLANÈTES " + entry.PlanetsDiscovered;
+                row.text = OnlineLeaderboard.FormatRow(entry, onlineLeaderboard.ActiveMode);
                 row.color = entry.IsLocalPlayer ? new Color(1f, 0.75f, 0.24f) : new Color(0.72f, 0.92f, 1f);
             }
         }
@@ -868,17 +895,21 @@ namespace OrbitBreaker
             SetRect(endlessTab.GetComponent<RectTransform>(),new Vector2(.1f,.84f),new Vector2(.49f,.9f),Vector2.zero,Vector2.zero);
             SetRect(sprintTab.GetComponent<RectTransform>(),new Vector2(.51f,.84f),new Vector2(.9f,.9f),Vector2.zero,Vector2.zero);
             leaderboardEndlessTab=endlessTab.transform.Find("Label").GetComponent<Text>();leaderboardSprintTab=sprintTab.transform.Find("Label").GetComponent<Text>();
+            leaderboardEndlessTabImage=endlessTab.GetComponent<Image>(); leaderboardSprintTabImage=sprintTab.GetComponent<Image>();
             leaderboardEndlessTab.color=new Color(1f,.75f,.24f);
+            leaderboardEndlessTabImage.color=new Color(.08f,.4f,.5f);
+            leaderboardModeHint=CreateText(card.transform,"Board Context","MEILLEURE DISTANCE · TOP 100",15,TextAnchor.MiddleCenter,FontStyle.Bold);
+            leaderboardModeHint.color=new Color(.48f,.77f,.9f); SetRect(leaderboardModeHint.rectTransform,new Vector2(.08f,.805f),new Vector2(.92f,.842f),Vector2.zero,Vector2.zero);
             leaderboardSearchInput = CreateInputField(card.transform, "Search", "RECHERCHER DANS LE TOP 100", 24);
-            SetRect(leaderboardSearchInput.GetComponent<RectTransform>(), new Vector2(0.08f, 0.745f), new Vector2(0.92f, 0.825f), Vector2.zero, Vector2.zero);
+            SetRect(leaderboardSearchInput.GetComponent<RectTransform>(), new Vector2(0.08f, 0.72f), new Vector2(0.92f, 0.8f), Vector2.zero, Vector2.zero);
             leaderboardSearchInput.onValueChanged.AddListener(SearchLeaderboard);
             leaderboardStatus = CreateText(card.transform, "Status", string.Empty, 17, TextAnchor.MiddleCenter, FontStyle.Bold);
-            leaderboardStatus.color = new Color(1f, 0.72f, 0.24f); SetRect(leaderboardStatus.rectTransform, new Vector2(0.06f, 0.685f), new Vector2(0.94f, 0.74f), Vector2.zero, Vector2.zero);
+            leaderboardStatus.color = new Color(1f, 0.72f, 0.24f); SetRect(leaderboardStatus.rectTransform, new Vector2(0.06f, 0.665f), new Vector2(0.94f, 0.715f), Vector2.zero, Vector2.zero);
             GameObject viewportObject = new GameObject("Leaderboard Scroll Viewport", typeof(RectTransform), typeof(RectMask2D), typeof(Image));
             viewportObject.transform.SetParent(card.transform, false);
             Image viewportImage = viewportObject.GetComponent<Image>(); viewportImage.color = new Color(0f, 0f, 0f, 0.001f); viewportImage.raycastTarget = true;
             RectTransform viewport = viewportObject.GetComponent<RectTransform>();
-            SetRect(viewport, new Vector2(0.06f, 0.17f), new Vector2(0.94f, 0.68f), Vector2.zero, Vector2.zero);
+            SetRect(viewport, new Vector2(0.06f, 0.17f), new Vector2(0.94f, 0.66f), Vector2.zero, Vector2.zero);
             GameObject contentObject = new GameObject("Leaderboard Scroll Content", typeof(RectTransform));
             contentObject.transform.SetParent(viewportObject.transform, false);
             RectTransform content = contentObject.GetComponent<RectTransform>();
@@ -893,7 +924,8 @@ namespace OrbitBreaker
             {
                 float top = 1f - i * 0.1f;
                 Text row = CreateText(content, "Rank " + (i + 1), string.Empty, 23, TextAnchor.MiddleLeft, FontStyle.Bold);
-                row.resizeTextForBestFit = true; row.resizeTextMinSize = 14; row.horizontalOverflow = HorizontalWrapMode.Wrap;
+                row.resizeTextForBestFit = true; row.resizeTextMinSize = 12; row.resizeTextMaxSize = 23;
+                row.horizontalOverflow = HorizontalWrapMode.Wrap; row.verticalOverflow = VerticalWrapMode.Truncate;
                 SetRect(row.rectTransform, new Vector2(0.03f, top - 0.085f), new Vector2(0.97f, top), Vector2.zero, Vector2.zero);
                 leaderboardRows[i] = row;
             }
@@ -1250,7 +1282,7 @@ namespace OrbitBreaker
             author.color = new Color(1f, 0.72f, 0.24f, 1f);
             SetRect(author.rectTransform, new Vector2(0.08f, 0.53f), new Vector2(0.92f, 0.72f), Vector2.zero, Vector2.zero);
 
-            Text details = CreateText(card.transform, "Credits Details", "CONCEPTION & DÉVELOPPEMENT\nJEANEDOUART\n\nL'INTELLIGENCE ARTIFICIELLE A ÉTÉ UTILISÉE\nCOMME OUTIL D'ASSISTANCE AU DÉVELOPPEMENT.", 22, TextAnchor.MiddleCenter, FontStyle.Normal);
+            Text details = CreateText(card.transform, "Credits Details", "CONCEPTION & DÉVELOPPEMENT\nJEANEDOUART\n\nL'INTELLIGENCE ARTIFICIELLE A ÉTÉ UTILISÉE\nCOMME OUTIL D'ASSISTANCE AU DÉVELOPPEMENT.\n\nVERSION " + Application.version, 22, TextAnchor.MiddleCenter, FontStyle.Normal);
             details.color = new Color(0.67f, 0.84f, 0.95f, 0.95f);
             details.lineSpacing = 1.15f;
             details.resizeTextForBestFit = true;

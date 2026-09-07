@@ -64,6 +64,13 @@ namespace OrbitBreaker
             catch(Exception e){LastError=FriendlyError(e);Debug.LogWarning("Unable to refresh leaderboard: "+e.Message);}finally{IsBusy=false;refreshGate.Release();}return Filter(search);
         }
         public IReadOnlyList<OrbitLeaderboardEntry> Filter(string search){IReadOnlyList<OrbitLeaderboardEntry> source=caches[ActiveMode];if(string.IsNullOrWhiteSpace(search))return source;string q=search.Trim();return source.Where(e=>e.PlayerName.IndexOf(q,StringComparison.OrdinalIgnoreCase)>=0).ToList();}
+        public static string FormatRow(OrbitLeaderboardEntry entry, RunMode mode)
+        {
+            // Le contexte est déjà affiché par l'onglet actif. Une seule ligne évite tout
+            // chevauchement sur les écrans étroits et conserve dix rangs visibles.
+            return "#" + entry.Rank.ToString("000") + "  " + entry.PlayerName.ToUpperInvariant()
+                + "     " + entry.Score + " UA  ·  " + entry.PlanetsDiscovered + " PLANÈTES";
+        }
         static Profile Parse(string json){if(string.IsNullOrWhiteSpace(json))return new Profile();try{return JsonUtility.FromJson<Profile>(json)??new Profile();}catch{return new Profile();}}
         async Task<bool> SyncName(string clean){try{await AuthenticationService.Instance.UpdatePlayerNameAsync(clean);LastError="";return true;}catch(Exception e){LastError=FriendlyError(e);Debug.LogWarning("Player name will be synchronized later: "+e.Message);return false;}}
         static string Board(RunMode mode)=>mode==RunMode.Sprint?SprintLeaderboardId:LeaderboardId;

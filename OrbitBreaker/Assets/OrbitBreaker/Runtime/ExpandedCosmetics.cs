@@ -10,7 +10,7 @@ namespace OrbitBreaker
         static readonly Dictionary<string, Sprite> Cache = new();
         static Color C(string hex) { ColorUtility.TryParseHtmlString("#" + hex, out Color c); return c; }
         static readonly Color Ink = C("10203c"), Light = C("e0fcff"), Cyan = C("4ae9ed");
-        static readonly Color[] TrailPalette = { C("ccdce9"), C("efa8d6"), C("65baff"), C("ffb932"), C("49e2b5"), C("ff7637"), C("69eaff"), C("a98ad8"), C("ffd76d"), C("c2f5ff"), C("7eff8b"), C("38c8b9"), C("ff9fc5"), C("fff1cd"), C("729bff") };
+        static readonly Color[] TrailPalette = { C("ccdce9"), C("efa8d6"), C("65baff"), C("ffb932"), C("49e2b5"), C("ff7637"), C("69eaff"), C("a98ad8"), C("ffd76d"), C("c2f5ff"), C("7eff8b"), C("38c8b9"), C("ff9fc5"), C("fff1cd"), C("729bff"), C("54f06f") };
         static readonly string[] PlanetPalettes = {
             "348b63,718b41,cc75ac,396c68,9aae62", "309dba,516992,cf8299,244271,a4d5df",
             "aa8a54,b27448,91573f,8b9fac,c9ac77", "845544,d989b5,9ec6da,d0a25a,e1bed4",
@@ -24,10 +24,15 @@ namespace OrbitBreaker
             var list = new List<CosmeticDefinition>(current);
             Add(list,CosmeticKind.Rocket,11,"firefly|LUCIOLE|420;origami|ORIGAMI|550;sardine|SARDINE COSMIQUE|600;scarab|SCARABÉE|1200;teapot|THÉIÈRE ORBITALE|850;taxi|TAXI LUNAIRE|650;manta|MANTA|1500;vintage_comet|COMÈTE VINTAGE|750;jellyfish|MÉDUSE|1800;cactus|CACTUS|950;submarine|SOUS-MARIN|1250;geode|GÉODE|1700;space_skate|SKATE SPATIAL|1100;bee|ABEILLE|800;arctic|CAPSULE ARCTIQUE|1450;novelty|FUSÉE COQUINE|1650");
             Add(list,CosmeticKind.Rocket,27,"daily_solar|HÉLIOGRAPHE|999999;daily_crown|COURONNE AZUR|999999;daily_eclipse|ÉCLIPSE ROYALE|999999");
+            Add(list,CosmeticKind.Rocket,30,"herbal_joint|JOINT STELLAIRE|50");
             Add(list,CosmeticKind.Trail,6,"moon_dust|POUSSIÈRE LUNAIRE|180;pastel|RUBAN PASTEL|400;pixels|PIXELS PERDUS|350;honey|MIEL SOLAIRE|450;polar|AURORE POLAIRE|950;forge|ÉTINCELLES DE FORGE|600;bubbles|BULLES COSMIQUES|500;ink|ENCRE STELLAIRE|650;notes|NOTES DE VOL|900;frost|CRISTAUX DE GIVRE|750;circuit|CIRCUIT IMPRIMÉ|1000;peacock|QUEUE DE PAON|1400;confetti|CONFETTIS|850;shooting_stars|ÉTOILES FILANTES|1150;sonar|ONDE SONAR|700");
             Add(list,CosmeticKind.PlanetPack,4,"garden|JARDIN CÉLESTE|1100;ocean|ARCHIPEL OCÉAN|1300;clockwork|ATELIER MÉCANIQUE|1700;candy|CONFISERIE|1500;crystalline|CRISTALLINES|2200;civilizations|CIVILISATIONS MINIATURES|2400;seasons|SAISONS|1200;paper|PAPIER DÉCOUPÉ|1600;volcanoes|VOLCANS ENDORMIS|1900;mushrooms|MONDES CHAMPIGNONS|2100;gen_z|GALAXIE GEN-Z|2600");
             Add(list,CosmeticKind.Background,4,"nebula_sea|MER DE NÉBULEUSES|800;polar_night|NUIT POLAIRE|950;star_charts|ARCHIVES STELLAIRES|1000;gold_dust|POUSSIÈRE D'OR|1300;cosmic_ocean|OCÉAN COSMIQUE|1200;distant_city|CITÉ LOINTAINE|1900;binary_dusk|CRÉPUSCULE BINAIRE|1500;monochrome|RÊVE MONOCHROME|700;ice_cathedral|CATHÉDRALE DE GLACE|1800;festival|FESTIVAL ORBITAL|1600;meme_scroll|SCROLL COSMIQUE|2300");
             Add(list,CosmeticKind.Music,0,"neon_orbit|NEON ORBIT|0;starlight|STARLIGHT|250;void_runner|VOID RUNNER|450;cosmic_disco|COSMIC DISCO|600;lunar_lounge|LUNAR LOUNGE|350;asteroid_funk|ASTEROID FUNK|700;binary_chase|BINARY CHASE|900;aurora_dream|AURORA DREAM|800;rusty_station|RUSTY STATION|500;solar_carnival|SOLAR CARNIVAL|1100;deep_blue|DEEP BLUE|550;pocket_galaxy|POCKET GALAXY|1300;meow_sad|MEOW MÉLANCOLIQUE|850");
+            Add(list,CosmeticKind.Trail,21,"herbal_leaves|FEUILLES VERTES|50");
+            Add(list,CosmeticKind.PlanetPack,15,"herbal_worlds|MONDES HERBAL|50");
+            Add(list,CosmeticKind.Background,15,"herbal_space|BRUME HERBAL|50");
+            Add(list,CosmeticKind.Music,13,"herbal_reggae|REGGAE STELLAIRE|50");
             return list.ToArray();
         }
         static void Add(List<CosmeticDefinition> list,CosmeticKind kind,int start,string entries)
@@ -124,8 +129,8 @@ namespace OrbitBreaker
 
         public static Sprite TrailSprite(int index)
         {
-            int v=Mathf.Clamp(index-6,0,14);string key="TrailMotif"+v;if(Cache.TryGetValue(key,out Sprite s))return s;var a=new Art(64,64);Color w=Color.white;
-            switch(v){case 0:a.Ellipse(.5f,.5f,.12f,.12f,w);break;case 1:a.Line(.2f,.3f,.8f,.7f,.12f,w);break;case 2:a.Rect(.25f,.25f,.75f,.75f,w);break;case 3:a.Ellipse(.5f,.43f,.24f,.23f,w);a.Poly(w,.5f,.83f,.28f,.45f,.72f,.45f);break;case 4:a.Poly(w,.16f,.25f,.34f,.72f,.52f,.44f,.8f,.8f,.67f,.26f,.49f,.5f);break;case 5:a.Poly(w,.5f,.9f,.4f,.5f,.5f,.1f,.6f,.5f);break;case 6:a.Ring(.5f,.5f,.3f,.3f,.035f,w);break;case 7:a.Ellipse(.5f,.5f,.31f,.18f,new Color(1,1,1,.45f));a.Ellipse(.39f,.6f,.19f,.12f,w);break;case 8:a.Ellipse(.35f,.3f,.15f,.12f,w);a.Line(.48f,.3f,.48f,.8f,.055f,w);a.Line(.48f,.8f,.75f,.68f,.05f,w);break;case 9:for(int z=0;z<3;z++){float t=z*Mathf.PI/3;a.Line(.5f-Mathf.Cos(t)*.34f,.5f-Mathf.Sin(t)*.34f,.5f+Mathf.Cos(t)*.34f,.5f+Mathf.Sin(t)*.34f,.04f,w);}break;case 10:a.Line(.2f,.2f,.5f,.2f,.035f,w);a.Line(.5f,.2f,.5f,.7f,.035f,w);a.Line(.5f,.7f,.8f,.7f,.035f,w);a.Ellipse(.2f,.2f,.07f,.07f,w);break;case 11:a.Ring(.5f,.5f,.22f,.33f,.07f,w);a.Ellipse(.5f,.5f,.07f,.13f,w);break;case 12:a.Poly(w,.2f,.2f,.5f,.8f,.8f,.3f);break;case 13:a.Poly(w,.5f,.9f,.6f,.6f,.9f,.5f,.6f,.4f,.5f,.1f,.4f,.4f,.1f,.5f,.4f,.6f);break;default:a.Ring(.5f,.5f,.32f,.32f,.035f,w);a.Ring(.5f,.5f,.2f,.2f,.025f,w);break;}
+            int v=Mathf.Clamp(index-6,0,15);string key="TrailMotif"+v;if(Cache.TryGetValue(key,out Sprite s))return s;var a=new Art(64,64);Color w=Color.white;
+            switch(v){case 0:a.Ellipse(.5f,.5f,.12f,.12f,w);break;case 1:a.Line(.2f,.3f,.8f,.7f,.12f,w);break;case 2:a.Rect(.25f,.25f,.75f,.75f,w);break;case 3:a.Ellipse(.5f,.43f,.24f,.23f,w);a.Poly(w,.5f,.83f,.28f,.45f,.72f,.45f);break;case 4:a.Poly(w,.16f,.25f,.34f,.72f,.52f,.44f,.8f,.8f,.67f,.26f,.49f,.5f);break;case 5:a.Poly(w,.5f,.9f,.4f,.5f,.5f,.1f,.6f,.5f);break;case 6:a.Ring(.5f,.5f,.3f,.3f,.035f,w);break;case 7:a.Ellipse(.5f,.5f,.31f,.18f,new Color(1,1,1,.45f));a.Ellipse(.39f,.6f,.19f,.12f,w);break;case 8:a.Ellipse(.35f,.3f,.15f,.12f,w);a.Line(.48f,.3f,.48f,.8f,.055f,w);a.Line(.48f,.8f,.75f,.68f,.05f,w);break;case 9:for(int z=0;z<3;z++){float t=z*Mathf.PI/3;a.Line(.5f-Mathf.Cos(t)*.34f,.5f-Mathf.Sin(t)*.34f,.5f+Mathf.Cos(t)*.34f,.5f+Mathf.Sin(t)*.34f,.04f,w);}break;case 10:a.Line(.2f,.2f,.5f,.2f,.035f,w);a.Line(.5f,.2f,.5f,.7f,.035f,w);a.Line(.5f,.7f,.8f,.7f,.035f,w);a.Ellipse(.2f,.2f,.07f,.07f,w);break;case 11:a.Ring(.5f,.5f,.22f,.33f,.07f,w);a.Ellipse(.5f,.5f,.07f,.13f,w);break;case 12:a.Poly(w,.2f,.2f,.5f,.8f,.8f,.3f);break;case 13:a.Poly(w,.5f,.9f,.6f,.6f,.9f,.5f,.6f,.4f,.5f,.1f,.4f,.4f,.1f,.5f,.4f,.6f);break;case 15:a.Line(.5f,.12f,.5f,.86f,.055f,w);for(int z=0;z<3;z++){float y=.3f+z*.18f,span=.2f-z*.035f;a.Poly(w,.49f,y,.49f-span,y+.12f,.28f,y-.01f,.49f,y-.08f);a.Poly(w,.51f,y,.51f+span,y+.12f,.72f,y-.01f,.51f,y-.08f);}a.Poly(w,.5f,.9f,.41f,.7f,.59f,.7f);break;default:a.Ring(.5f,.5f,.32f,.32f,.035f,w);a.Ring(.5f,.5f,.2f,.2f,.025f,w);break;}
             return Cache[key]=a.Sprite(key);
         }
 

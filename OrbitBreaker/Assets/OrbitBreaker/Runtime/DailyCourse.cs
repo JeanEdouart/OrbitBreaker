@@ -66,6 +66,7 @@ namespace OrbitBreaker
         public const string CrownRocketId = "rocket_daily_crown";
         public const string EclipseRocketId = "rocket_daily_eclipse";
         public static int CompletedDays => Mathf.Max(0, PlayerPrefs.GetInt(Prefix + "CompletedDays", 0));
+        public static int AttemptedDays => Mathf.Max(CompletedDays, Mathf.Max(0, PlayerPrefs.GetInt(Prefix + "AttemptedDays", 0)));
 
         public static DailyCourseDefinition ForDate(DateTime utcDate)
         {
@@ -77,6 +78,18 @@ namespace OrbitBreaker
         }
 
         public static bool IsClaimed(int dayKey) => PlayerPrefs.GetInt(Prefix + "Claimed." + dayKey, 0) == 1;
+        public static bool IsAttempted(int dayKey) => PlayerPrefs.GetInt(Prefix + "Attempted." + dayKey, 0) == 1;
+
+        /// <summary>Consumes today's single attempt at the first real launch, not while browsing modes.</summary>
+        public static bool TryBeginAttempt(int dayKey)
+        {
+            if (IsAttempted(dayKey)) return false;
+            PlayerPrefs.SetInt(Prefix + "Attempted." + dayKey, 1);
+            PlayerPrefs.SetInt(Prefix + "AttemptedDays", (int)Math.Min(int.MaxValue, (long)AttemptedDays + 1));
+            PlayerPrefs.Save();
+            return true;
+        }
+
         public static bool IsExclusiveRocket(string id) => RequiredDaysForRocket(id) > 0;
         public static int RequiredDaysForRocket(string id) => id switch
         { SolarRocketId => 3, CrownRocketId => 7, EclipseRocketId => 14, _ => 0 };

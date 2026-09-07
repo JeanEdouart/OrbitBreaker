@@ -8,6 +8,36 @@ namespace OrbitBreaker.Tests
     public sealed class DailyCourseTests
     {
         [Test]
+        public void DailyAttempt_CanOnlyBeginOnceAndPersists()
+        {
+            const int dayKey = 19020317;
+            string key = "OrbitBreaker.Daily.Attempted." + dayKey;
+            const string countKey = "OrbitBreaker.Daily.AttemptedDays";
+            int previousCount = PlayerPrefs.GetInt(countKey, 0);
+            int expectedBase = Math.Max(previousCount, DailyCourse.CompletedDays);
+            PlayerPrefs.DeleteKey(key);
+            try
+            {
+                Assert.That(DailyCourse.IsAttempted(dayKey), Is.False);
+                Assert.That(DailyCourse.TryBeginAttempt(dayKey), Is.True);
+                Assert.That(DailyCourse.IsAttempted(dayKey), Is.True);
+                Assert.That(DailyCourse.TryBeginAttempt(dayKey), Is.False);
+                Assert.That(DailyCourse.AttemptedDays, Is.EqualTo(expectedBase + 1));
+            }
+            finally { PlayerPrefs.DeleteKey(key); PlayerPrefs.SetInt(countKey, previousCount); }
+        }
+
+        [Test]
+        public void LeaderboardRows_OnlyExposeTheSelectedMode()
+        {
+            var entry = new OrbitLeaderboardEntry(4, "Nova", 321, 999, 123, 8, false);
+            string endless = OnlineLeaderboard.FormatRow(entry, RunMode.Endless);
+            string sprint = OnlineLeaderboard.FormatRow(entry, RunMode.Sprint);
+            Assert.That(endless, Does.Contain("321 UA").And.Not.Contain("90 S").And.Not.Contain("\n"));
+            Assert.That(sprint, Does.Contain("321 UA").And.Not.Contain("\n"));
+        }
+
+        [Test]
         public void DailyDefinition_IsStableAndUsesAllFiveBoundedTiers()
         {
             var tiers = new HashSet<int>();

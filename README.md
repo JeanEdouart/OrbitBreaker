@@ -7,7 +7,7 @@ Jeu mobile 2D à un doigt développé avec Unity, avec progression cosmétique e
 Les modifications décrites ci-dessous sont intégrées au projet source et livrées en Android/WebGL. La version de configuration reste `0.3.0` (Android code `3`). Les résultats de validation et de build de cette passe sont consignés dans `IMPLEMENTATION-REVIEW.md`.
 
 - Le mode Entraînement a été retiré. Infini conserve la progression principale et son classement mondial ; Sprint possède désormais un classement mondial séparé.
-- Le parcours quotidien utilise la date UTC comme graine : 12 à 20 captures inédites selon un niveau quotidien de 1 à 5, puis une récompense unique de 90 à 320 matériaux. Il ne possède volontairement aucun classement : l'objectif est de terminer le trajet du jour.
+- Le parcours quotidien utilise la date UTC comme graine : 12 à 20 captures inédites selon un niveau quotidien de 1 à 5, puis une récompense unique de 90 à 320 matériaux. Une seule tentative est disponible par date UTC, consommée au premier décollage et signalée clairement sur l'écran principal après utilisation. Il ne possède volontairement aucun classement : l'objectif est de terminer le trajet du jour.
 - Les 3e, 7e et 14e parcours quotidiens terminés débloquent chacun une fusée exclusive impossible à acheter. Le claim est idempotent et conserve les anciennes sauvegardes.
 - Le Sprint dure 90 secondes de jeu actif. Une animation de trou de ver déjà lancée termine son arrivée avant d'afficher le résultat, puis le meilleur score est envoyé au classement Sprint.
 - Les musiques s'achètent et s'équipent dans l'onglet Musique du hangar. Neon Orbit reste gratuite et sélectionnée par défaut ; Son conserve le mixage général/musique/effets.
@@ -34,7 +34,8 @@ Le joueur tourne automatiquement autour d'une ancre. Une pression le propulse se
 - Débris libres réservés aux corridors de skip réellement atteignables : recherche bornée depuis N−2 à N−5, sens de rotation respecté et trajet vérifié contre toutes les orbites présentes
 - Motifs procéduraux et phases de respiration répartis sur des cycles de difficulté
 - Cosmétiques de fusée, traînée, planètes, fond et musique débloqués contre des matériaux
-- Trois défis actifs simultanément, récapitulatif de partie, statistiques locales et cartes stellaires avec compteurs global et par pack
+- Trois défis actifs simultanément, récapitulatif de partie et écran Statistiques dédié : records Infini/Sprint, carrière, exploration, tentatives et parcours quotidiens terminés, causes de mort
+- Cartes stellaires avec compteurs global et par pack
 - Transitions progressives de couleur du décor tous les 500 UA de score, y compris avec les fonds du hangar ; notification de nouveau secteur.
 - Distance affichée en UA (unités astronomiques, unité de jeu ; valeurs des sauvegardes et du classement inchangées).
 - Rythme 0.3.0 : distance de base doublée, séries de skips avec bonus ×1,25 au deuxième skip puis +0,25 jusqu'à ×2,5. Une capture normale, un retour, un checkpoint revisité ou un trou de ver remet la série à zéro. Aucun changement aux records existants.
@@ -133,6 +134,7 @@ Les tests couvrent notamment :
 - Le catalogue comprend 112 défis, dont 12 nouveaux défis de trajectoire/collecte. Trois sont actifs à la fois ; lorsque les trois récompenses sont récupérées, un nouveau trio distinct remplace le précédent.
 - `MetaProgression.cs` centralise l'économie et les défis ; `ExpandedCosmetics.cs` ajoute le catalogue cosmétique. Les prix sont exprimés en matériaux.
 - La récompense d'un défi et son état récupéré sont persistés ensemble ; le débit d'une amélioration de bonus et son niveau aussi. Les envois de record sont sérialisés, et un rafraîchissement raté conserve le dernier classement en mémoire.
+- Les onglets du classement sont contextuels : Infini n'affiche que son record, Sprint n'affiche le libellé 90 s que dans son propre onglet.
 
 ## Build Android
 

@@ -15,6 +15,7 @@ namespace OrbitBreaker
         private static Sprite planetIcon;
         private static Sprite trophyIcon;
         private static Sprite leaderboardIcon;
+        private static Sprite statisticsIcon;
         private static Sprite rocketSprite;
         private static Sprite flameSprite;
         private static Sprite[] planetSprites;
@@ -34,6 +35,10 @@ namespace OrbitBreaker
         private static Sprite[] generatedPlanetsA;
         private static Sprite[] generatedPlanetsB;
         private static Sprite[] generatedBackgrounds;
+        private static Sprite coquineRocket;
+        private static Sprite herbalRocket;
+        private static Sprite[] herbalPlanets;
+        private static Sprite herbalBackground;
         private static readonly Sprite[] dailyRockets = new Sprite[3];
 
         public static Sprite CircleSprite
@@ -198,6 +203,16 @@ namespace OrbitBreaker
             return left || center || right;
         });
 
+        public static Sprite StatisticsIcon => statisticsIcon != null ? statisticsIcon : statisticsIcon = CreateIcon("StatisticsIcon", (x, y) =>
+        {
+            bool axis = (x > -0.4f && x < -0.33f && y > -0.4f && y < 0.4f)
+                || (y > -0.4f && y < -0.33f && x > -0.4f && x < 0.42f);
+            bool bars = (x > -0.25f && x < -0.08f && y > -0.34f && y < -0.08f)
+                || (x > 0f && x < 0.17f && y > -0.34f && y < 0.16f)
+                || (x > 0.25f && x < 0.42f && y > -0.34f && y < 0.38f);
+            return axis || bars;
+        });
+
         public static Sprite RocketSprite => rocketSprite != null ? rocketSprite : rocketSprite = LoadSingleSprite("Art/rocket", "Player Rocket");
         public static Sprite SpaceBackgroundSprite => spaceBackgroundSprite != null ? spaceBackgroundSprite : spaceBackgroundSprite = LoadSingleSprite("Art/space-background", "Space Background");
         public static Sprite GetTrailSprite(int index) => index >= 6 ? ExpandedCosmetics.TrailSprite(index) : FlameSprite;
@@ -208,6 +223,10 @@ namespace OrbitBreaker
 
         public static Sprite GetRocketSprite(int index)
         {
+            if (index == 30)
+                return herbalRocket != null ? herbalRocket : herbalRocket = LoadSingleSprite("Art/herbal-rocket", "Joint Stellaire");
+            if (index == 26)
+                return coquineRocket != null ? coquineRocket : coquineRocket = LoadSingleSprite("Art/coquine-rocket", "Fusée Coquine");
             if (index >= 27)
             {
                 int dailyVariant = Mathf.Clamp(index - 27, 0, 2);
@@ -294,6 +313,8 @@ namespace OrbitBreaker
 
         public static Sprite GetBackgroundSprite(int index)
         {
+            if (index == 15)
+                return herbalBackground != null ? herbalBackground : herbalBackground = LoadSingleSprite("Art/herbal-background", "Brume Herbal");
             if (index >= 4)
             {
                 if (generatedBackgrounds == null) generatedBackgrounds = LoadGridSprites("Art/expanded-backgrounds-generated", 4, 3, "Generated Background");
@@ -320,6 +341,13 @@ namespace OrbitBreaker
 
         public static Sprite GetPlanetPackSprite(int pack, int sequence)
         {
+            if (pack == 15)
+            {
+                if (herbalPlanets == null) herbalPlanets = LoadGridSprites("Art/herbal-planets", 3, 2, "Monde Herbal");
+                int[] atlasByVariant = { 3, 4, 5, 0, 1 };
+                int atlasIndex = atlasByVariant[Mathf.Abs(sequence % atlasByVariant.Length)];
+                return herbalPlanets.Length > atlasIndex ? herbalPlanets[atlasIndex] : CircleSprite;
+            }
             if (pack >= 4)
             {
                 int variant = Mathf.Abs(sequence % 5);
