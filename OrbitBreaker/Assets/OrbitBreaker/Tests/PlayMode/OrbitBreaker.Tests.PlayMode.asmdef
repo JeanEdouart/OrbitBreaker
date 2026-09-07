@@ -1,0 +1,11 @@
+{
+  "name": "OrbitBreaker.Tests.PlayMode",
+  "rootNamespace": "OrbitBreaker.Tests",
+  "references": ["OrbitBreaker.Runtime"],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "autoReferenced": false,
+  "defineConstraints": ["UNITY_INCLUDE_TESTS"],
+  "optionalUnityReferences": ["TestAssemblies"]
+}

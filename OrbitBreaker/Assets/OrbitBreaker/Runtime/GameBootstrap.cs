@@ -24,6 +24,7 @@ namespace OrbitBreaker
         private float bankedHeight;
         private bool runActive;
         private bool tutorialVisible;
+        private bool identityReady;
         private float restartAvailableAt;
         private readonly Dictionary<int, int> checkpointScores = new Dictionary<int, int>();
         private readonly Dictionary<int, float> checkpointHeights = new Dictionary<int, float>();
@@ -34,12 +35,37 @@ namespace OrbitBreaker
         private float bestRunMultiplier;
         private int runMaterials;
         private int runSkips;
+        private readonly HashSet<int> tacticalReturnOrbits = new HashSet<int>();
         private int skipChain;
         private readonly bool[] challengeCompletionNotified = new bool[3];
         private readonly int[] powerUpInventory = new int[5];
         private int powerUpInventoryCount;
         private bool warpInProgress;
         private int pendingWarpDistance;
+        private int bestRunChain;
+        private float runElapsed;
+        private int dailySeed;
+        private DailyCourseDefinition dailyCourse;
+        private DailyCourseProgress dailyProgress;
+        public RunMode CurrentRunMode { get; private set; }
+        public float RunElapsedSeconds => runElapsed;
+        public float SprintRemainingSeconds => Mathf.Max(0f, 90f - runElapsed);
+        public int LastRunBestChain => bestRunChain;
+        public bool LastRunTimedOut { get; private set; }
+        public bool LastRunDailyCompleted { get; private set; }
+        public int LastDailyReward { get; private set; }
+        public string LastDailyUnlock { get; private set; }
+        public int DailyCaptures => dailyProgress != null ? dailyProgress.Captures : 0;
+        public int DailyTarget => dailyProgress != null ? dailyProgress.Definition.RequiredCaptures : 0;
+        public int DailyTier => dailyProgress != null ? dailyProgress.Definition.Tier : 0;
+        public bool SetRunMode(RunMode mode)
+        {
+            if (!identityReady || runActive && !tutorialVisible || warpInProgress) return false;
+            if (!System.Enum.IsDefined(typeof(RunMode), mode)) return false;
+            CurrentRunMode = mode;
+            StartRun();
+            return true;
+        }
 
         private void Awake()
         {
@@ -84,14 +110,16 @@ namespace OrbitBreaker
             bestScore = PlayerPrefs.GetInt(BestScoreKey, 0);
         }
 
-        private async void Start()
+        private void Start()
         {
-            await onlineLeaderboard.InitializeAsync();
-            hud.PreparePlayerIdentity(StartRun);
+            hud.PreparePlayerIdentity(() => { identityReady = true; StartRun(); });
+            _ = onlineLeaderboard.InitializeAsync();
         }
 
         private void Update()
         {
+            if (!identityReady) return;
+            MetaProgression.FlushCollectedMaterials();
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             if (Keyboard.current != null && Keyboard.current.kKey.wasPressedThisFrame)
             {
@@ -102,11 +130,23 @@ namespace OrbitBreaker
 #endif
             if (hud.IsPaused)
             {
+                MetaProgression.FlushCollectedMaterials(true);
                 if (WasGameplayPressedThisFrame()) hud.ResumeGame();
                 return;
             }
 
             float deltaTime = Mathf.Min(Time.deltaTime, 1f / 20f);
+
+            if (runActive && !tutorialVisible && !hud.SettingsOpen)
+            {
+                runElapsed += Time.deltaTime;
+                if (CurrentRunMode == RunMode.Sprint && runElapsed >= 90f && !warpInProgress)
+                {
+                    LastRunTimedOut = true;
+                    HandleDeath(DeathReason.LostInSpace);
+                    return;
+                }
+            }
 
             if (warpInProgress) return;
 
@@ -139,6 +179,7 @@ namespace OrbitBreaker
 
         private void OnDestroy()
         {
+            MetaProgression.FlushCollectedMaterials(true);
             if (player == null) return;
             player.Captured -= HandleCaptured;
             player.Died -= HandleDeath;
@@ -151,6 +192,7 @@ namespace OrbitBreaker
 
         private void StartRun()
         {
+            MetaProgression.FlushCollectedMaterials(true);
             hud.ResumeGame();
             anchorsCaptured = 0;
             distanceScore = 0;
@@ -163,7 +205,16 @@ namespace OrbitBreaker
             bestRunMultiplier = 1f;
             runMaterials = 0;
             runSkips = 0;
+            tacticalReturnOrbits.Clear();
             skipChain = 0;
+            bestRunChain = 0;
+            runElapsed = 0f;
+            LastRunTimedOut = false;
+            LastRunDailyCompleted = false;
+            LastDailyReward = 0;
+            LastDailyUnlock = string.Empty;
+            dailySeed = LocalRunStats.DailySeed(System.DateTime.UtcNow);
+            bestScore = CurrentRunMode == RunMode.Endless ? PlayerPrefs.GetInt(BestScoreKey, 0) : LocalRunStats.Best(CurrentRunMode, dailySeed);
             spaceBackground.SetDistance(0, true);
             powerUpInventoryCount = PowerUpProgression.TotalStored();
             warpInProgress = false;
@@ -174,7 +225,10 @@ namespace OrbitBreaker
                 ChallengeDefinition challenge = MetaProgression.Challenge(MetaProgression.ActiveChallengeId(i));
                 challengeCompletionNotified[i] = MetaProgression.ChallengeProgress(i) >= challenge.Target;
             }
-            OrbitAnchor first = world.ResetWorld();
+            OrbitAnchor first = world.ResetWorld(CurrentRunMode == RunMode.Daily ? dailySeed : (int?)null);
+            dailyCourse = DailyCourse.ForDate(System.DateTime.UtcNow);
+            dailyProgress = CurrentRunMode == RunMode.Daily ? new DailyCourseProgress(dailyCourse, first.Sequence) : null;
+            if (dailyProgress != null) world.SetDifficultyDistance(dailyCourse.DifficultyDistance);
             checkpointScores.Clear();
             checkpointHeights.Clear();
             checkpointScores[first.Sequence] = 0;
@@ -184,6 +238,7 @@ namespace OrbitBreaker
             player.SetScore(0);
             cameraRig.Snap(first.transform.position);
             hud.ShowPlaying(distanceScore, bestScore, tutorialVisible);
+            if (dailyProgress != null) hud.ShowDailyProgress(0, dailyProgress.Definition.RequiredCaptures, dailyProgress.Definition.Tier);
             // Les boutons d'inventaire restent masqués sur l'écran de préparation;
             // ils apparaissent au premier lancement via HideTutorial().
             hud.UpdatePowerUpInventory(powerUpInventory, false);
@@ -193,8 +248,12 @@ namespace OrbitBreaker
         {
             int previousScore = distanceScore;
             bool revisited = checkpointScores.TryGetValue(result.Anchor.Sequence, out int savedScore);
+            // Once per distinct previously captured orbit: bouncing on the same route cannot farm a challenge.
+            if (revisited && result.IsBacktrack && !warpInProgress)
+                tacticalReturnOrbits.Add(result.Anchor.Sequence);
             bool qualifyingSkip = !revisited && !result.IsBacktrack && !warpInProgress && result.Anchor.Sequence > furthestSequence && result.SkippedAnchors > 0;
             skipChain = GameTuning.NextSkipChain(skipChain, qualifyingSkip);
+            bestRunChain = Mathf.Max(bestRunChain, skipChain);
             if (revisited)
             {
                 distanceScore = savedScore;
@@ -208,6 +267,13 @@ namespace OrbitBreaker
                 checkpointScores[result.Anchor.Sequence] = distanceScore;
                 checkpointHeights[result.Anchor.Sequence] = bankedHeight;
                 anchorsCaptured++;
+                if (CurrentRunMode == RunMode.Endless) PlanetJournal.Record(MetaProgression.Selected(CosmeticKind.PlanetPack), result.Anchor.Sequence);
+                if (CurrentRunMode == RunMode.Daily && dailyProgress.RegisterCapture(result.Anchor.Sequence) && dailyProgress.IsComplete)
+                {
+                    LastRunDailyCompleted = true;
+                    if (DailyCourse.TryClaim(dailyProgress, out DailyCourseReward dailyReward))
+                    { LastDailyReward = dailyReward.Materials; LastDailyUnlock = dailyReward.UnlockedRocketId; }
+                }
             }
             int scoreDelta = distanceScore - previousScore;
             if (pendingWarpDistance > 0)
@@ -222,11 +288,11 @@ namespace OrbitBreaker
             if (SpaceBackground.SectorForDistance(distanceScore) > SpaceBackground.SectorForDistance(previousScore))
                 hud.ShowSector(SpaceBackground.SectorForDistance(distanceScore));
             player.SetScore(distanceScore);
-            world.SetDifficultyDistance(distanceScore);
+            world.SetDifficultyDistance(CurrentRunMode == RunMode.Daily ? dailyCourse.DifficultyDistance : distanceScore);
             world.EnsureAhead(furthestSequence);
             int rewardedSkips = !revisited && !result.IsBacktrack && !warpInProgress ? result.SkippedAnchors : 0;
             if (rewardedSkips > 0) runSkips++;
-            if (result.Synchronized && !result.IsBacktrack) runSynchronizations++;
+            if (result.Synchronized && !revisited && !result.IsBacktrack && !warpInProgress) runSynchronizations++;
             bestRunSkip = Mathf.Max(bestRunSkip, rewardedSkips);
             bestRunMultiplier = Mathf.Max(bestRunMultiplier, result.Multiplier);
             feedback.Capture(player.transform.position, result.Synchronized, rewardedSkips);
@@ -235,7 +301,9 @@ namespace OrbitBreaker
             cameraRig.ShakeCapture();
             UpdateBestScore(distanceScore);
             hud.ShowLanding(distanceScore, bestScore, scoreDelta, result.Multiplier, rewardedSkips, result.IsBacktrack, revisited && !result.IsBacktrack, result.Synchronization, skipChain);
+            if (dailyProgress != null) hud.ShowDailyProgress(dailyProgress.Captures, dailyProgress.Definition.RequiredCaptures, dailyProgress.Definition.Tier);
             CheckChallengeCompletions();
+            if (LastRunDailyCompleted) HandleDeath(DeathReason.LostInSpace);
         }
 
         private void HandleNearMiss(NearMissResult result)
@@ -257,7 +325,7 @@ namespace OrbitBreaker
         private void HandleMaterialCollected(int value, Vector2 position)
         {
             runMaterials += value;
-            MetaProgression.AddMaterials(value);
+            if (CurrentRunMode == RunMode.Endless) MetaProgression.CollectMaterials(value);
             feedback.Material(position, value);
             hud.ShowMaterialPickup(position, value);
             CheckChallengeCompletions();
@@ -265,6 +333,16 @@ namespace OrbitBreaker
 
         private void HandlePowerUpCollected(PowerUpType type, Vector2 position)
         {
+            if (CurrentRunMode != RunMode.Endless)
+            {
+                int slot = (int)type;
+                bool added = powerUpInventory[slot] < PowerUpProgression.MaxInventory;
+                if (added) powerUpInventory[slot]++;
+                hud.UpdatePowerUpInventory(powerUpInventory, true);
+                hud.ShowPowerUpPickup(type, powerUpInventory[slot], added);
+                feedback.PowerUp(position, type, added);
+                return;
+            }
             if (!PowerUpProgression.TryStore(type))
             {
                 hud.ShowPowerUpPickup(type, PowerUpProgression.MaxInventory, false);
@@ -293,9 +371,7 @@ namespace OrbitBreaker
                 StartCoroutine(ActivateWormhole(level));
                 return;
             }
-            if (!PowerUpProgression.TryConsume(type)) return;
-            powerUpInventory[index] = PowerUpProgression.StoredCount(type);
-            powerUpInventoryCount = PowerUpProgression.TotalStored();
+            if (!ConsumeRunPowerUp(type)) return;
             switch (type)
             {
                 case PowerUpType.OrbitMagnet: player.ActivateMagnet(level); break;
@@ -312,9 +388,7 @@ namespace OrbitBreaker
         {
             OrbitAnchor target = world.PrepareSafeWarpTarget(player.LastSequence, PowerUpProgression.WormholeOrbitSkip(level));
             if (target == null) yield break;
-            if (!PowerUpProgression.TryConsume(PowerUpType.Wormhole)) yield break;
-            powerUpInventory[(int)PowerUpType.Wormhole] = PowerUpProgression.StoredCount(PowerUpType.Wormhole);
-            powerUpInventoryCount = PowerUpProgression.TotalStored();
+            if (!ConsumeRunPowerUp(PowerUpType.Wormhole)) yield break;
             hud.UpdatePowerUpInventory(powerUpInventory, true); hud.ShowPowerUpActivated(PowerUpType.Wormhole);
             feedback.PowerUp(player.transform.position, PowerUpType.Wormhole, true);
             warpInProgress = true;
@@ -383,11 +457,12 @@ namespace OrbitBreaker
 
         private void CheckChallengeCompletions()
         {
+            if (CurrentRunMode != RunMode.Endless) return;
             for (int slot = 0; slot < challengeCompletionNotified.Length; slot++)
             {
                 if (challengeCompletionNotified[slot] || MetaProgression.ChallengeClaimed(slot)) continue;
                 ChallengeDefinition challenge = MetaProgression.Challenge(MetaProgression.ActiveChallengeId(slot));
-                int projected = MetaProgression.ProjectedProgress(slot, distanceScore, anchorsCaptured, runSkips, runSynchronizations, runNearMisses, runMaterials, bestRunMultiplier);
+                int projected = MetaProgression.ProjectedProgress(slot, distanceScore, anchorsCaptured, runSkips, runSynchronizations, runNearMisses, runMaterials, bestRunMultiplier, bestRunSkip, tacticalReturnOrbits.Count);
                 if (projected < challenge.Target) continue;
                 challengeCompletionNotified[slot] = true;
                 hud.ShowChallengeComplete(challenge.Label);
@@ -398,16 +473,26 @@ namespace OrbitBreaker
         private void HandleDeath(DeathReason reason)
         {
             if (!runActive) return;
+            MetaProgression.FlushCollectedMaterials(true);
             runActive = false;
             restartAvailableAt = Time.unscaledTime + 0.55f;
-            feedback.Death(player.transform.position, reason);
-            if (reason == DeathReason.Breaker) cameraRig.ShakeExplosion();
+            if (!LastRunDailyCompleted) feedback.Death(player.transform.position, reason);
+            if (reason == DeathReason.Breaker && !LastRunDailyCompleted) cameraRig.ShakeExplosion();
             cameraRig.SetFlightShake(0f, false);
             feedback.UpdateCharge(1f, false);
-            GameProgression.RecordRun(distanceScore, runSynchronizations, runNearMisses);
-            MetaProgression.RecordRun(distanceScore, anchorsCaptured, runSkips, runSynchronizations, runNearMisses, runMaterials, bestRunMultiplier);
-            PlayerPrefs.Save();
-            _ = onlineLeaderboard.SubmitBestScoreAsync(bestScore);
+            if (CurrentRunMode == RunMode.Endless)
+            {
+                GameProgression.RecordRun(distanceScore, runSynchronizations, runNearMisses);
+                MetaProgression.RecordRun(distanceScore, anchorsCaptured, runSkips, runSynchronizations, runNearMisses, runMaterials, bestRunMultiplier, bestRunSkip, tacticalReturnOrbits.Count);
+                LocalRunStats.Record(runElapsed, bestRunSkip, bestRunChain, reason);
+                PlayerPrefs.Save();
+                _ = onlineLeaderboard.SubmitBestScoreAsync(bestScore);
+            }
+            else
+            {
+                LocalRunStats.RecordModeBest(CurrentRunMode, dailySeed, bestScore);
+                if (CurrentRunMode == RunMode.Sprint) _ = onlineLeaderboard.SubmitSprintScoreAsync(bestScore);
+            }
             hud.UpdatePowerUpInventory(powerUpInventory, false);
             hud.ShowGameOver(distanceScore, bestScore, anchorsCaptured, reason, runSynchronizations, runNearMisses, bestRunSkip, bestRunMultiplier, runMaterials);
         }
@@ -416,8 +501,31 @@ namespace OrbitBreaker
         {
             if (currentScore <= bestScore) return;
             bestScore = currentScore;
-            PlayerPrefs.SetInt(BestScoreKey, bestScore);
+            if (CurrentRunMode == RunMode.Endless) PlayerPrefs.SetInt(BestScoreKey, bestScore);
         }
+
+        private bool ConsumeRunPowerUp(PowerUpType type)
+        {
+            int index = (int)type;
+            if (powerUpInventory[index] <= 0) return false;
+            if (CurrentRunMode == RunMode.Endless && !PowerUpProgression.TryConsume(type)) return false;
+            powerUpInventory[index]--;
+            powerUpInventoryCount = 0;
+            for (int i = 0; i < powerUpInventory.Length; i++) powerUpInventoryCount += powerUpInventory[i];
+            return true;
+        }
+
+        private void OnApplicationPause(bool paused)
+        {
+            if (paused) MetaProgression.FlushCollectedMaterials(true);
+        }
+
+        private void OnApplicationFocus(bool focused)
+        {
+            if (!focused) MetaProgression.FlushCollectedMaterials(true);
+        }
+
+        private void OnApplicationQuit() => MetaProgression.FlushCollectedMaterials(true);
 
         private T CreateSystem<T>(string objectName) where T : Component
         {

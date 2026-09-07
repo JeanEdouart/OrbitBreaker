@@ -57,6 +57,7 @@ namespace OrbitBreaker
         private SpriteRenderer innerFlame;
         private SpriteRenderer fuelTrack;
         private SpriteRenderer fuelFill;
+        private CosmeticTrailEmitter cosmeticTrail;
         private float angleRadians;
         private Vector2 velocity;
         private float flightTime;
@@ -135,6 +136,7 @@ namespace OrbitBreaker
             SetFuel(1f);
             ApplyCosmetics();
             Capture(anchor);
+            cosmeticTrail?.Clear();
         }
 
         public void SetScore(int value)
@@ -198,6 +200,7 @@ namespace OrbitBreaker
             {
                 Die(DeathReason.LostInSpace);
             }
+            cosmeticTrail?.Tick(deltaTime);
         }
 
         private void CheckMaterials(IReadOnlyList<MaterialPickup> materials)
@@ -547,6 +550,8 @@ namespace OrbitBreaker
 
         public void ApplyStyle(int style)
         {
+            if (cosmeticTrail == null) cosmeticTrail = gameObject.AddComponent<CosmeticTrailEmitter>();
+            cosmeticTrail.Configure(this, style);
             Color accent = GameProgression.TrailColor(style);
             if (trail != null)
             {

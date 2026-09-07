@@ -28,7 +28,13 @@ namespace OrbitBreaker
         private static Sprite powerUpUpgradeIcon;
         private static Sprite auroraRocket;
         private static Sprite auroraBackground;
+        private static Sprite musicIcon;
         private static Sprite[] auroraPlanets;
+        private static Sprite[] generatedRockets;
+        private static Sprite[] generatedPlanetsA;
+        private static Sprite[] generatedPlanetsB;
+        private static Sprite[] generatedBackgrounds;
+        private static readonly Sprite[] dailyRockets = new Sprite[3];
 
         public static Sprite CircleSprite
         {
@@ -194,9 +200,31 @@ namespace OrbitBreaker
 
         public static Sprite RocketSprite => rocketSprite != null ? rocketSprite : rocketSprite = LoadSingleSprite("Art/rocket", "Player Rocket");
         public static Sprite SpaceBackgroundSprite => spaceBackgroundSprite != null ? spaceBackgroundSprite : spaceBackgroundSprite = LoadSingleSprite("Art/space-background", "Space Background");
+        public static Sprite GetTrailSprite(int index) => index >= 6 ? ExpandedCosmetics.TrailSprite(index) : FlameSprite;
+        public static Sprite MusicIcon => musicIcon != null ? musicIcon : musicIcon = CreateIcon("Music Icon", (x,y) =>
+            ((x+.18f)*(x+.18f)/.025f+(y+.22f)*(y+.22f)/.017f<1f)
+            || (x > -.09f && x < -.01f && y > -.22f && y < .4f)
+            || (x > -.09f && x < .34f && y > .26f && y < .39f));
 
         public static Sprite GetRocketSprite(int index)
         {
+            if (index >= 27)
+            {
+                int dailyVariant = Mathf.Clamp(index - 27, 0, 2);
+                if (dailyRockets[dailyVariant] == null)
+                {
+                    string[] paths = { "Art/daily-solar", "Art/daily-crown", "Art/daily-eclipse" };
+                    dailyRockets[dailyVariant] = LoadSingleSprite(paths[dailyVariant], "Daily Rocket " + dailyVariant);
+                }
+                return dailyRockets[dailyVariant];
+            }
+            if (index >= 11)
+            {
+                if (generatedRockets == null) generatedRockets = LoadGridSprites("Art/expanded-rockets-generated", 4, 4, "Generated Rocket");
+                int variant = Mathf.Clamp(index - 11, 0, 15);
+                int generatedAtlasIndex = (3 - variant / 4) * 4 + variant % 4;
+                return generatedRockets.Length > generatedAtlasIndex ? generatedRockets[generatedAtlasIndex] : ExpandedCosmetics.Rocket(variant);
+            }
             if (index == 10) return auroraRocket != null ? auroraRocket : auroraRocket = LoadSingleSprite("Art/aurora-rocket", "Aurore");
             if (index <= 0) return RocketSprite;
             if (cosmeticRockets == null) cosmeticRockets = LoadGridSprites("Art/cosmetics-rockets-atlas", 5, 2, "Rocket Cosmetic");
@@ -266,6 +294,13 @@ namespace OrbitBreaker
 
         public static Sprite GetBackgroundSprite(int index)
         {
+            if (index >= 4)
+            {
+                if (generatedBackgrounds == null) generatedBackgrounds = LoadGridSprites("Art/expanded-backgrounds-generated", 4, 3, "Generated Background");
+                int variant = Mathf.Clamp(index - 4, 0, 10);
+                int atlasIndex = (2 - variant / 4) * 4 + variant % 4;
+                return generatedBackgrounds.Length > atlasIndex ? generatedBackgrounds[atlasIndex] : ExpandedCosmetics.Background(variant);
+            }
             if (index == 3) return auroraBackground != null ? auroraBackground : auroraBackground = LoadSingleSprite("Art/aurora-background", "Voile Boreal");
             if (index <= 0) return SpaceBackgroundSprite;
             if (cosmeticBackgrounds == null) cosmeticBackgrounds = LoadGridSprites("Art/cosmetics-backgrounds-atlas", 2, 1, "Background Cosmetic");
@@ -285,6 +320,21 @@ namespace OrbitBreaker
 
         public static Sprite GetPlanetPackSprite(int pack, int sequence)
         {
+            if (pack >= 4)
+            {
+                int variant = Mathf.Abs(sequence % 5);
+                int packOffset = pack - 4;
+                if (packOffset < 6)
+                {
+                    if (generatedPlanetsA == null) generatedPlanetsA = LoadGridSprites("Art/expanded-planets-a-generated", 5, 6, "Generated Planet A");
+                    int atlasIndex = (5 - packOffset) * 5 + variant;
+                    return generatedPlanetsA.Length > atlasIndex ? generatedPlanetsA[atlasIndex] : ExpandedCosmetics.Planet(packOffset, sequence);
+                }
+                if (generatedPlanetsB == null) generatedPlanetsB = LoadGridSprites("Art/expanded-planets-b-generated", 5, 5, "Generated Planet B");
+                int row = packOffset - 6;
+                int generatedIndex = (4 - row) * 5 + variant;
+                return generatedPlanetsB.Length > generatedIndex ? generatedPlanetsB[generatedIndex] : ExpandedCosmetics.Planet(packOffset, sequence);
+            }
             if (pack == 3)
             {
                 if (auroraPlanets == null) auroraPlanets = LoadGridSprites("Art/aurora-planets", 2, 2, "Mondes Aurore");
@@ -491,43 +541,6 @@ namespace OrbitBreaker
             return clip;
         }
 
-        public static AudioClip CreateChiptuneLoop()
-        {
-            const int sampleRate = 44100;
-            const float beatDuration = 60f / 132f;
-            const int beats = 64;
-            int sampleCount = Mathf.CeilToInt(beats * beatDuration * sampleRate);
-            var samples = new float[sampleCount];
-            int[] melody = { 76, 79, 83, 79, 74, 76, 79, 71, 72, 76, 79, 76, 69, 72, 76, 67 };
-            int[] roots = { 48, 45, 41, 43 };
-
-            for (int i = 0; i < sampleCount; i++)
-            {
-                float time = i / (float)sampleRate;
-                int beat = Mathf.FloorToInt(time / beatDuration);
-                float beatPhase = Mathf.Repeat(time / beatDuration, 1f);
-                int root = roots[(beat / 8) % roots.Length];
-                int halfBeat = Mathf.FloorToInt(time / (beatDuration * 0.5f));
-                int note = melody[halfBeat % melody.Length];
-                float rootFrequency = 440f * Mathf.Pow(2f, (root - 69) / 12f);
-                float noteFrequency = 440f * Mathf.Pow(2f, (note - 69) / 12f);
-                float halfPhase = Mathf.Repeat(time / (beatDuration * 0.5f), 1f);
-                float bass = Mathf.Sign(Mathf.Sin(2f * Mathf.PI * rootFrequency * time)) * 0.065f * Mathf.Exp(-beatPhase * 3.2f);
-                float leadEnvelope = Mathf.Exp(-halfPhase * 4f);
-                float softSquare = Mathf.Sign(Mathf.Sin(2f * Mathf.PI * noteFrequency * time)) * 0.045f * leadEnvelope;
-                float sparkle = Mathf.Sin(2f * Mathf.PI * noteFrequency * 2f * time) * 0.018f * leadEnvelope;
-                float kick = Mathf.Sin(2f * Mathf.PI * Mathf.Lerp(105f, 48f, beatPhase) * time) * Mathf.Exp(-beatPhase * 13f) * 0.13f;
-                float eighthPhase = Mathf.Repeat(time / (beatDuration * 0.5f), 1f);
-                float noise = Mathf.Repeat(Mathf.Sin(i * 12.9898f) * 43758.5453f, 2f) - 1f;
-                float hat = noise * Mathf.Exp(-eighthPhase * 26f) * 0.025f;
-                float backbeat = beat % 4 == 1 || beat % 4 == 3 ? noise * Mathf.Exp(-beatPhase * 18f) * 0.055f : 0f;
-                samples[i] = Mathf.Clamp(bass + softSquare + sparkle + kick + hat + backbeat, -0.82f, 0.82f);
-            }
-
-            AudioClip clip = AudioClip.Create("Neon Orbit 132", sampleCount, 1, sampleRate, false);
-            clip.SetData(samples, 0);
-            return clip;
-        }
 
         public static AudioClip CreateChargeLoop()
         {

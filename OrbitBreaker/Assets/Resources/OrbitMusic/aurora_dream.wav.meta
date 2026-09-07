@@ -1,0 +1,22 @@
+fileFormatVersion: 2
+guid: b9d89a99d8a7cd1acef0ca5e1ce95d36
+AudioImporter:
+  externalObjects: {}
+  serializedVersion: 7
+  defaultSettings:
+    serializedVersion: 2
+    loadType: 0
+    sampleRateSetting: 0
+    sampleRateOverride: 44100
+    compressionFormat: 1
+    quality: 0.8
+    conversionMode: 0
+    preloadAudioData: 0
+  platformSettingOverrides: {}
+  forceToMono: 1
+  normalize: 0
+  ambisonic: 0
+  loadInBackground: 1
+  userData: Original offline composition - no external samples
+  assetBundleName: 
+  assetBundleVariant: 

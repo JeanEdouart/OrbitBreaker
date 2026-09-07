@@ -12,145 +12,64 @@ namespace OrbitBreaker
 {
     public readonly struct OrbitLeaderboardEntry
     {
-        public readonly int Rank;
+        public readonly int Rank, Score, EndlessBest, SprintBest, PlanetsDiscovered;
         public readonly string PlayerName;
-        public readonly int Score;
         public readonly bool IsLocalPlayer;
-
-        public OrbitLeaderboardEntry(int rank, string playerName, int score, bool isLocalPlayer)
-        {
-            Rank = rank; PlayerName = playerName; Score = score; IsLocalPlayer = isLocalPlayer;
-        }
+        public OrbitLeaderboardEntry(int rank, string playerName, int score, int endlessBest, int sprintBest, int planets, bool local)
+        { Rank=rank; PlayerName=playerName; Score=score; EndlessBest=endlessBest; SprintBest=sprintBest; PlanetsDiscovered=planets; IsLocalPlayer=local; }
     }
 
     public sealed class OnlineLeaderboard : MonoBehaviour
     {
-        public const string LeaderboardId = "orbit_breaker_distance";
-        private const string LocalNameKey = "OrbitBreaker.PlayerName";
-        private const string PendingScoreKey = "OrbitBreaker.PendingLeaderboardScore";
-        private const int PageSize = 100;
-        private readonly List<OrbitLeaderboardEntry> cachedEntries = new List<OrbitLeaderboardEntry>();
-
+        public const string LeaderboardId="orbit_breaker_distance", SprintLeaderboardId="orbit_breaker_sprint_90";
+        const string NameKey="OrbitBreaker.PlayerName", PendingEndless="OrbitBreaker.PendingLeaderboardScore", PendingSprint="OrbitBreaker.PendingSprintLeaderboardScore";
+        const int PageSize=100;
+        [Serializable] sealed class Profile { public int endless, sprint, planets; }
+        readonly Dictionary<RunMode,List<OrbitLeaderboardEntry>> caches=new() { {RunMode.Endless,new()}, {RunMode.Sprint,new()} };
+        readonly System.Threading.SemaphoreSlim submitGate=new(1,1), refreshGate=new(1,1), initGate=new(1,1);
+        public DateTime? LastRefreshUtc { get; private set; }
+        public RunMode ActiveMode { get; private set; }=RunMode.Endless;
         public bool IsReady { get; private set; }
         public bool IsBusy { get; private set; }
         public string LastError { get; private set; }
-        public string PlayerName => PlayerPrefs.GetString(LocalNameKey, string.Empty);
-        public bool NeedsPlayerName => string.IsNullOrWhiteSpace(PlayerName);
-        public IReadOnlyList<OrbitLeaderboardEntry> CachedEntries => cachedEntries;
+        public string PlayerName=>PlayerPrefs.GetString(NameKey,string.Empty);
+        public bool NeedsPlayerName=>string.IsNullOrWhiteSpace(PlayerName);
+        public IReadOnlyList<OrbitLeaderboardEntry> CachedEntries=>caches[ActiveMode];
+        public void SelectBoard(RunMode mode)=>ActiveMode=mode==RunMode.Sprint?RunMode.Sprint:RunMode.Endless;
 
         public async Task InitializeAsync()
         {
-            if (IsReady || IsBusy) return;
-            IsBusy = true; LastError = string.Empty;
-            try
-            {
-                if (UnityServices.State == ServicesInitializationState.Uninitialized) await UnityServices.InitializeAsync();
-                if (!AuthenticationService.Instance.IsSignedIn) await AuthenticationService.Instance.SignInAnonymouslyAsync();
-                IsReady = true;
-                if (!NeedsPlayerName)
-                {
-                    await TrySynchronizePlayerNameAsync(PlayerName);
-                    int pending = PlayerPrefs.GetInt(PendingScoreKey, 0);
-                    if (pending > 0) await SubmitBestScoreAsync(pending);
-                }
-            }
-            catch (Exception exception)
-            {
-                LastError = FriendlyError(exception);
-                Debug.LogWarning("Orbit Breaker online services unavailable: " + exception.Message);
-            }
-            finally { IsBusy = false; }
+            if(IsReady)return; await initGate.WaitAsync(); if(IsReady){initGate.Release();return;} IsBusy=true;LastError="";
+            try { if(UnityServices.State==ServicesInitializationState.Uninitialized)await UnityServices.InitializeAsync(); if(!AuthenticationService.Instance.IsSignedIn)await AuthenticationService.Instance.SignInAnonymouslyAsync(); IsReady=true; if(!NeedsPlayerName){await SyncName(PlayerName);await RetryPending();} }
+            catch(Exception e){LastError=FriendlyError(e);Debug.LogWarning("Orbit Breaker online services unavailable: "+e.Message);}
+            finally{IsBusy=false;initGate.Release();}
         }
-
-        public async Task<bool> SavePlayerNameAsync(string requestedName)
+        public async Task<bool> SavePlayerNameAsync(string requested)
         {
-            string cleanName = SanitizeName(requestedName);
-            if (cleanName.Length < 3)
-            {
-                LastError = "LE PSEUDO DOIT CONTENIR AU MOINS 3 CARACTÈRES";
-                return false;
-            }
-            PlayerPrefs.SetString(LocalNameKey, cleanName); PlayerPrefs.Save(); LastError = string.Empty;
-            if (!IsReady) return true;
-            return await TrySynchronizePlayerNameAsync(cleanName);
+            string clean=Sanitize(requested); if(clean.Length<3){LastError="LE PSEUDO DOIT CONTENIR AU MOINS 3 CARACTÈRES";return false;}
+            PlayerPrefs.SetString(NameKey,clean);PlayerPrefs.Save();LastError="";if(!IsReady)return true;bool ok=await SyncName(clean);if(ok)await RetryPending();return ok;
         }
-
-        public async Task SubmitBestScoreAsync(int score)
+        public Task SubmitBestScoreAsync(int score)=>QueueSubmit(RunMode.Endless,score);
+        public Task SubmitSprintScoreAsync(int score)=>QueueSubmit(RunMode.Sprint,score);
+        async Task QueueSubmit(RunMode mode,int score)
         {
-            if (score <= 0) return;
-            int pending = Mathf.Max(score, PlayerPrefs.GetInt(PendingScoreKey, 0));
-            PlayerPrefs.SetInt(PendingScoreKey, pending); PlayerPrefs.Save();
-            if (!IsReady || NeedsPlayerName) return;
-            try
-            {
-                await LeaderboardsService.Instance.AddPlayerScoreAsync(LeaderboardId, pending);
-                PlayerPrefs.DeleteKey(PendingScoreKey); PlayerPrefs.Save();
-            }
-            catch (Exception exception)
-            {
-                LastError = FriendlyError(exception);
-                Debug.LogWarning("Leaderboard score queued for retry: " + exception.Message);
-            }
+            if(score<=0||mode==RunMode.Daily)return;string key=PendingKey(mode);PlayerPrefs.SetInt(key,Mathf.Max(score,PlayerPrefs.GetInt(key,0)));PlayerPrefs.Save();if(!IsReady||NeedsPlayerName)return;
+            await submitGate.WaitAsync();try{int pending;while((pending=PlayerPrefs.GetInt(key,0))>0){var meta=new Profile{endless=Mathf.Max(PlayerPrefs.GetInt("OrbitBreaker.BestScore",0),mode==RunMode.Endless?pending:0),sprint=Mathf.Max(LocalRunStats.Best(RunMode.Sprint,0),mode==RunMode.Sprint?pending:0),planets=PlanetJournal.TotalDiscovered()};await LeaderboardsService.Instance.AddPlayerScoreAsync(Board(mode),pending,new AddPlayerScoreOptions{Metadata=meta});if(PlayerPrefs.GetInt(key,0)<=pending){PlayerPrefs.DeleteKey(key);PlayerPrefs.Save();}}}
+            catch(Exception e){LastError=FriendlyError(e);Debug.LogWarning("Leaderboard score queued for retry: "+e.Message);}finally{submitGate.Release();}
         }
-
-        public async Task<IReadOnlyList<OrbitLeaderboardEntry>> RefreshAsync(string search = "")
+        async Task RetryPending(){int a=PlayerPrefs.GetInt(PendingEndless,0),b=PlayerPrefs.GetInt(PendingSprint,0);if(a>0)await QueueSubmit(RunMode.Endless,a);if(b>0)await QueueSubmit(RunMode.Sprint,b);}
+        public async Task<IReadOnlyList<OrbitLeaderboardEntry>> RefreshAsync(string search="")
         {
-            cachedEntries.Clear(); LastError = string.Empty;
-            if (!IsReady) { await InitializeAsync(); if (!IsReady) return cachedEntries; }
-            IsBusy = true;
-            try
-            {
-                LeaderboardScoresPage page = await LeaderboardsService.Instance.GetScoresAsync(LeaderboardId, new GetScoresOptions { Offset = 0, Limit = PageSize });
-                string playerId = AuthenticationService.Instance.PlayerId;
-                foreach (LeaderboardEntry entry in page.Results)
-                    cachedEntries.Add(new OrbitLeaderboardEntry(entry.Rank + 1, StripDiscriminator(entry.PlayerName), Mathf.RoundToInt((float)entry.Score), entry.PlayerId == playerId));
-            }
-            catch (Exception exception)
-            {
-                LastError = FriendlyError(exception);
-                Debug.LogWarning("Unable to refresh leaderboard: " + exception.Message);
-            }
-            finally { IsBusy = false; }
-            return Filter(search);
+            if(!await refreshGate.WaitAsync(0))return Filter(search);try{LastError="";if(!IsReady){await InitializeAsync();if(!IsReady)return Filter(search);}IsBusy=true;RunMode requested=ActiveMode;LeaderboardScoresPage page=await LeaderboardsService.Instance.GetScoresAsync(Board(requested),new GetScoresOptions{Offset=0,Limit=PageSize,IncludeMetadata=true});string id=AuthenticationService.Instance.PlayerId;var replacement=new List<OrbitLeaderboardEntry>(page.Results.Count);foreach(LeaderboardEntry entry in page.Results){Profile p=Parse(entry.Metadata);int score=Mathf.RoundToInt((float)entry.Score);replacement.Add(new OrbitLeaderboardEntry(entry.Rank+1,Strip(entry.PlayerName),score,Mathf.Max(p.endless,requested==RunMode.Endless?score:0),Mathf.Max(p.sprint,requested==RunMode.Sprint?score:0),Mathf.Max(0,p.planets),entry.PlayerId==id));}caches[requested].Clear();caches[requested].AddRange(replacement);LastRefreshUtc=DateTime.UtcNow;}
+            catch(Exception e){LastError=FriendlyError(e);Debug.LogWarning("Unable to refresh leaderboard: "+e.Message);}finally{IsBusy=false;refreshGate.Release();}return Filter(search);
         }
-
-        public IReadOnlyList<OrbitLeaderboardEntry> Filter(string search)
-        {
-            if (string.IsNullOrWhiteSpace(search)) return cachedEntries;
-            string query = search.Trim();
-            return cachedEntries.Where(entry => entry.PlayerName.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0).ToList();
-        }
-
-        private async Task<bool> TrySynchronizePlayerNameAsync(string cleanName)
-        {
-            try { await AuthenticationService.Instance.UpdatePlayerNameAsync(cleanName); LastError = string.Empty; return true; }
-            catch (Exception exception)
-            {
-                LastError = FriendlyError(exception);
-                Debug.LogWarning("Player name will be synchronized later: " + exception.Message);
-                return false;
-            }
-        }
-
-        private static string SanitizeName(string value)
-        {
-            if (string.IsNullOrWhiteSpace(value)) return string.Empty;
-            return new string(value.Trim().Where(c => char.IsLetterOrDigit(c) || c == '_' || c == '-').Take(16).ToArray());
-        }
-
-        private static string StripDiscriminator(string value)
-        {
-            if (string.IsNullOrWhiteSpace(value)) return "PILOTE";
-            int separator = value.LastIndexOf('#');
-            return separator > 0 ? value.Substring(0, separator) : value;
-        }
-
-        private static string FriendlyError(Exception exception)
-        {
-            string message = exception.Message ?? string.Empty;
-            if (message.IndexOf("leaderboard", StringComparison.OrdinalIgnoreCase) >= 0 && message.IndexOf("not found", StringComparison.OrdinalIgnoreCase) >= 0)
-                return "CLASSEMENT PAS ENCORE DÉPLOYÉ";
-            return Application.internetReachability == NetworkReachability.NotReachable ? "CONNEXION INTERNET INDISPONIBLE" : "SERVICE EN LIGNE TEMPORAIREMENT INDISPONIBLE";
-        }
+        public IReadOnlyList<OrbitLeaderboardEntry> Filter(string search){IReadOnlyList<OrbitLeaderboardEntry> source=caches[ActiveMode];if(string.IsNullOrWhiteSpace(search))return source;string q=search.Trim();return source.Where(e=>e.PlayerName.IndexOf(q,StringComparison.OrdinalIgnoreCase)>=0).ToList();}
+        static Profile Parse(string json){if(string.IsNullOrWhiteSpace(json))return new Profile();try{return JsonUtility.FromJson<Profile>(json)??new Profile();}catch{return new Profile();}}
+        async Task<bool> SyncName(string clean){try{await AuthenticationService.Instance.UpdatePlayerNameAsync(clean);LastError="";return true;}catch(Exception e){LastError=FriendlyError(e);Debug.LogWarning("Player name will be synchronized later: "+e.Message);return false;}}
+        static string Board(RunMode mode)=>mode==RunMode.Sprint?SprintLeaderboardId:LeaderboardId;
+        static string PendingKey(RunMode mode)=>mode==RunMode.Sprint?PendingSprint:PendingEndless;
+        static string Sanitize(string value)=>string.IsNullOrWhiteSpace(value)?string.Empty:new string(value.Trim().Where(c=>char.IsLetterOrDigit(c)||c=='_'||c=='-').Take(16).ToArray());
+        static string Strip(string value){if(string.IsNullOrWhiteSpace(value))return "PILOTE";int i=value.LastIndexOf('#');return i>0?value.Substring(0,i):value;}
+        static string FriendlyError(Exception e){string m=e.Message??"";if(m.IndexOf("leaderboard",StringComparison.OrdinalIgnoreCase)>=0&&m.IndexOf("not found",StringComparison.OrdinalIgnoreCase)>=0)return "CLASSEMENT PAS ENCORE DÉPLOYÉ";return Application.internetReachability==NetworkReachability.NotReachable?"CONNEXION INTERNET INDISPONIBLE":"SERVICE EN LIGNE TEMPORAIREMENT INDISPONIBLE";}
     }
 }

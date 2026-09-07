@@ -59,7 +59,7 @@ namespace OrbitBreaker
             int level = Level(type);
             if (level >= 5) return false;
             int price = Definition(type).UpgradePrice(level);
-            if (!MetaProgression.TrySpendMaterials(price)) return false;
+            if (!MetaProgression.TrySpendMaterials(price, false)) return false;
             PlayerPrefs.SetInt(Prefix + type + ".Level", level + 1);
             PlayerPrefs.Save();
             return true;

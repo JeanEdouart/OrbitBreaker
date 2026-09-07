@@ -1,0 +1,559 @@
+fileFormatVersion: 2
+guid: c4f3b6f5eb07d4d40b6cf80375750013
+TextureImporter:
+  internalIDToNameTable:
+  - first:
+      213: 1556939693551926015
+    second: expanded-rockets-generated_0
+  - first:
+      213: -666297133181813095
+    second: expanded-rockets-generated_1
+  - first:
+      213: 7962409380874732226
+    second: expanded-rockets-generated_2
+  - first:
+      213: -8259174690503311588
+    second: expanded-rockets-generated_3
+  - first:
+      213: -491793641757488320
+    second: expanded-rockets-generated_4
+  - first:
+      213: -6556160908868345369
+    second: expanded-rockets-generated_5
+  - first:
+      213: -2562155160778762772
+    second: expanded-rockets-generated_6
+  - first:
+      213: -175231969748968383
+    second: expanded-rockets-generated_7
+  - first:
+      213: -6788916036691003004
+    second: expanded-rockets-generated_8
+  - first:
+      213: -7215106037955760587
+    second: expanded-rockets-generated_9
+  - first:
+      213: -5628524142722274440
+    second: expanded-rockets-generated_10
+  - first:
+      213: -7778770504494744128
+    second: expanded-rockets-generated_11
+  - first:
+      213: -5273163947099567121
+    second: expanded-rockets-generated_12
+  - first:
+      213: 1342464074565243720
+    second: expanded-rockets-generated_13
+  - first:
+      213: 4335433961310511
+    second: expanded-rockets-generated_14
+  - first:
+      213: 3886157187862672547
+    second: expanded-rockets-generated_15
+  externalObjects: {}
+  serializedVersion: 13
+  mipmaps:
+    mipMapMode: 0
+    enableMipMap: 0
+    sRGBTexture: 1
+    linearTexture: 0
+    fadeOut: 0
+    borderMipMap: 0
+    mipMapsPreserveCoverage: 0
+    alphaTestReferenceValue: 0.5
+    mipMapFadeDistanceStart: 1
+    mipMapFadeDistanceEnd: 3
+  bumpmap:
+    convertToNormalMap: 0
+    externalNormalMap: 0
+    heightScale: 0.25
+    normalMapFilter: 0
+    flipGreenChannel: 0
+  isReadable: 0
+  streamingMipmaps: 0
+  streamingMipmapsPriority: 0
+  vTOnly: 0
+  ignoreMipmapLimit: 0
+  grayScaleToAlpha: 0
+  generateCubemap: 6
+  cubemapConvolution: 0
+  seamlessCubemap: 0
+  textureFormat: 1
+  maxTextureSize: 2048
+  textureSettings:
+    serializedVersion: 2
+    filterMode: 1
+    aniso: 1
+    mipBias: 0
+    wrapU: 1
+    wrapV: 1
+    wrapW: 1
+  nPOTScale: 0
+  lightmap: 0
+  compressionQuality: 50
+  spriteMode: 2
+  spriteExtrude: 1
+  spriteMeshType: 1
+  alignment: 0
+  spritePivot: {x: 0.5, y: 0.5}
+  spritePixelsToUnits: 100
+  spriteBorder: {x: 0, y: 0, z: 0, w: 0}
+  spriteGenerateFallbackPhysicsShape: 1
+  alphaUsage: 1
+  alphaIsTransparency: 1
+  spriteTessellationDetail: -1
+  textureType: 8
+  textureShape: 1
+  singleChannelComponent: 0
+  flipbookRows: 1
+  flipbookColumns: 1
+  maxTextureSizeSet: 0
+  compressionQualitySet: 0
+  textureFormatSet: 0
+  ignorePngGamma: 0
+  applyGammaDecoding: 0
+  swizzle: 50462976
+  cookieLightType: 0
+  platformSettings:
+  - serializedVersion: 4
+    buildTarget: DefaultTexturePlatform
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: Standalone
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: Android
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: WebGL
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  spriteSheet:
+    serializedVersion: 2
+    sprites:
+    - serializedVersion: 2
+      name: expanded-rockets-generated_0
+      rect:
+        serializedVersion: 2
+        x: 52
+        y: 970
+        width: 271
+        height: 264
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: ffa3edaf66c5b9510800000000000000
+      internalID: 1556939693551926015
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: expanded-rockets-generated_1
+      rect:
+        serializedVersion: 2
+        x: 349
+        y: 971
+        width: 249
+        height: 263
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 99e36dd9946d0c6f0800000000000000
+      internalID: -666297133181813095
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: expanded-rockets-generated_2
+      rect:
+        serializedVersion: 2
+        x: 669
+        y: 960
+        width: 202
+        height: 280
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 2c2c64f2529208e60800000000000000
+      internalID: 7962409380874732226
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: expanded-rockets-generated_3
+      rect:
+        serializedVersion: 2
+        x: 976
+        y: 959
+        width: 251
+        height: 283
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: c1f37a2c064816d80800000000000000
+      internalID: -8259174690503311588
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: expanded-rockets-generated_4
+      rect:
+        serializedVersion: 2
+        x: 46
+        y: 666
+        width: 251
+        height: 273
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 04bcf38d94ccc29f0800000000000000
+      internalID: -491793641757488320
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: expanded-rockets-generated_5
+      rect:
+        serializedVersion: 2
+        x: 352
+        y: 664
+        width: 244
+        height: 285
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 7e1a990b366d305a0800000000000000
+      internalID: -6556160908868345369
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: expanded-rockets-generated_6
+      rect:
+        serializedVersion: 2
+        x: 619
+        y: 658
+        width: 314
+        height: 287
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: ce51956c475617cd0800000000000000
+      internalID: -2562155160778762772
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: expanded-rockets-generated_7
+      rect:
+        serializedVersion: 2
+        x: 1005
+        y: 671
+        width: 173
+        height: 279
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 14c12d1b373719df0800000000000000
+      internalID: -175231969748968383
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: expanded-rockets-generated_8
+      rect:
+        serializedVersion: 2
+        x: 76
+        y: 349
+        width: 206
+        height: 298
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 489741775dce8c1a0800000000000000
+      internalID: -6788916036691003004
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: expanded-rockets-generated_9
+      rect:
+        serializedVersion: 2
+        x: 364
+        y: 365
+        width: 236
+        height: 283
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 53eeed6294bcedb90800000000000000
+      internalID: -7215106037955760587
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: expanded-rockets-generated_10
+      rect:
+        serializedVersion: 2
+        x: 627
+        y: 351
+        width: 273
+        height: 295
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 87b24570d1773e1b0800000000000000
+      internalID: -5628524142722274440
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: expanded-rockets-generated_11
+      rect:
+        serializedVersion: 2
+        x: 973
+        y: 357
+        width: 240
+        height: 292
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 0cdfd4a90714c0490800000000000000
+      internalID: -7778770504494744128
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: expanded-rockets-generated_12
+      rect:
+        serializedVersion: 2
+        x: 56
+        y: 31
+        width: 206
+        height: 310
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: febcbba1455f1d6b0800000000000000
+      internalID: -5273163947099567121
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: expanded-rockets-generated_13
+      rect:
+        serializedVersion: 2
+        x: 334
+        y: 49
+        width: 292
+        height: 299
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 8435f2096f361a210800000000000000
+      internalID: 1342464074565243720
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: expanded-rockets-generated_14
+      rect:
+        serializedVersion: 2
+        x: 663
+        y: 45
+        width: 250
+        height: 282
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: f290631ed076f0000800000000000000
+      internalID: 4335433961310511
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: expanded-rockets-generated_15
+      rect:
+        serializedVersion: 2
+        x: 926
+        y: 39
+        width: 268
+        height: 303
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 3a4b2e36f576ee530800000000000000
+      internalID: 3886157187862672547
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    outline: []
+    customData: 
+    physicsShape: []
+    bones: []
+    spriteID: 
+    internalID: 0
+    vertices: []
+    indices: 
+    edges: []
+    weights: []
+    secondaryTextures: []
+    spriteCustomMetadata:
+      entries: []
+    nameFileIdTable:
+      expanded-rockets-generated_0: 1556939693551926015
+      expanded-rockets-generated_1: -666297133181813095
+      expanded-rockets-generated_10: -5628524142722274440
+      expanded-rockets-generated_11: -7778770504494744128
+      expanded-rockets-generated_12: -5273163947099567121
+      expanded-rockets-generated_13: 1342464074565243720
+      expanded-rockets-generated_14: 4335433961310511
+      expanded-rockets-generated_15: 3886157187862672547
+      expanded-rockets-generated_2: 7962409380874732226
+      expanded-rockets-generated_3: -8259174690503311588
+      expanded-rockets-generated_4: -491793641757488320
+      expanded-rockets-generated_5: -6556160908868345369
+      expanded-rockets-generated_6: -2562155160778762772
+      expanded-rockets-generated_7: -175231969748968383
+      expanded-rockets-generated_8: -6788916036691003004
+      expanded-rockets-generated_9: -7215106037955760587
+  mipmapLimitGroupName: 
+  pSDRemoveMatte: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

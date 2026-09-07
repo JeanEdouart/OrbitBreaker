@@ -1,6 +1,18 @@
 # Orbit Breaker
 
-Prototype professionnel de jeu mobile 2D infini, jouable à un doigt et développé avec Unity.
+Jeu mobile 2D à un doigt développé avec Unity, avec progression cosmétique et classement global Android/WebGL.
+
+## État de cette mise à jour
+
+Les modifications décrites ci-dessous sont intégrées au projet source et livrées en Android/WebGL. La version de configuration reste `0.3.0` (Android code `3`). Les résultats de validation et de build de cette passe sont consignés dans `IMPLEMENTATION-REVIEW.md`.
+
+- Le mode Entraînement a été retiré. Infini conserve la progression principale et son classement mondial ; Sprint possède désormais un classement mondial séparé.
+- Le parcours quotidien utilise la date UTC comme graine : 12 à 20 captures inédites selon un niveau quotidien de 1 à 5, puis une récompense unique de 90 à 320 matériaux. Il ne possède volontairement aucun classement : l'objectif est de terminer le trajet du jour.
+- Les 3e, 7e et 14e parcours quotidiens terminés débloquent chacun une fusée exclusive impossible à acheter. Le claim est idempotent et conserve les anciennes sauvegardes.
+- Le Sprint dure 90 secondes de jeu actif. Une animation de trou de ver déjà lancée termine son arrivée avant d'afficher le résultat, puis le meilleur score est envoyé au classement Sprint.
+- Les musiques s'achètent et s'équipent dans l'onglet Musique du hangar. Neon Orbit reste gratuite et sélectionnée par défaut ; Son conserve le mixage général/musique/effets.
+- Les ajouts cosmétiques et musicaux utilisent des identifiants nouveaux, afin de conserver les achats et équipements existants.
+- Une option de contraste renforcé ajoute un contour visible aux débris, sans modifier leurs collisions.
 
 Le joueur tourne automatiquement autour d'une ancre. Une pression le propulse selon la tangente de son orbite : il faut atteindre l'anneau d'une ancre située plus haut, éviter les *breakers* et enchaîner les captures les plus précises possible.
 
@@ -9,20 +21,20 @@ Le joueur tourne automatiquement autour d'une ancre. Une pression le propulse se
 - Boucle de jeu complète : orbite, propulsion, capture et défaite
 - Génération procédurale infinie avec difficulté progressive
 - Recyclage des ancres et obstacles par *object pooling*
-- Score unique en mètres, validé uniquement à l'arrivée sur une orbite
+- Score unique en UA, validé uniquement à l'arrivée sur une orbite
 - Multiplicateur de distance croissant pendant chaque vol, particulièrement rentable lors des skips
 - Retour tactique vers les orbites visitées avec restauration du checkpoint de score
 - Fusée animée avec propulseur progressif et jauge de carburant intégrée
-- Six planètes et six variantes de débris spatiaux sélectionnées de façon déterministe
+- Packs de planètes équipables et variantes de débris spatiaux sélectionnées de façon déterministe
 - Fond spatial dynamique avec nébuleuse et étoiles en parallaxe réversible
 - Indicateurs animés montrant le sens de rotation de chaque orbite
 - Dangers mobiles déterministes, télégraphiés et introduits progressivement
 - Validateur de parcours échantillonnant les fenêtres de lancement avant d'accepter une orbite
 - Portes de synchronisation calculées depuis une trajectoire réellement atteignable, optionnelles et progressivement plus précises
-- Débris libres réservés aux corridors de skip N−2 → N réellement atteignables, avec bonus de frôlement en vol
+- Débris libres réservés aux corridors de skip réellement atteignables : recherche bornée depuis N−2 à N−5, sens de rotation respecté et trajet vérifié contre toutes les orbites présentes
 - Motifs procéduraux et phases de respiration répartis sur des cycles de difficulté
-- Quatre styles cosmétiques de traînée et propulseur débloqués par la distance cumulée
-- Mission quotidienne locale et récapitulatif des performances de chaque partie
+- Cosmétiques de fusée, traînée, planètes, fond et musique débloqués contre des matériaux
+- Trois défis actifs simultanément, récapitulatif de partie, statistiques locales et cartes stellaires avec compteurs global et par pack
 - Transitions progressives de couleur du décor tous les 500 UA de score, y compris avec les fonds du hangar ; notification de nouveau secteur.
 - Distance affichée en UA (unités astronomiques, unité de jeu ; valeurs des sauvegardes et du classement inchangées).
 - Rythme 0.3.0 : distance de base doublée, séries de skips avec bonus ×1,25 au deuxième skip puis +0,25 jusqu'à ×2,5. Une capture normale, un retour, un checkpoint revisité ou un trou de ver remet la série à zéro. Aucun changement aux records existants.
@@ -113,11 +125,14 @@ Les tests couvrent notamment :
 
 ## Progression et hangar
 
-- Des cristaux de matÃ©riaux de trois tailles apparaissent entre les orbites ; leur taille dÃ©termine une valeur de 1, 3 ou 7.
-- Le portefeuille, les achats et les Ã©quipements sont sauvegardÃ©s localement avec `PlayerPrefs`.
-- Le hangar contient 10 fusÃ©es, 4 propulsions, 3 packs de planÃ¨tes et 3 fonds spatiaux.
-- Le catalogue comprend 100 dÃ©fis. Trois sont actifs Ã  la fois ; lorsque les trois rÃ©compenses sont rÃ©cupÃ©rÃ©es, un nouveau trio distinct remplace le prÃ©cÃ©dent.
-- `MetaProgression.cs` centralise l'Ã©conomie, le catalogue cosmÃ©tique et les dÃ©fis.
+- Des cristaux de matériaux de trois tailles apparaissent entre les orbites ; leur taille détermine une valeur de 1, 3 ou 7, avant les éventuels effets des bonus.
+- Le portefeuille, les achats et les équipements sont sauvegardés localement avec `PlayerPrefs`, également sur WebGL via le stockage du navigateur. Il n'y a pas de synchronisation du portefeuille entre appareils.
+- Les collectes de matériaux sont regroupées sur des fenêtres de 0,5 seconde. Pause, perte de focus, fin de partie et fermeture normale forcent la sauvegarde. Une fermeture brutale sans callback peut perdre les dernières collectes non sauvegardées ; achats et récompenses restent enregistrés immédiatement.
+- Le hangar comprend 30 fusées (dont 3 exclusives quotidiennes), 21 traînées, 15 packs de planètes, 15 fonds et 13 musiques, en comptant les choix par défaut. Les 50 propositions de `IDEES-COSMETIQUES.txt` sont complétées par le pack Gen-Z, le fond Scroll cosmique et la fusée Coquine.
+- Les nouveaux vaisseaux, packs de planètes et fonds utilisent des planches illustrées générées pour la direction artistique du jeu ; les anciens dessins de secours ne sont utilisés qu'en cas d'asset manquant.
+- Le catalogue comprend 112 défis, dont 12 nouveaux défis de trajectoire/collecte. Trois sont actifs à la fois ; lorsque les trois récompenses sont récupérées, un nouveau trio distinct remplace le précédent.
+- `MetaProgression.cs` centralise l'économie et les défis ; `ExpandedCosmetics.cs` ajoute le catalogue cosmétique. Les prix sont exprimés en matériaux.
+- La récompense d'un défi et son état récupéré sont persistés ensemble ; le débit d'une amélioration de bonus et son niveau aussi. Les envois de record sont sérialisés, et un rafraîchissement raté conserve le dernier classement en mémoire.
 
 ## Build Android
 
@@ -132,7 +147,7 @@ Configuration actuelle :
 
 - identifiant : `com.orbitbreaker.game`
 - orientation : portrait
-- version : `0.1.0`
+- version : `0.3.0` ; code Android : `3`
 - backend : IL2CPP
 - API Android minimale : 26
 
@@ -152,12 +167,9 @@ Les valeurs principales se trouvent dans `GameTuning.cs` :
 
 Modifier ces valeurs par petites étapes et tester sur un téléphone physique : la lisibilité et la sensation du toucher sont plus importantes que la difficulté brute.
 
-## Prochaines étapes possibles
+## Validation avant la prochaine livraison
 
-- sessions d'équilibrage sur appareil Android ;
-- variantes d'ancres et obstacles mobiles ;
-- défis quotidiens et missions ;
-- skins et thèmes cosmétiques ;
-- classement et succès ;
-- paramètres audio et vibration ;
-- préparation d'un AAB signé et d'une fiche Google Play.
+- sessions d'équilibrage et profilage sur appareil Android et navigateur mobile ;
+- vérification tactile des menus, textes simultanés et aperçus de tous les cosmétiques ;
+- comparaison du poids audio, de la mémoire et du démarrage après génération des builds autorisés ;
+- préparation d'un AAB signé et d'une fiche Google Play lorsque le contenu est validé.

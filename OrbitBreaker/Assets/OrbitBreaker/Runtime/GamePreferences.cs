@@ -18,6 +18,7 @@ namespace OrbitBreaker
         private static bool explosionShake;
         private static bool flightShake;
         private static bool fixedCamera;
+        private static bool highContrastDebris;
         private static int targetFrameRate;
 
         public static bool RotationGuides { get { EnsureLoaded(); return rotationGuides; } }
@@ -32,6 +33,7 @@ namespace OrbitBreaker
         public static bool ExplosionShake { get { EnsureLoaded(); return explosionShake; } }
         public static bool FlightShake { get { EnsureLoaded(); return flightShake; } }
         public static bool FixedCamera { get { EnsureLoaded(); return fixedCamera; } }
+        public static bool HighContrastDebris { get { EnsureLoaded(); return highContrastDebris; } }
         public static int TargetFrameRate { get { EnsureLoaded(); return targetFrameRate; } }
 
         public static void ApplyRuntime()
@@ -51,6 +53,7 @@ namespace OrbitBreaker
         public static void SetExplosionShake(bool value) => Save(ref explosionShake, "ExplosionShake", value);
         public static void SetFlightShake(bool value) => Save(ref flightShake, "FlightShake", value);
         public static void SetFixedCamera(bool value) => Save(ref fixedCamera, "FixedCamera", value);
+        public static void SetHighContrastDebris(bool value) => Save(ref highContrastDebris, "HighContrastDebris", value);
 
         public static void SetTargetFrameRate(int value)
         {
@@ -84,6 +87,7 @@ namespace OrbitBreaker
             explosionShake = Load("ExplosionShake", true);
             flightShake = Load("FlightShake", true);
             fixedCamera = Load("FixedCamera", false);
+            highContrastDebris = Load("HighContrastDebris", false);
             targetFrameRate = PlayerPrefs.HasKey(Prefix + "TargetFrameRate")
                 ? Mathf.Clamp(PlayerPrefs.GetInt(Prefix + "TargetFrameRate"), 30, 120)
                 : target60Fps ? 60 : 30;

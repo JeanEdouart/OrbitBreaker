@@ -4,8 +4,8 @@ using UnityEngine;
 
 namespace OrbitBreaker
 {
-    public enum ChallengeKind { Distance, Orbits, Skips, Synchronizations, NearMisses, Materials, Multiplier, Runs }
-    public enum CosmeticKind { Rocket, Trail, PlanetPack, Background }
+    public enum ChallengeKind { Distance, Orbits, Skips, Synchronizations, NearMisses, Materials, Multiplier, Runs, RunMaterials, LongSkip, TacticalReturns }
+    public enum CosmeticKind { Rocket, Trail, PlanetPack, Background, Music }
 
     public readonly struct ChallengeDefinition
     {
@@ -23,6 +23,9 @@ namespace OrbitBreaker
             ChallengeKind.NearMisses => "RÉUSSIR " + Target + " FRÔLEMENTS",
             ChallengeKind.Materials => "RÉCUPÉRER " + Target + " MATÉRIAUX",
             ChallengeKind.Multiplier => "ATTEINDRE UN MULTIPLICATEUR x" + (Target/10f).ToString("0.0"),
+            ChallengeKind.RunMaterials => "COLLECTER " + Target + " MAT EN UNE PARTIE",
+            ChallengeKind.LongSkip => "SAUTER " + Target + " ORBITES EN UN VOL",
+            ChallengeKind.TacticalReturns => "REVENIR SUR " + Target + " ORBITES DISTINCTES EN UNE PARTIE",
             _ => "TERMINER " + Target + " PARTIES" };
     }
 
@@ -40,7 +43,10 @@ namespace OrbitBreaker
     public static class MetaProgression
     {
         private const string P="OrbitBreaker.Meta.";
-        public static readonly CosmeticDefinition[] Catalog = {
+        private static bool collectedMaterialsDirty;
+        private static float collectedMaterialsSaveAt;
+        public const float CollectionSaveInterval = 0.5f;
+        public static readonly CosmeticDefinition[] Catalog = ExpandedCosmetics.Extend(new CosmeticDefinition[] {
             new("rocket_default","ORBITER",CosmeticKind.Rocket,0,0), new("rocket_interceptor","INTERCEPTOR",CosmeticKind.Rocket,180,1),
             new("rocket_miner","FOREUSE",CosmeticKind.Rocket,260,2), new("rocket_retro","RÉTRO",CosmeticKind.Rocket,320,3),
             new("rocket_crystal","CRISTAL",CosmeticKind.Rocket,520,4), new("rocket_bio","BIOSHIP",CosmeticKind.Rocket,680,5),
@@ -57,28 +63,50 @@ namespace OrbitBreaker
             new("trail_amethyst","FLUX AMÉTHYSTE",CosmeticKind.Trail,1100,5),
             new("planets_aurora","MONDES D'AURORE",CosmeticKind.PlanetPack,1900,3),
             new("background_aurora","VOILE BORÉAL",CosmeticKind.Background,1500,3)
-        };
+        });
 
         public static int Materials => PlayerPrefs.GetInt(P+"Materials",0);
         public static int Selected(CosmeticKind kind)=>PlayerPrefs.GetInt(P+"Selected."+kind,0);
         public static bool Owned(CosmeticDefinition item)=>item.Price==0||PlayerPrefs.GetInt(P+"Owned."+item.Id,0)==1;
         public static bool BuyOrEquip(CosmeticDefinition item)
         {
+            if(DailyCourse.IsExclusiveRocket(item.Id)&&!Owned(item))return false;
             if(!Owned(item)) { if(Materials<item.Price)return false; PlayerPrefs.SetInt(P+"Materials",Materials-item.Price); PlayerPrefs.SetInt(P+"Owned."+item.Id,1); }
             PlayerPrefs.SetInt(P+"Selected."+item.Kind,item.VisualIndex); PlayerPrefs.Save(); return true;
         }
-        public static void AddMaterials(int amount){if(amount<=0)return;PlayerPrefs.SetInt(P+"Materials",Materials+amount);PlayerPrefs.Save();}
-        public static bool TrySpendMaterials(int amount)
+        public static void AddMaterials(int amount){if(amount<=0)return;PlayerPrefs.SetInt(P+"Materials",(int)Math.Min(int.MaxValue,(long)Materials+amount));PlayerPrefs.Save();}
+        // Only run pickups are batched. Purchases, rewards and other wallet mutations save immediately.
+        public static void CollectMaterials(int amount)
+        {
+            if (amount <= 0) return;
+            PlayerPrefs.SetInt(P+"Materials", (int)Math.Min(int.MaxValue, (long)Materials+amount));
+            if (!collectedMaterialsDirty) collectedMaterialsSaveAt = Time.realtimeSinceStartup + CollectionSaveInterval;
+            collectedMaterialsDirty = true;
+        }
+        public static void FlushCollectedMaterials(bool force = false)
+        {
+            if (!collectedMaterialsDirty || (!force && Time.realtimeSinceStartup < collectedMaterialsSaveAt)) return;
+            PlayerPrefs.Save();
+            collectedMaterialsDirty = false;
+        }
+        public static bool TrySpendMaterials(int amount, bool persist = true)
         {
             if (amount <= 0) return true;
             if (Materials < amount) return false;
             PlayerPrefs.SetInt(P+"Materials", Materials-amount);
-            PlayerPrefs.Save();
+            if (persist) PlayerPrefs.Save();
             return true;
         }
 
         public static ChallengeDefinition Challenge(int id)
         {
+            if (id >= 100 && id < ChallengeCount)
+            {
+                int newTier = (id - 100) / 3;
+                ChallengeKind newKind = (ChallengeKind)((int)ChallengeKind.RunMaterials + (id - 100) % 3);
+                int newTarget = newKind == ChallengeKind.RunMaterials ? 12 + newTier * 12 : newKind == ChallengeKind.LongSkip ? 2 + newTier : 1 + newTier;
+                return new ChallengeDefinition(id, newKind, newTarget, 65 + newTier * 30);
+            }
             int normalized=Mathf.Abs(id)%100; ChallengeKind kind=(ChallengeKind)(normalized%8); int tier=normalized/8;
             int target=kind switch { ChallengeKind.Distance=>350+tier*100, ChallengeKind.Orbits=>6+tier*2, ChallengeKind.Skips=>2+tier,
                 ChallengeKind.Synchronizations=>2+tier, ChallengeKind.NearMisses=>2+tier, ChallengeKind.Materials=>8+tier*2,
@@ -89,35 +117,44 @@ namespace OrbitBreaker
         public static int ChallengeProgress(int slot){EnsureChallenges();return PlayerPrefs.GetInt(P+"Progress."+slot,0);}
         public static bool ChallengeClaimed(int slot){return PlayerPrefs.GetInt(P+"Claimed."+slot,0)==1;}
 
-        public static void RecordRun(int distance,int orbits,int skips,int sync,int nearMiss,int collected,float maxMultiplier)
+        public const int ChallengeCount = 112;
+        private static bool UsesBestRun(ChallengeKind kind) => kind == ChallengeKind.Multiplier || kind == ChallengeKind.RunMaterials || kind == ChallengeKind.LongSkip || kind == ChallengeKind.TacticalReturns;
+
+        public static void RecordRun(int distance,int orbits,int skips,int sync,int nearMiss,int collected,float maxMultiplier,int bestSkip=0,int tacticalReturns=0)
         {
             EnsureChallenges();
             for(int slot=0;slot<3;slot++){
                 ChallengeDefinition c=Challenge(ActiveChallengeId(slot)); int add=c.Kind switch {
                     ChallengeKind.Distance=>distance,ChallengeKind.Orbits=>orbits,ChallengeKind.Skips=>skips,
                     ChallengeKind.Synchronizations=>sync,ChallengeKind.NearMisses=>nearMiss,ChallengeKind.Materials=>collected,
-                    ChallengeKind.Multiplier=>Mathf.RoundToInt(maxMultiplier*10f),_=>1};
-                int value=c.Kind==ChallengeKind.Multiplier?Mathf.Max(ChallengeProgress(slot),add):ChallengeProgress(slot)+add;
+                    ChallengeKind.Multiplier=>Mathf.RoundToInt(maxMultiplier*10f),ChallengeKind.RunMaterials=>collected,
+                    ChallengeKind.LongSkip=>bestSkip,ChallengeKind.TacticalReturns=>tacticalReturns,_=>1};
+                int value=UsesBestRun(c.Kind)?Mathf.Max(ChallengeProgress(slot),add):ChallengeProgress(slot)+add;
                 PlayerPrefs.SetInt(P+"Progress."+slot,Mathf.Min(c.Target,value));
             }
             PlayerPrefs.Save();
         }
-        public static int ProjectedProgress(int slot,int distance,int orbits,int skips,int sync,int nearMiss,int collected,float maxMultiplier)
+        public static int ProjectedProgress(int slot,int distance,int orbits,int skips,int sync,int nearMiss,int collected,float maxMultiplier,int bestSkip=0,int tacticalReturns=0)
         {
             ChallengeDefinition c=Challenge(ActiveChallengeId(slot));int current=ChallengeProgress(slot);int runValue=c.Kind switch{
                 ChallengeKind.Distance=>distance,ChallengeKind.Orbits=>orbits,ChallengeKind.Skips=>skips,
                 ChallengeKind.Synchronizations=>sync,ChallengeKind.NearMisses=>nearMiss,ChallengeKind.Materials=>collected,
-                ChallengeKind.Multiplier=>Mathf.RoundToInt(maxMultiplier*10f),_=>0};
-            int value=c.Kind==ChallengeKind.Multiplier?Mathf.Max(current,runValue):current+runValue;
+                ChallengeKind.Multiplier=>Mathf.RoundToInt(maxMultiplier*10f),ChallengeKind.RunMaterials=>collected,
+                ChallengeKind.LongSkip=>bestSkip,ChallengeKind.TacticalReturns=>tacticalReturns,_=>0};
+            int value=UsesBestRun(c.Kind)?Mathf.Max(current,runValue):current+runValue;
             return Mathf.Min(c.Target,value);
         }
         public static bool Claim(int slot)
         {
+            if (slot < 0 || slot >= 3) return false;
             ChallengeDefinition c=Challenge(ActiveChallengeId(slot)); if(ChallengeProgress(slot)<c.Target||ChallengeClaimed(slot))return false;
-            AddMaterials(c.Reward);PlayerPrefs.SetInt(P+"Claimed."+slot,1);PlayerPrefs.Save();
-            if(ChallengeClaimed(0)&&ChallengeClaimed(1)&&ChallengeClaimed(2))RollChallenges(); return true;
+            PlayerPrefs.SetInt(P+"Materials", (int)Math.Min(int.MaxValue, (long)Materials+c.Reward));
+            PlayerPrefs.SetInt(P+"Claimed."+slot,1);
+            if(ChallengeClaimed(0)&&ChallengeClaimed(1)&&ChallengeClaimed(2))RollChallenges();
+            else PlayerPrefs.Save();
+            return true;
         }
-        private static void EnsureChallenges(){if(PlayerPrefs.HasKey(P+"Challenge.0"))return;RollChallenges();}
-        private static void RollChallenges(){int generation=PlayerPrefs.GetInt(P+"Generation",0)+1;var used=new HashSet<int>();var previous=new HashSet<int>();if(PlayerPrefs.HasKey(P+"Challenge.0"))for(int i=0;i<3;i++)previous.Add(PlayerPrefs.GetInt(P+"Challenge."+i,-1));for(int i=0;i<3;i++){int id=UnityEngine.Random.Range(0,100);while(used.Contains(id)||previous.Contains(id))id=(id+UnityEngine.Random.Range(1,17))%100;used.Add(id);PlayerPrefs.SetInt(P+"Challenge."+i,id);PlayerPrefs.SetInt(P+"Progress."+i,0);PlayerPrefs.SetInt(P+"Claimed."+i,0);}PlayerPrefs.SetInt(P+"Generation",generation);PlayerPrefs.Save();}
+        private static void EnsureChallenges(){if(PlayerPrefs.HasKey(P+"Challenge.0")&&!(ChallengeClaimed(0)&&ChallengeClaimed(1)&&ChallengeClaimed(2)))return;RollChallenges();}
+        private static void RollChallenges(){int generation=PlayerPrefs.GetInt(P+"Generation",0)+1;var used=new HashSet<int>();var previous=new HashSet<int>();if(PlayerPrefs.HasKey(P+"Challenge.0"))for(int i=0;i<3;i++)previous.Add(PlayerPrefs.GetInt(P+"Challenge."+i,-1));for(int i=0;i<3;i++){int id=UnityEngine.Random.Range(0,ChallengeCount);while(used.Contains(id)||previous.Contains(id))id=(id+1)%ChallengeCount;used.Add(id);PlayerPrefs.SetInt(P+"Challenge."+i,id);PlayerPrefs.SetInt(P+"Progress."+i,0);PlayerPrefs.SetInt(P+"Claimed."+i,0);}PlayerPrefs.SetInt(P+"Generation",generation);PlayerPrefs.Save();}
     }
 }

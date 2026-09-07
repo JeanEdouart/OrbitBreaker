@@ -8,320 +8,7 @@ using UnityEngine.UI;
 
 namespace OrbitBreaker
 {
-    public sealed class SpaceBackground : MonoBehaviour
-    {
-        private const float TileSize = 14.6f;
-        private const float StarSpan = 17f;
-        private Camera targetCamera;
-        private readonly SpriteRenderer[] nebulaTiles = new SpriteRenderer[3];
-        private readonly Transform[] stars = new Transform[52];
-        private readonly float[] starSeedX = new float[52];
-        private readonly float[] starSeedY = new float[52];
-        private float tileWorldHeight = TileSize;
-        private float hyperspaceIntensity;
-        private float hyperspaceDrift;
-        private Material sectorMaterial;
-        private float sectorHue;
-        private float targetSectorHue;
-
-        public static int SectorForDistance(int distance) => Mathf.Max(0, distance) / 500;
-
-        public void SetDistance(int distance, bool immediate = false)
-        {
-            targetSectorHue = (SectorForDistance(distance) % 6) * 60f;
-            if (immediate) sectorHue = targetSectorHue;
-        }
-
-        public void SetHyperspace(float intensity)
-        {
-            hyperspaceIntensity = Mathf.Clamp01(intensity);
-        }
-
-        public void Initialize(Camera camera)
-        {
-            targetCamera = camera;
-            Shader sectorShader = Resources.Load<Shader>("Shaders/BackgroundSector");
-            if (sectorShader != null) sectorMaterial = new Material(sectorShader);
-            for (int i = 0; i < nebulaTiles.Length; i++)
-            {
-                var tile = new GameObject("Nebula Tile " + (i + 1));
-                tile.transform.SetParent(transform, false);
-                nebulaTiles[i] = tile.AddComponent<SpriteRenderer>();
-                nebulaTiles[i].sprite = RuntimeAssets.GetBackgroundSprite(MetaProgression.Selected(CosmeticKind.Background));
-                nebulaTiles[i].color = new Color(0.72f, 0.78f, 0.92f, 0.72f);
-                nebulaTiles[i].sortingOrder = -100;
-                if (sectorMaterial != null) nebulaTiles[i].sharedMaterial = sectorMaterial;
-            }
-            ResizeTilesToCoverCamera();
-
-            var random = new System.Random(7319);
-            for (int i = 0; i < stars.Length; i++)
-            {
-                var star = new GameObject("Parallax Star " + (i + 1));
-                star.transform.SetParent(transform, false);
-                float scale = Mathf.Lerp(0.018f, 0.052f, (float)random.NextDouble());
-                star.transform.localScale = Vector3.one * scale;
-                SpriteRenderer renderer = star.AddComponent<SpriteRenderer>();
-                renderer.sprite = RuntimeAssets.CircleSprite;
-                renderer.color = i % 5 == 0
-                    ? new Color(0.72f, 0.42f, 1f, 0.78f)
-                    : new Color(0.42f, 0.9f, 1f, 0.68f);
-                renderer.sortingOrder = -90;
-                stars[i] = star.transform;
-                starSeedX[i] = Mathf.Lerp(-3.5f, 3.5f, (float)random.NextDouble());
-                starSeedY[i] = Mathf.Lerp(-StarSpan * 0.5f, StarSpan * 0.5f, (float)random.NextDouble());
-                star.transform.localPosition = new Vector3(starSeedX[i], starSeedY[i], 0f);
-            }
-            RefreshPositions();
-        }
-
-        public void ApplyCosmetics()
-        {
-            Sprite selected = RuntimeAssets.GetBackgroundSprite(MetaProgression.Selected(CosmeticKind.Background));
-            for (int i = 0; i < nebulaTiles.Length; i++)
-                if (nebulaTiles[i] != null) nebulaTiles[i].sprite = selected;
-            ResizeTilesToCoverCamera();
-        }
-
-        private void ResizeTilesToCoverCamera()
-        {
-            if (targetCamera == null) return;
-            float viewHeight = targetCamera.orthographicSize * 2f;
-            float viewWidth = viewHeight * targetCamera.aspect;
-            tileWorldHeight = TileSize;
-            for (int i = 0; i < nebulaTiles.Length; i++)
-            {
-                Sprite sprite = nebulaTiles[i] != null ? nebulaTiles[i].sprite : null;
-                if (sprite == null) continue;
-                float scale = Mathf.Max(viewWidth / Mathf.Max(0.01f, sprite.bounds.size.x), viewHeight / Mathf.Max(0.01f, sprite.bounds.size.y)) * 1.04f;
-                nebulaTiles[i].transform.localScale = Vector3.one * scale;
-                tileWorldHeight = sprite.bounds.size.y * scale;
-            }
-        }
-
-        private void LateUpdate()
-        {
-            if (GamePreferences.DynamicBackground) hyperspaceDrift += Time.deltaTime * hyperspaceIntensity * 12f;
-            sectorHue = Mathf.MoveTowardsAngle(sectorHue, targetSectorHue, Time.deltaTime * 45f);
-            if (sectorMaterial != null) sectorMaterial.SetFloat("_HueShift", sectorHue / 360f);
-            RefreshPositions();
-        }
-
-        private void OnDestroy()
-        {
-            if (sectorMaterial != null) Destroy(sectorMaterial);
-        }
-
-        private void RefreshPositions()
-        {
-            if (targetCamera == null) return;
-            float cameraY = targetCamera.transform.position.y;
-            float cameraX = targetCamera.transform.position.x;
-            Color biomeTint = new Color(0.72f, 0.78f, 0.92f, 0.72f);
-            float nebulaOffset = GamePreferences.DynamicBackground
-                ? Mathf.Repeat(cameraY * 0.2f + tileWorldHeight * 0.5f, tileWorldHeight) - tileWorldHeight * 0.5f
-                : 0f;
-            for (int i = 0; i < nebulaTiles.Length; i++)
-            {
-                nebulaTiles[i].transform.position = new Vector3(cameraX * 0.88f, cameraY + (i - 1) * tileWorldHeight - nebulaOffset, 2f);
-                nebulaTiles[i].color = biomeTint;
-            }
-
-            for (int i = 0; i < stars.Length; i++)
-            {
-                stars[i].gameObject.SetActive(GamePreferences.EnhancedEffects);
-                float drift = GamePreferences.DynamicBackground ? cameraY * 0.48f : 0f;
-                drift += hyperspaceDrift * (0.7f + (i % 4) * 0.1f);
-                float relativeY = Mathf.Repeat(starSeedY[i] - drift + StarSpan * 0.5f, StarSpan) - StarSpan * 0.5f;
-                stars[i].position = new Vector3(cameraX + starSeedX[i], cameraY + relativeY, 1f);
-                float width = Mathf.Lerp(1f, 0.42f, hyperspaceIntensity);
-                float length = 1f;
-                stars[i].localScale = new Vector3(width, length, 1f) * Mathf.Lerp(0.018f, 0.052f, (i % 13) / 12f);
-            }
-        }
-    }
-
-    public sealed class OrbitCameraRig : MonoBehaviour
-    {
-        private Camera targetCamera;
-        private Vector3 velocity;
-        private Vector3 basePosition;
-        private float targetY;
-        private float targetX;
-        private float impactShakeRemaining;
-        private float impactShakeDuration;
-        private float impactShakeStrength;
-        private float flightShakeStrength;
-
-        public float CameraY => targetCamera != null ? targetCamera.transform.position.y : 0f;
-
-        public void Initialize(Camera camera)
-        {
-            targetCamera = camera;
-            targetCamera.orthographic = true;
-            targetCamera.orthographicSize = 6.45f;
-            targetCamera.backgroundColor = new Color(0.018f, 0.045f, 0.09f, 1f);
-            targetCamera.clearFlags = CameraClearFlags.SolidColor;
-            targetCamera.transform.rotation = Quaternion.identity;
-        }
-
-        public void Snap(Vector2 focus)
-        {
-            targetY = Mathf.Max(0f, focus.y + 2.25f);
-            targetX = focus.x * 0.12f;
-            basePosition = new Vector3(targetX, targetY, -10f);
-            targetCamera.transform.position = basePosition;
-            velocity = Vector3.zero;
-            impactShakeRemaining = 0f;
-            flightShakeStrength = 0f;
-        }
-
-        public void SetTarget(Vector2 playerPosition, Vector2 anchorPosition)
-        {
-            if (GamePreferences.FixedCamera)
-            {
-                // Stable mode keeps the playfield readable: vertical tracking remains
-                // essential in an endless game, while lateral movement and shake are removed.
-                float stableY = Mathf.Max(0f, playerPosition.y + 2.15f);
-                targetY = Mathf.MoveTowards(targetY, stableY, 4.25f * Time.deltaTime);
-                targetX = Mathf.MoveTowards(targetX, 0f, 2.5f * Time.deltaTime);
-                return;
-            }
-            float desiredY = Mathf.Max(0f, Mathf.Max(playerPosition.y, anchorPosition.y) + 2.15f);
-            targetY = desiredY >= targetY ? desiredY : Mathf.MoveTowards(targetY, desiredY, 5.5f * Time.deltaTime);
-            targetX = Mathf.Lerp(playerPosition.x, anchorPosition.x, 0.65f) * 0.12f;
-        }
-
-        public void SetCinematicPosition(Vector2 position)
-        {
-            targetX = position.x;
-            targetY = position.y;
-            basePosition = new Vector3(targetX, targetY, -10f);
-            targetCamera.transform.position = basePosition;
-            velocity = Vector3.zero;
-            impactShakeRemaining = flightShakeStrength = 0f;
-        }
-
-        public void ShakeCapture()
-        {
-            if (!GamePreferences.FixedCamera && GamePreferences.CaptureShake) TriggerImpactShake(0.13f, 0.065f);
-        }
-
-        public void ShakeExplosion()
-        {
-            if (!GamePreferences.FixedCamera && GamePreferences.ExplosionShake) TriggerImpactShake(0.38f, 0.19f);
-        }
-
-        public void SetFlightShake(float danger01, bool flying)
-        {
-            float desired = !GamePreferences.FixedCamera && GamePreferences.FlightShake && flying
-                ? Mathf.InverseLerp(0.42f, 1f, danger01) * 0.045f
-                : 0f;
-            flightShakeStrength = Mathf.MoveTowards(flightShakeStrength, desired, Time.unscaledDeltaTime * 0.12f);
-        }
-
-        private void TriggerImpactShake(float duration, float strength)
-        {
-            impactShakeDuration = duration;
-            impactShakeRemaining = duration;
-            impactShakeStrength = strength;
-        }
-
-        private void LateUpdate()
-        {
-            if (targetCamera == null) return;
-            Vector3 destination = new Vector3(targetX, targetY, -10f);
-            float smoothTime = GamePreferences.FixedCamera ? 0.42f : 0.28f;
-            basePosition = Vector3.SmoothDamp(basePosition, destination, ref velocity, smoothTime, 18f, Time.unscaledDeltaTime);
-            float impact = 0f;
-            if (impactShakeRemaining > 0f)
-            {
-                impactShakeRemaining = Mathf.Max(0f, impactShakeRemaining - Time.unscaledDeltaTime);
-                impact = impactShakeStrength * (impactShakeRemaining / Mathf.Max(0.01f, impactShakeDuration));
-            }
-
-            float strength = GamePreferences.FixedCamera ? 0f : impact + flightShakeStrength;
-            float time = Time.unscaledTime;
-            Vector3 shakeOffset = new Vector3(
-                (Mathf.PerlinNoise(time * 31f, 2.7f) - 0.5f) * 2f,
-                (Mathf.PerlinNoise(7.1f, time * 37f) - 0.5f) * 2f,
-                0f) * strength;
-            targetCamera.transform.position = basePosition + shakeOffset;
-        }
-    }
-
-    public sealed class ToggleSwitchVisual : MonoBehaviour
-    {
-        private static readonly Color OffColor = new Color(0.06f, 0.16f, 0.24f, 1f);
-        private static readonly Color OnColor = new Color(0.08f, 0.62f, 0.72f, 1f);
-        private Image track;
-        private RectTransform knob;
-        private float position;
-        private float target;
-
-        public void Initialize(Image trackImage, RectTransform knobTransform, bool isOn)
-        {
-            track = trackImage;
-            knob = knobTransform;
-            position = target = isOn ? 1f : 0f;
-            Apply();
-        }
-
-        public void SetValue(bool isOn)
-        {
-            target = isOn ? 1f : 0f;
-        }
-
-        private void Update()
-        {
-            if (Mathf.Approximately(position, target)) return;
-            position = Mathf.MoveTowards(position, target, Time.unscaledDeltaTime * 7.5f);
-            Apply();
-        }
-
-        private void Apply()
-        {
-            if (track == null || knob == null) return;
-            float center = Mathf.Lerp(0.27f, 0.73f, position);
-            knob.anchorMin = new Vector2(center - 0.19f, 0.12f);
-            knob.anchorMax = new Vector2(center + 0.19f, 0.88f);
-            knob.offsetMin = Vector2.zero;
-            knob.offsetMax = Vector2.zero;
-            track.color = Color.Lerp(OffColor, OnColor, position);
-        }
-    }
-
-    public sealed class SafeAreaFitter : MonoBehaviour
-    {
-        private RectTransform rectTransform;
-        private Rect lastSafeArea;
-        private Vector2Int lastScreenSize;
-
-        private void Awake()
-        {
-            rectTransform = transform as RectTransform;
-            Apply();
-        }
-
-        private void Update()
-        {
-            if (lastSafeArea != Screen.safeArea || lastScreenSize.x != Screen.width || lastScreenSize.y != Screen.height) Apply();
-        }
-
-        private void Apply()
-        {
-            if (rectTransform == null || Screen.width <= 0 || Screen.height <= 0) return;
-            Rect safe = Screen.safeArea;
-            rectTransform.anchorMin = new Vector2(safe.xMin / Screen.width, safe.yMin / Screen.height);
-            rectTransform.anchorMax = new Vector2(safe.xMax / Screen.width, safe.yMax / Screen.height);
-            rectTransform.offsetMin = Vector2.zero;
-            rectTransform.offsetMax = Vector2.zero;
-            lastSafeArea = safe;
-            lastScreenSize = new Vector2Int(Screen.width, Screen.height);
-        }
-    }
-
-    public sealed class OrbitHud : MonoBehaviour
+    public sealed partial class OrbitHud : MonoBehaviour
     {
         private Text scoreText;
         private Text bestText;
@@ -358,6 +45,7 @@ namespace OrbitBreaker
         private Text playerNameStatus;
         private InputField leaderboardSearchInput;
         private Text leaderboardStatus;
+        private Text leaderboardEndlessTab, leaderboardSprintTab;
         private readonly Text[] leaderboardRows = new Text[100];
         private ScrollRect leaderboardScroll;
         private RectTransform leaderboardContent;
@@ -373,6 +61,9 @@ namespace OrbitBreaker
         private readonly Text[] powerUpPriceTexts = new Text[5];
         private readonly Button[] powerUpUpgradeButtons = new Button[5];
         private readonly GameObject[] powerUpInventoryButtons = new GameObject[5];
+        private readonly Button[] inventoryControls = new Button[5];
+        private readonly Image[] inventoryIcons = new Image[5];
+        private readonly int[] inventoryCounts = new int[5];
         private readonly Text[] powerUpInventoryCounts = new Text[5];
         private readonly GameObject[] activePowerRows = new GameObject[5];
         private readonly Image[] activePowerFills = new Image[5];
@@ -391,8 +82,6 @@ namespace OrbitBreaker
         private readonly Button[] challengeButtons = new Button[3];
         private readonly Text[] challengeButtonLabels = new Text[3];
         private Text missionCurrencyText;
-        private Text missionProgressText;
-        private Image missionProgressFill;
         private Text hangarStatus;
         private Text hangarCurrencyText;
         private Text hangarItemName;
@@ -403,12 +92,13 @@ namespace OrbitBreaker
         private readonly Button[] cosmeticCards = new Button[4];
         private readonly Text[] cosmeticCardLabels = new Text[4];
         private readonly Image[] cosmeticCardPreviews = new Image[4];
-        private readonly Image[] hangarTabImages = new Image[4];
+        private readonly Image[] hangarTabImages = new Image[5];
+        private GameObject musicPreviewButton;
+        private Text musicDescription;
+        private Image hangarBackdrop;
         private CosmeticKind hangarCategory;
         private int hangarPage;
         private int selectedCosmeticIndex;
-        private Text[] styleRowLabels;
-        private Image[] styleRowImages;
         private GameObject creditsPanel;
         private GameObject settingsAudioPage;
         private GameObject settingsGameplayPage;
@@ -430,11 +120,11 @@ namespace OrbitBreaker
             || (hangarPanel != null && hangarPanel.activeSelf)
             || (powerUpPanel != null && powerUpPanel.activeSelf)
             || (leaderboardPanel != null && leaderboardPanel.activeSelf)
+            || (journalPanel != null && journalPanel.activeSelf)
             || (playerNamePanel != null && playerNamePanel.activeSelf);
         public bool IsPaused => pausePanel != null && pausePanel.activeSelf;
         public event Action CosmeticsChanged;
         public event Action<PowerUpType> PowerUpRequested;
-        public event Action<int> StyleSelected;
 
         public void Initialize(OrbitFeedback audio, OnlineLeaderboard leaderboard)
         {
@@ -576,6 +266,7 @@ namespace OrbitBreaker
             Text tipsText = CreateText(tipsPanel.transform, "Tips", "VISE LA PORTE COLORÉE DANS SON SENS POUR UN BONUS SYNCHRO\nELLE EST OPTIONNELLE : TOUTE L'ORBITE PEUT TE CAPTURER\nENCHAÎNE LES SKIPS : BONUS DE DISTANCE JUSQU'À ×2,5", 17, TextAnchor.MiddleLeft, FontStyle.Normal);
             tipsText.color = new Color(0.68f, 0.88f, 1f, 0.95f);
             tipsText.lineSpacing = 1.15f;
+            tipsContent = tipsText;
             SetRect(tipsText.rectTransform, new Vector2(0.06f, 0.06f), new Vector2(0.95f, 0.66f), Vector2.zero, Vector2.zero);
 
             gameOverPanel = new GameObject("Game Over Panel", typeof(RectTransform), typeof(Image));
@@ -646,6 +337,8 @@ namespace OrbitBreaker
                 SetRect(count.rectTransform, new Vector2(0.1f, -0.13f), new Vector2(0.9f, 0.16f), Vector2.zero, Vector2.zero);
                 count.alignment = TextAnchor.MiddleCenter;
                 powerUpInventoryButtons[i] = button; powerUpInventoryCounts[i] = count; button.SetActive(false);
+                inventoryControls[i] = button.GetComponent<Button>();
+                inventoryIcons[i] = button.transform.Find("Icon").GetComponent<Image>();
             }
 
             for (int i = 1; i < activePowerRows.Length; i++)
@@ -683,6 +376,7 @@ namespace OrbitBreaker
             leaderboardPanel.SetActive(false);
             playerNamePanel = CreatePlayerNamePanel(safe);
             playerNamePanel.SetActive(false);
+            CreateExtraMenus(safe);
         }
 
         public void PreparePlayerIdentity(Action onAccepted)
@@ -737,6 +431,7 @@ namespace OrbitBreaker
 
         public void UpdateProgress(int distance, int best)
         {
+            lastDistance = distance; lastRecord = best;
             scoreText.text = distance + " UA";
             bestText.text = "RECORD " + best + " UA";
             comboText.text = string.Empty;
@@ -845,11 +540,12 @@ namespace OrbitBreaker
             for (int i = 0; i < powerUpInventoryButtons.Length; i++)
             {
                 int count = counts != null && i < counts.Length ? counts[i] : 0;
+                inventoryCounts[i] = count;
                 powerUpInventoryButtons[i].SetActive(playing);
                 SetSquareRect(powerUpInventoryButtons[i].GetComponent<RectTransform>(),
                     new Vector2(0.16f + i * 0.17f, tutorialTips.activeSelf ? 0.285f : 0.075f), 112f);
-                powerUpInventoryButtons[i].GetComponent<Button>().interactable = count > 0;
-                powerUpInventoryButtons[i].transform.Find("Icon").GetComponent<Image>().color = count > 0
+                inventoryControls[i].interactable = count > 0;
+                inventoryIcons[i].color = count > 0
                     ? PowerUpProgression.Definition((PowerUpType)i).Color : new Color(0.3f, 0.38f, 0.44f, 0.6f);
                 powerUpInventoryCounts[i].text = count + "/" + PowerUpProgression.MaxInventory;
             }
@@ -864,7 +560,7 @@ namespace OrbitBreaker
                 PowerUpType type = (PowerUpType)i;
                 float remaining = player.PowerUpRemaining(type);
                 bool active = remaining > 0.01f && player.State != PlayerOrbitState.Dead && !gameOverVisible;
-                powerUpInventoryButtons[i].GetComponent<Button>().interactable = !active && PowerUpProgression.StoredCount(type) > 0 && !IsPaused && !SettingsOpen;
+                inventoryControls[i].interactable = !active && inventoryCounts[i] > 0 && !IsPaused && !SettingsOpen;
                 activePowerRows[i].SetActive(active);
                 if (!active) continue;
                 float duration = Mathf.Max(0.01f, player.PowerUpDuration(type));
@@ -903,6 +599,9 @@ namespace OrbitBreaker
 
         public void HideTutorial()
         {
+            if (modeButton != null) modeButton.SetActive(false);
+            if (journalButton != null) journalButton.SetActive(false);
+            hudFeedback.StopMusicPreview();
             titleText.gameObject.SetActive(false);
             hintGroup.gameObject.SetActive(false);
             tutorialTips.SetActive(false);
@@ -931,6 +630,23 @@ namespace OrbitBreaker
             gameOverRecord.text = "RECORD       " + best + " UA";
             gameOverSummary.text = "MATÉRIAUX +" + runMaterials + "   ·   SYNCHRO " + synchronizations + "   ·   FRÔLEMENTS " + nearMisses + "   ·   SKIP " + bestSkip + "   ·   MAX x" + bestMultiplier.ToString("0.0");
             gameOverTitle.text = reason == DeathReason.Breaker ? "VOTRE VAISSEAU\nA EXPLOSÉ" : "VOUS VOUS ÊTES PERDU\nDANS L'ESPACE";
+            if(game!=null)
+            {
+                if(game.LastRunTimedOut)gameOverTitle.text="SPRINT TERMINÉ";
+                if(game.LastRunDailyCompleted)
+                {
+                    gameOverTitle.text="PARCOURS ACCOMPLI";
+                    gameOverDistance.text="NIVEAU       "+game.DailyTier+" / 5";
+                    gameOverOrbits.text="OBJECTIF     "+game.DailyTarget+" / "+game.DailyTarget;
+                    gameOverRecord.text="JOURS RÉUSSIS "+DailyCourse.CompletedDays;
+                    gameOverSummary.text=(game.LastDailyReward>0?"RÉCOMPENSE +"+game.LastDailyReward+" MAT":"RÉCOMPENSE DU JOUR DÉJÀ RÉCUPÉRÉE")+(string.IsNullOrEmpty(game.LastDailyUnlock)?string.Empty:"\nNOUVEAU VAISSEAU EXCLUSIF DÉBLOQUÉ");
+                }
+                else
+                {
+                    if(game.CurrentRunMode==RunMode.Daily){gameOverDistance.text="NIVEAU       "+game.DailyTier+" / 5";gameOverOrbits.text="OBJECTIF     "+game.DailyCaptures+" / "+game.DailyTarget;gameOverRecord.text="RÉCOMPENSE   "+DailyCourse.ForDate(DateTime.UtcNow).MaterialReward+" MAT";}
+                    gameOverSummary.text=(game.CurrentRunMode==RunMode.Endless ? "MATÉRIAUX +"+runMaterials : game.CurrentRunMode==RunMode.Daily?"PARCOURS "+game.DailyCaptures+" / "+game.DailyTarget:"CLASSEMENT 90 S")+" · MEILLEURE SÉRIE "+game.LastRunBestChain+"\n"+(game.LastRunTimedOut?"TENTE UN SKIP DE PLUS AU PROCHAIN SPRINT":reason==DeathReason.Breaker?"OBSERVE LE PASSAGE DES DÉBRIS AVANT DE PARTIR":"VISE UNE ORBITE AVANT QUE LE CARBURANT S'ÉPUISE");
+                }
+            }
             gameOverTitle.color = reason == DeathReason.Breaker ? new Color(1f, 0.28f, 0.38f) : new Color(0.45f, 0.82f, 1f);
             gameOverPanel.SetActive(true);
             settingsButton.SetActive(true);
@@ -941,6 +657,12 @@ namespace OrbitBreaker
             leaderboardButton.SetActive(true);
             pauseButton.SetActive(false);
             gameOverVisible = true;
+        }
+
+        public void ShowDailyProgress(int captures, int target, int tier)
+        {
+            scoreText.text=captures+" / "+target;
+            bestText.text="PARCOURS DU JOUR · NIVEAU "+tier;
         }
 
         private void ClearStunt()
@@ -1007,6 +729,7 @@ namespace OrbitBreaker
 
         private void ToggleHangar()
         {
+            hudFeedback.StopMusicPreview();
             bool opening = !hangarPanel.activeSelf;
             settingsPanel.SetActive(false);
             creditsPanel.SetActive(false);
@@ -1055,7 +778,7 @@ namespace OrbitBreaker
             if (!opening) return;
             leaderboardSearchInput.SetTextWithoutNotify(string.Empty);
             leaderboardStatus.text = "CHARGEMENT DU CLASSEMENT...";
-            RenderLeaderboardRows(Array.Empty<OrbitLeaderboardEntry>());
+            RenderLeaderboardRows(onlineLeaderboard.CachedEntries);
             RefreshLeaderboard();
         }
 
@@ -1064,6 +787,17 @@ namespace OrbitBreaker
             IReadOnlyList<OrbitLeaderboardEntry> entries = onlineLeaderboard.Filter(query);
             leaderboardStatus.text = entries.Count > 0 ? entries.Count + " PILOTE" + (entries.Count > 1 ? "S" : string.Empty) : "AUCUN PILOTE TROUVÉ DANS LE TOP 100";
             RenderLeaderboardRows(entries);
+        }
+
+        private void SelectLeaderboardBoard(RunMode mode)
+        {
+            if (leaderboardLoading || onlineLeaderboard == null) return;
+            onlineLeaderboard.SelectBoard(mode);
+            leaderboardEndlessTab.color = mode == RunMode.Endless ? new Color(1f,.75f,.24f) : new Color(.65f,.82f,.9f);
+            leaderboardSprintTab.color = mode == RunMode.Sprint ? new Color(1f,.75f,.24f) : new Color(.65f,.82f,.9f);
+            leaderboardSearchInput.SetTextWithoutNotify(string.Empty);
+            RenderLeaderboardRows(onlineLeaderboard.CachedEntries);
+            RefreshLeaderboard();
         }
 
         private void RenderLeaderboardRows(IReadOnlyList<OrbitLeaderboardEntry> entries)
@@ -1094,7 +828,8 @@ namespace OrbitBreaker
                 }
                 if (!visible) continue;
                 OrbitLeaderboardEntry entry = entries[i];
-                row.text = entry.Rank.ToString().PadLeft(3) + "    " + entry.PlayerName.ToUpperInvariant() + "    " + entry.Score + " UA";
+                row.text = entry.Rank.ToString().PadLeft(3) + "  " + entry.PlayerName.ToUpperInvariant() + "  ·  " + entry.Score + " UA\n"
+                    + "INFINI " + entry.EndlessBest + "  ·  90 S " + entry.SprintBest + "  ·  PLANÈTES " + entry.PlanetsDiscovered;
                 row.color = entry.IsLocalPlayer ? new Color(1f, 0.75f, 0.24f) : new Color(0.72f, 0.92f, 1f);
             }
         }
@@ -1127,17 +862,23 @@ namespace OrbitBreaker
             Image card = CreateImage(panel.transform, "Leaderboard Card", new Color(0.025f, 0.075f, 0.14f, 0.99f)); ApplyRounded(card);
             SetRect(card.rectTransform, new Vector2(0.055f, 0.08f), new Vector2(0.945f, 0.92f), Vector2.zero, Vector2.zero);
             Text title = CreateText(card.transform, "Title", "CLASSEMENT MONDIAL", 40, TextAnchor.MiddleCenter, FontStyle.Bold);
-            title.color = new Color(0.76f, 0.98f, 1f); SetRect(title.rectTransform, new Vector2(0.05f, 0.875f), new Vector2(0.95f, 0.97f), Vector2.zero, Vector2.zero);
+            title.color = new Color(0.76f, 0.98f, 1f); SetRect(title.rectTransform, new Vector2(0.05f, 0.91f), new Vector2(0.95f, 0.98f), Vector2.zero, Vector2.zero);
+            GameObject endlessTab=CreateButton(card.transform,"Endless Board","INFINI",new Color(.035f,.16f,.24f),()=>SelectLeaderboardBoard(RunMode.Endless));
+            GameObject sprintTab=CreateButton(card.transform,"Sprint Board","SPRINT 90 S",new Color(.035f,.16f,.24f),()=>SelectLeaderboardBoard(RunMode.Sprint));
+            SetRect(endlessTab.GetComponent<RectTransform>(),new Vector2(.1f,.84f),new Vector2(.49f,.9f),Vector2.zero,Vector2.zero);
+            SetRect(sprintTab.GetComponent<RectTransform>(),new Vector2(.51f,.84f),new Vector2(.9f,.9f),Vector2.zero,Vector2.zero);
+            leaderboardEndlessTab=endlessTab.transform.Find("Label").GetComponent<Text>();leaderboardSprintTab=sprintTab.transform.Find("Label").GetComponent<Text>();
+            leaderboardEndlessTab.color=new Color(1f,.75f,.24f);
             leaderboardSearchInput = CreateInputField(card.transform, "Search", "RECHERCHER DANS LE TOP 100", 24);
-            SetRect(leaderboardSearchInput.GetComponent<RectTransform>(), new Vector2(0.08f, 0.77f), new Vector2(0.92f, 0.855f), Vector2.zero, Vector2.zero);
+            SetRect(leaderboardSearchInput.GetComponent<RectTransform>(), new Vector2(0.08f, 0.745f), new Vector2(0.92f, 0.825f), Vector2.zero, Vector2.zero);
             leaderboardSearchInput.onValueChanged.AddListener(SearchLeaderboard);
             leaderboardStatus = CreateText(card.transform, "Status", string.Empty, 17, TextAnchor.MiddleCenter, FontStyle.Bold);
-            leaderboardStatus.color = new Color(1f, 0.72f, 0.24f); SetRect(leaderboardStatus.rectTransform, new Vector2(0.06f, 0.705f), new Vector2(0.94f, 0.765f), Vector2.zero, Vector2.zero);
+            leaderboardStatus.color = new Color(1f, 0.72f, 0.24f); SetRect(leaderboardStatus.rectTransform, new Vector2(0.06f, 0.685f), new Vector2(0.94f, 0.74f), Vector2.zero, Vector2.zero);
             GameObject viewportObject = new GameObject("Leaderboard Scroll Viewport", typeof(RectTransform), typeof(RectMask2D), typeof(Image));
             viewportObject.transform.SetParent(card.transform, false);
             Image viewportImage = viewportObject.GetComponent<Image>(); viewportImage.color = new Color(0f, 0f, 0f, 0.001f); viewportImage.raycastTarget = true;
             RectTransform viewport = viewportObject.GetComponent<RectTransform>();
-            SetRect(viewport, new Vector2(0.06f, 0.17f), new Vector2(0.94f, 0.70f), Vector2.zero, Vector2.zero);
+            SetRect(viewport, new Vector2(0.06f, 0.17f), new Vector2(0.94f, 0.68f), Vector2.zero, Vector2.zero);
             GameObject contentObject = new GameObject("Leaderboard Scroll Content", typeof(RectTransform));
             contentObject.transform.SetParent(viewportObject.transform, false);
             RectTransform content = contentObject.GetComponent<RectTransform>();
@@ -1172,7 +913,10 @@ namespace OrbitBreaker
             {
             leaderboardStatus.text = "ACTUALISATION...";
             IReadOnlyList<OrbitLeaderboardEntry> entries = await onlineLeaderboard.RefreshAsync(leaderboardSearchInput.text);
-            leaderboardStatus.text = entries.Count > 0 ? "CLASSEMENT À JOUR" : onlineLeaderboard.LastError;
+            if (this == null) return;
+            leaderboardStatus.text = !string.IsNullOrEmpty(onlineLeaderboard.LastError)
+                ? (entries.Count > 0 ? "HORS LIGNE · DERNIERS RÉSULTATS CONSERVÉS" : onlineLeaderboard.LastError)
+                : "À JOUR · " + (onlineLeaderboard.LastRefreshUtc?.ToLocalTime().ToString("HH:mm") ?? "—");
             RenderLeaderboardRows(onlineLeaderboard.Filter(leaderboardSearchInput.text));
             }
             finally { leaderboardLoading = false; }
@@ -1219,136 +963,6 @@ namespace OrbitBreaker
             resume.color = new Color(0.42f, 0.72f, 0.9f, 0.9f);
             SetRect(resume.rectTransform, new Vector2(0.1f, 0.06f), new Vector2(0.9f, 0.3f), Vector2.zero, Vector2.zero);
             return panel;
-        }
-
-        private GameObject CreateMissionsPanelLegacy(Transform safe)
-        {
-            var panel = new GameObject("Missions Panel", typeof(RectTransform), typeof(Image));
-            panel.transform.SetParent(safe, false);
-            SetRect(panel.GetComponent<RectTransform>(), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-            panel.GetComponent<Image>().color = new Color(0.008f, 0.02f, 0.055f, 0.9f);
-
-            Image card = CreateImage(panel.transform, "Mission Card", new Color(0.025f, 0.075f, 0.14f, 0.99f));
-            ApplyRounded(card);
-            SetRect(card.rectTransform, new Vector2(0.09f, 0.27f), new Vector2(0.91f, 0.73f), Vector2.zero, Vector2.zero);
-
-            Text eyebrow = CreateText(card.transform, "Mission Eyebrow", "MISSION DU JOUR", 22, TextAnchor.MiddleCenter, FontStyle.Bold);
-            eyebrow.color = new Color(1f, 0.72f, 0.24f, 1f);
-            SetRect(eyebrow.rectTransform, new Vector2(0.08f, 0.8f), new Vector2(0.92f, 0.94f), Vector2.zero, Vector2.zero);
-
-            missionProgressText = CreateText(card.transform, "Mission Progress", string.Empty, 36, TextAnchor.MiddleCenter, FontStyle.Bold);
-            missionProgressText.color = new Color(0.76f, 0.98f, 1f, 1f);
-            missionProgressText.resizeTextForBestFit = true;
-            missionProgressText.resizeTextMinSize = 22;
-            missionProgressText.resizeTextMaxSize = 36;
-            SetRect(missionProgressText.rectTransform, new Vector2(0.07f, 0.47f), new Vector2(0.93f, 0.8f), Vector2.zero, Vector2.zero);
-
-            Image track = CreateImage(card.transform, "Mission Progress Track", new Color(0.04f, 0.14f, 0.23f, 1f));
-            ApplyRounded(track);
-            SetRect(track.rectTransform, new Vector2(0.12f, 0.37f), new Vector2(0.88f, 0.43f), Vector2.zero, Vector2.zero);
-            missionProgressFill = CreateImage(track.transform, "Mission Progress Fill", new Color(0.24f, 0.9f, 1f, 1f));
-            ApplyRounded(missionProgressFill);
-            SetRect(missionProgressFill.rectTransform, Vector2.zero, new Vector2(0f, 1f), Vector2.zero, Vector2.zero);
-
-            Text note = CreateText(card.transform, "Mission Note", "LA PROGRESSION EST CONSERVÉE ENTRE TES PARTIES", 18, TextAnchor.MiddleCenter, FontStyle.Bold);
-            note.color = new Color(0.55f, 0.75f, 0.88f, 0.9f);
-            SetRect(note.rectTransform, new Vector2(0.07f, 0.22f), new Vector2(0.93f, 0.34f), Vector2.zero, Vector2.zero);
-
-            GameObject close = CreateButton(card.transform, "Close Missions", "FERMER", new Color(0.12f, 0.48f, 0.58f, 0.95f), ToggleMissions);
-            SetRect(close.GetComponent<RectTransform>(), new Vector2(0.25f, 0.055f), new Vector2(0.75f, 0.18f), Vector2.zero, Vector2.zero);
-            return panel;
-        }
-
-        private void RefreshMissionLegacy()
-        {
-            int progress = Mathf.Min(GameProgression.MissionProgress, GameProgression.MissionTarget);
-            string objective = GameProgression.MissionType == DailyMissionType.Distance
-                ? "PARCOURIR " + GameProgression.MissionTarget + " UA"
-                : GameProgression.MissionType == DailyMissionType.Synchronizations
-                    ? "RÉUSSIR " + GameProgression.MissionTarget + " SYNCHRONISATIONS"
-                    : "RÉUSSIR " + GameProgression.MissionTarget + " FRÔLEMENTS";
-            missionProgressText.text = objective + "\n" + progress + " / " + GameProgression.MissionTarget;
-            missionProgressFill.rectTransform.anchorMax = new Vector2(progress / (float)GameProgression.MissionTarget, 1f);
-            missionProgressFill.color = progress >= GameProgression.MissionTarget
-                ? new Color(1f, 0.72f, 0.24f, 1f)
-                : new Color(0.24f, 0.9f, 1f, 1f);
-        }
-
-        private GameObject CreateHangarPanelLegacy(Transform safe)
-        {
-            var panel = new GameObject("Hangar Panel", typeof(RectTransform), typeof(Image));
-            panel.transform.SetParent(safe, false);
-            SetRect(panel.GetComponent<RectTransform>(), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-            panel.GetComponent<Image>().color = new Color(0.008f, 0.02f, 0.055f, 0.9f);
-
-            Image card = CreateImage(panel.transform, "Hangar Card", new Color(0.025f, 0.075f, 0.14f, 0.99f));
-            ApplyRounded(card);
-            SetRect(card.rectTransform, new Vector2(0.075f, 0.14f), new Vector2(0.925f, 0.86f), Vector2.zero, Vector2.zero);
-
-            Text title = CreateText(card.transform, "Hangar Title", "HANGAR", 48, TextAnchor.MiddleCenter, FontStyle.Bold);
-            title.color = new Color(0.76f, 0.98f, 1f, 1f);
-            SetRect(title.rectTransform, new Vector2(0.08f, 0.84f), new Vector2(0.92f, 0.96f), Vector2.zero, Vector2.zero);
-
-            hangarStatus = CreateText(card.transform, "Hangar Status", string.Empty, 19, TextAnchor.MiddleCenter, FontStyle.Bold);
-            hangarStatus.color = new Color(1f, 0.72f, 0.24f, 1f);
-            hangarStatus.resizeTextForBestFit = true;
-            hangarStatus.resizeTextMinSize = 14;
-            hangarStatus.resizeTextMaxSize = 19;
-            SetRect(hangarStatus.rectTransform, new Vector2(0.06f, 0.73f), new Vector2(0.94f, 0.84f), Vector2.zero, Vector2.zero);
-
-            styleRowLabels = new Text[4];
-            styleRowImages = new Image[4];
-            for (int i = 0; i < 4; i++)
-            {
-                int style = i;
-                float top = 0.7f - i * 0.14f;
-                GameObject row = CreateButton(card.transform, "Style " + GameProgression.StyleName(i), string.Empty, new Color(0.045f, 0.14f, 0.22f, 1f), () => SelectStyleFromHangarLegacy(style));
-                SetRect(row.GetComponent<RectTransform>(), new Vector2(0.09f, top - 0.11f), new Vector2(0.91f, top), Vector2.zero, Vector2.zero);
-                styleRowImages[i] = row.GetComponent<Image>();
-
-                Image swatch = CreateImage(row.transform, "Color", GameProgression.TrailColor(i));
-                swatch.sprite = RuntimeAssets.CircleSprite;
-                swatch.preserveAspect = true;
-                swatch.raycastTarget = false;
-                SetRect(swatch.rectTransform, new Vector2(0.04f, 0.22f), new Vector2(0.14f, 0.78f), Vector2.zero, Vector2.zero);
-                styleRowLabels[i] = row.transform.Find("Label").GetComponent<Text>();
-                styleRowLabels[i].alignment = TextAnchor.MiddleLeft;
-                SetRect(styleRowLabels[i].rectTransform, new Vector2(0.18f, 0f), new Vector2(0.96f, 1f), Vector2.zero, Vector2.zero);
-            }
-
-            GameObject close = CreateButton(card.transform, "Close Hangar", "FERMER", new Color(0.12f, 0.48f, 0.58f, 0.95f), ToggleHangar);
-            SetRect(close.GetComponent<RectTransform>(), new Vector2(0.25f, 0.045f), new Vector2(0.75f, 0.12f), Vector2.zero, Vector2.zero);
-            return panel;
-        }
-
-        private void SelectStyleFromHangarLegacy(int style)
-        {
-            if (!GameProgression.SelectStyle(style))
-            {
-                int remaining = Mathf.Max(0, GameProgression.UnlockDistanceForStyle(style) - GameProgression.LifetimeDistance);
-                RefreshHangar("ENCORE " + remaining + " UA POUR DÉBLOQUER " + GameProgression.StyleName(style));
-                return;
-            }
-            StyleSelected?.Invoke(style);
-            RefreshHangar(GameProgression.StyleName(style) + " ÉQUIPÉ");
-        }
-
-        private void RefreshHangarLegacy(string message)
-        {
-            hangarStatus.text = string.IsNullOrEmpty(message)
-                ? "DISTANCE CUMULÉE  " + GameProgression.LifetimeDistance + " UA"
-                : message;
-            for (int i = 0; i < styleRowLabels.Length; i++)
-            {
-                bool unlocked = i < GameProgression.UnlockedStyleCount;
-                bool selected = i == GameProgression.SelectedStyle;
-                string state = selected ? "ÉQUIPÉ" : unlocked ? "CHOISIR" : "À " + GameProgression.UnlockDistanceForStyle(i) + " UA";
-                styleRowLabels[i].text = GameProgression.StyleName(i) + "                         " + state;
-                styleRowLabels[i].color = unlocked ? new Color(0.78f, 0.96f, 1f, 1f) : new Color(0.42f, 0.56f, 0.68f, 1f);
-                styleRowImages[i].color = selected
-                    ? new Color(0.08f, 0.39f, 0.5f, 1f)
-                    : new Color(0.045f, 0.14f, 0.22f, unlocked ? 1f : 0.72f);
-            }
         }
 
         private GameObject CreateMissionsPanel(Transform safe)
@@ -1431,12 +1045,21 @@ namespace OrbitBreaker
             SetRect(title.rectTransform, new Vector2(0.06f, 0.9f), new Vector2(0.5f, 0.98f), Vector2.zero, Vector2.zero);
             hangarCurrencyText = CreateText(card.transform, "Balance", string.Empty, 24, TextAnchor.MiddleRight, FontStyle.Bold); hangarCurrencyText.color = new Color(1f, 0.72f, 0.24f);
             SetRect(hangarCurrencyText.rectTransform, new Vector2(0.5f, 0.9f), new Vector2(0.94f, 0.98f), Vector2.zero, Vector2.zero);
-            string[] tabs = { "FUSÉES", "FEUX", "PLANÈTES", "FONDS" };
-            for (int i = 0; i < 4; i++) { int tab=i; GameObject b=CreateButton(card.transform,"Tab "+i,tabs[i],new Color(0.045f,0.14f,0.22f),()=>SelectHangarCategory((CosmeticKind)tab)); hangarTabImages[i]=b.GetComponent<Image>(); SetRect(b.GetComponent<RectTransform>(),new Vector2(0.04f+i*0.235f,0.82f),new Vector2(0.255f+i*0.235f,0.89f),Vector2.zero,Vector2.zero); b.transform.Find("Label").GetComponent<Text>().fontSize=17; }
+            string[] tabs = { "FUSÉES", "FEUX", "PLANÈTES", "FONDS", "MUSIQUE" };
+            for (int i = 0; i < tabs.Length; i++) { int tab=i; GameObject b=CreateButton(card.transform,"Tab "+i,tabs[i],new Color(0.045f,0.14f,0.22f),()=>SelectHangarCategory((CosmeticKind)tab)); hangarTabImages[i]=b.GetComponent<Image>(); SetRect(b.GetComponent<RectTransform>(),new Vector2(0.025f+i*0.192f,0.82f),new Vector2(0.207f+i*0.192f,0.89f),Vector2.zero,Vector2.zero); var label=b.transform.Find("Label").GetComponent<Text>(); label.fontSize=17; label.resizeTextForBestFit=true; label.resizeTextMinSize=11; }
             Image previewPlate = CreateImage(card.transform, "Preview Plate", new Color(0.01f, 0.04f, 0.085f, 0.96f)); ApplyRounded(previewPlate);
             SetRect(previewPlate.rectTransform, new Vector2(0.07f, 0.49f), new Vector2(0.93f, 0.8f), Vector2.zero, Vector2.zero);
+            previewPlate.gameObject.AddComponent<RectMask2D>();
+            hangarBackdrop = CreateImage(previewPlate.transform, "Equipped Background", Color.white * 0.55f);
+            hangarBackdrop.raycastTarget = false;
+            SetRect(hangarBackdrop.rectTransform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
             hangarPreview = CreateImage(previewPlate.transform, "Preview", Color.white); hangarPreview.preserveAspect=true; hangarPreview.raycastTarget=false;
-            SetRect(hangarPreview.rectTransform,new Vector2(0.31f,0.12f),new Vector2(0.69f,0.88f),Vector2.zero,Vector2.zero);
+            SetRect(hangarPreview.rectTransform,new Vector2(0.31f,0.34f),new Vector2(0.69f,0.95f),Vector2.zero,Vector2.zero);
+            musicPreviewButton = CreateButton(previewPlate.transform,"Listen","ÉCOUTER 8 S",new Color(0.06f,0.25f,0.32f),()=> { var items=CurrentCosmetics(); if(selectedCosmeticIndex<items.Count) hudFeedback.PreviewMusic(items[selectedCosmeticIndex].VisualIndex); });
+            SetRect(musicPreviewButton.GetComponent<RectTransform>(),new Vector2(0.3f,0.37f),new Vector2(0.7f,0.62f),Vector2.zero,Vector2.zero);
+            SetRect(musicPreviewButton.GetComponent<RectTransform>(),new Vector2(0.43f,0.55f),new Vector2(0.91f,0.8f),Vector2.zero,Vector2.zero);
+            musicDescription = CreateText(previewPlate.transform,"Music Description",string.Empty,19,TextAnchor.MiddleCenter,FontStyle.Bold);
+            SetRect(musicDescription.rectTransform,new Vector2(.06f,.32f),new Vector2(.94f,.47f),Vector2.zero,Vector2.zero);
             hangarItemName=CreateText(previewPlate.transform,"Item Name",string.Empty,27,TextAnchor.LowerLeft,FontStyle.Bold); SetRect(hangarItemName.rectTransform,new Vector2(0.04f,0.05f),new Vector2(0.47f,0.3f),Vector2.zero,Vector2.zero);
             hangarItemPrice=CreateText(previewPlate.transform,"Price",string.Empty,22,TextAnchor.LowerRight,FontStyle.Bold); hangarItemPrice.color=new Color(1f,0.72f,0.24f); SetRect(hangarItemPrice.rectTransform,new Vector2(0.53f,0.05f),new Vector2(0.96f,0.3f),Vector2.zero,Vector2.zero);
             for(int i=0;i<4;i++){int slot=i; GameObject b=CreateButton(card.transform,"Cosmetic "+i,string.Empty,new Color(0.04f,0.13f,0.21f),()=>SelectCosmeticCard(slot)); cosmeticCards[i]=b.GetComponent<Button>(); SetRect(b.GetComponent<RectTransform>(),new Vector2(0.05f+i*0.235f,0.32f),new Vector2(0.255f+i*0.235f,0.47f),Vector2.zero,Vector2.zero); cosmeticCardPreviews[i]=CreateImage(b.transform,"Preview",Color.white); cosmeticCardPreviews[i].preserveAspect=true; cosmeticCardPreviews[i].raycastTarget=false; SetRect(cosmeticCardPreviews[i].rectTransform,new Vector2(0.2f,0.37f),new Vector2(0.8f,0.92f),Vector2.zero,Vector2.zero); cosmeticCardLabels[i]=b.transform.Find("Label").GetComponent<Text>(); cosmeticCardLabels[i].fontSize=14; cosmeticCardLabels[i].alignment=TextAnchor.LowerCenter; }
@@ -1452,15 +1075,30 @@ namespace OrbitBreaker
         private void SelectHangarCategory(CosmeticKind kind){hangarCategory=kind;hangarPage=0;selectedCosmeticIndex=0;RefreshHangar(string.Empty);}
         private void ChangeHangarPage(int delta){var list=CurrentCosmetics();int pages=Mathf.Max(1,Mathf.CeilToInt(list.Count/4f));hangarPage=(hangarPage+delta+pages)%pages;selectedCosmeticIndex=hangarPage*4;RefreshHangar(string.Empty);}
         private void SelectCosmeticCard(int slot){selectedCosmeticIndex=hangarPage*4+slot;RefreshHangar(string.Empty);}
-        private void BuyOrEquipSelected(){var list=CurrentCosmetics();if(selectedCosmeticIndex<0||selectedCosmeticIndex>=list.Count)return;var item=list[selectedCosmeticIndex];if(!MetaProgression.BuyOrEquip(item)){RefreshHangar("MATÉRIAUX INSUFFISANTS");return;}CosmeticsChanged?.Invoke();RefreshHangar(item.Name+" ÉQUIPÉ");}
+        private void BuyOrEquipSelected(){var list=CurrentCosmetics();if(selectedCosmeticIndex<0||selectedCosmeticIndex>=list.Count)return;var item=list[selectedCosmeticIndex];if(!MetaProgression.BuyOrEquip(item)){RefreshHangar(DailyCourse.IsExclusiveRocket(item.Id)?"EXCLUSIVITÉ DU PARCOURS DU JOUR":"MATÉRIAUX INSUFFISANTS");return;}if(item.Kind==CosmeticKind.Music)hudFeedback.SelectMusic(item.VisualIndex);else CosmeticsChanged?.Invoke();RefreshHangar(item.Name+" ÉQUIPÉ");}
         private void RefreshHangar(string message)
         {
+            hudFeedback.StopMusicPreview();
+            foreach (var label in cosmeticCardLabels)
+            {
+                label.fontSize = 18; label.resizeTextForBestFit = true;
+                label.resizeTextMinSize = 12; label.resizeTextMaxSize = 18;
+                label.alignment = TextAnchor.MiddleCenter;
+                SetRect(label.rectTransform,new Vector2(.03f,.035f),new Vector2(.97f,.32f),Vector2.zero,Vector2.zero);
+            }
             var list=CurrentCosmetics();if(list.Count==0)return;selectedCosmeticIndex=Mathf.Clamp(selectedCosmeticIndex,0,list.Count-1);var selected=list[selectedCosmeticIndex];hangarCurrencyText.text=MetaProgression.Materials+"  MATÉRIAUX";
             for(int i=0;i<4;i++){int index=hangarPage*4+i;bool visible=index<list.Count;cosmeticCards[i].gameObject.SetActive(visible);if(!visible)continue;var item=list[index];cosmeticCardLabels[i].text=item.Name;cosmeticCardPreviews[i].sprite=CosmeticPreview(item);cosmeticCardPreviews[i].color=CosmeticColor(item);cosmeticCards[i].GetComponent<Image>().color=index==selectedCosmeticIndex?new Color(0.08f,0.4f,0.5f):new Color(0.04f,0.13f,0.21f);}
-            for(int i=0;i<4;i++)hangarTabImages[i].color=i==(int)hangarCategory?new Color(0.1f,0.43f,0.54f):new Color(0.045f,0.14f,0.22f);
-            hangarPreview.sprite=CosmeticPreview(selected);hangarPreview.color=CosmeticColor(selected);hangarItemName.text=selected.Name;bool owned=MetaProgression.Owned(selected);bool equipped=MetaProgression.Selected(selected.Kind)==selected.VisualIndex;hangarItemPrice.text=owned?"ACQUIS":selected.Price+" MAT";hangarActionLabel.text=equipped?"ÉQUIPÉ":owned?"ÉQUIPER":"ACHETER · "+selected.Price;hangarActionButton.interactable=!equipped;hangarStatus.text=string.IsNullOrEmpty(message)?"PAGE "+(hangarPage+1)+" / "+Mathf.Max(1,Mathf.CeilToInt(list.Count/4f)):message;
+            for(int i=0;i<hangarTabImages.Length;i++)hangarTabImages[i].color=i==(int)hangarCategory?new Color(0.1f,0.43f,0.54f):new Color(0.045f,0.14f,0.22f);
+            musicPreviewButton.SetActive(selected.Kind==CosmeticKind.Music);
+            hangarPreview.enabled=true;
+            bool music = selected.Kind == CosmeticKind.Music;
+            musicDescription.gameObject.SetActive(music);
+            musicDescription.text = music ? MusicLibrary.Description(selected.VisualIndex) : string.Empty;
+            SetRect(hangarPreview.rectTransform,music?new Vector2(.12f,.52f):new Vector2(.31f,.34f),music?new Vector2(.34f,.87f):new Vector2(.69f,.95f),Vector2.zero,Vector2.zero);
+            hangarBackdrop.sprite=RuntimeAssets.GetBackgroundSprite(MetaProgression.Selected(CosmeticKind.Background));
+            hangarPreview.sprite=CosmeticPreview(selected);hangarPreview.color=CosmeticColor(selected);hangarItemName.text=selected.Name;bool owned=MetaProgression.Owned(selected);bool equipped=MetaProgression.Selected(selected.Kind)==selected.VisualIndex;bool daily=DailyCourse.IsExclusiveRocket(selected.Id);int days=DailyCourse.RequiredDaysForRocket(selected.Id);hangarItemPrice.text=owned?"ACQUIS":daily?days+" PARCOURS":""+selected.Price+" MAT";hangarActionLabel.text=equipped?"ÉQUIPÉ":owned?"ÉQUIPER":daily?"RÉCOMPENSE QUOTIDIENNE":"ACHETER · "+selected.Price;hangarActionButton.interactable=!equipped&&!daily||owned&&!equipped;hangarStatus.text=string.IsNullOrEmpty(message)?"PAGE "+(hangarPage+1)+" / "+Mathf.Max(1,Mathf.CeilToInt(list.Count/4f)):message;
         }
-        private static Sprite CosmeticPreview(CosmeticDefinition item){return item.Kind==CosmeticKind.Rocket?RuntimeAssets.GetRocketSprite(item.VisualIndex):item.Kind==CosmeticKind.PlanetPack?RuntimeAssets.GetPlanetPackSprite(item.VisualIndex,item.VisualIndex*7+1):item.Kind==CosmeticKind.Background?RuntimeAssets.GetBackgroundSprite(item.VisualIndex):RuntimeAssets.CircleSprite;}
+        private static Sprite CosmeticPreview(CosmeticDefinition item){return item.Kind==CosmeticKind.Rocket?RuntimeAssets.GetRocketSprite(item.VisualIndex):item.Kind==CosmeticKind.PlanetPack?RuntimeAssets.GetPlanetPackSprite(item.VisualIndex,item.VisualIndex*7+1):item.Kind==CosmeticKind.Background?RuntimeAssets.GetBackgroundSprite(item.VisualIndex):item.Kind==CosmeticKind.Music?RuntimeAssets.MusicIcon:RuntimeAssets.GetTrailSprite(item.VisualIndex);}
         private static Color CosmeticColor(CosmeticDefinition item){return item.Kind==CosmeticKind.Trail?GameProgression.TrailColor(item.VisualIndex):Color.white;}
 
         private void CreateHyperspaceOverlay(Transform safe)
@@ -1625,173 +1263,6 @@ namespace OrbitBreaker
             return panel;
         }
 
-        private GameObject CreateSettingsPanel(Transform safe, OrbitFeedback audio)
-        {
-            var panel = new GameObject("Settings Panel", typeof(RectTransform), typeof(Image));
-            panel.transform.SetParent(safe, false);
-            SetRect(panel.GetComponent<RectTransform>(), new Vector2(0.045f, 0.08f), new Vector2(0.955f, 0.9f), Vector2.zero, Vector2.zero);
-            panel.GetComponent<Image>().color = new Color(0.025f, 0.065f, 0.12f, 0.98f);
-            ApplyRounded(panel.GetComponent<Image>());
-
-            Text heading = CreateText(panel.transform, "Settings Title", "RÉGLAGES", 48, TextAnchor.MiddleCenter, FontStyle.Bold);
-            heading.color = new Color(0.76f, 0.98f, 1f, 1f);
-            SetRect(heading.rectTransform, new Vector2(0.1f, 0.86f), new Vector2(0.9f, 0.98f), Vector2.zero, Vector2.zero);
-
-            GameObject soundTab = CreateButton(panel.transform, "Sound Tab", "SON", new Color(0.08f, 0.3f, 0.42f, 1f), () => ShowSettingsTab(0));
-            GameObject gameplayTab = CreateButton(panel.transform, "Gameplay Tab", "GAMEPLAY", new Color(0.055f, 0.16f, 0.25f, 1f), () => ShowSettingsTab(1));
-            GameObject videoTab = CreateButton(panel.transform, "Video Tab", "VIDÉO", new Color(0.055f, 0.16f, 0.25f, 1f), () => ShowSettingsTab(2));
-            SetRect(soundTab.GetComponent<RectTransform>(), new Vector2(0.07f, 0.76f), new Vector2(0.34f, 0.84f), Vector2.zero, Vector2.zero);
-            SetRect(gameplayTab.GetComponent<RectTransform>(), new Vector2(0.365f, 0.76f), new Vector2(0.635f, 0.84f), Vector2.zero, Vector2.zero);
-            SetRect(videoTab.GetComponent<RectTransform>(), new Vector2(0.66f, 0.76f), new Vector2(0.93f, 0.84f), Vector2.zero, Vector2.zero);
-            settingsTabImages = new[] { soundTab.GetComponent<Image>(), gameplayTab.GetComponent<Image>(), videoTab.GetComponent<Image>() };
-
-            settingsAudioPage = CreateSettingsPage(panel.transform, "Sound Page");
-            CreateVolumeRow(settingsAudioPage.transform, "GLOBAL", 0.68f, audio.MasterVolume, audio.SetMasterVolume);
-            CreateVolumeRow(settingsAudioPage.transform, "MUSIQUE", 0.44f, audio.MusicVolume, audio.SetMusicVolume);
-            CreateVolumeRow(settingsAudioPage.transform, "EFFETS", 0.2f, audio.EffectsVolume, audio.SetEffectsVolume);
-
-            settingsGameplayPage = CreateSettingsPage(panel.transform, "Gameplay Page");
-            Text gameplayNote = CreateText(settingsGameplayPage.transform, "Visual Options Note", "MASQUER UNE AIDE NE CHANGE PAS LE GAMEPLAY NI LES COLLISIONS", 16, TextAnchor.MiddleCenter, FontStyle.Bold);
-            gameplayNote.color = new Color(1f, 0.72f, 0.18f, 0.95f);
-            gameplayNote.resizeTextForBestFit = true;
-            gameplayNote.resizeTextMinSize = 11;
-            gameplayNote.resizeTextMaxSize = 16;
-            SetRect(gameplayNote.rectTransform, new Vector2(0.04f, 0.89f), new Vector2(0.96f, 1f), Vector2.zero, Vector2.zero);
-            CreateToggleRow(settingsGameplayPage.transform, "GUIDES DE ROTATION", 0.71f, GamePreferences.RotationGuides, GamePreferences.SetRotationGuides);
-            CreateToggleRow(settingsGameplayPage.transform, "ANNEAUX D'ORBITE", 0.535f, GamePreferences.OrbitRings, GamePreferences.SetOrbitRings);
-            CreateToggleRow(settingsGameplayPage.transform, "JAUGES DE VOL", 0.36f, GamePreferences.FlightGauges, GamePreferences.SetFlightGauges);
-            CreateToggleRow(settingsGameplayPage.transform, "BOUCLIER D'IMMUNITÉ", 0.185f, GamePreferences.Shield, GamePreferences.SetShield);
-            CreateToggleRow(settingsGameplayPage.transform, "VIBRATIONS", 0.01f, GamePreferences.Haptics, GamePreferences.SetHaptics);
-
-            settingsVideoPage = CreateSettingsPage(panel.transform, "Video Page");
-            CreateFrameRateSelector(settingsVideoPage.transform);
-            CreateToggleRow(settingsVideoPage.transform, "FOND DYNAMIQUE", 0.60f, GamePreferences.DynamicBackground, GamePreferences.SetDynamicBackground);
-            CreateToggleRow(settingsVideoPage.transform, "EFFETS RENFORCÉS", 0.48f, GamePreferences.EnhancedEffects, GamePreferences.SetEnhancedEffects);
-            CreateToggleRow(settingsVideoPage.transform, "SECOUSSE À LA CAPTURE", 0.36f, GamePreferences.CaptureShake, GamePreferences.SetCaptureShake);
-            CreateToggleRow(settingsVideoPage.transform, "SECOUSSE D'EXPLOSION", 0.24f, GamePreferences.ExplosionShake, GamePreferences.SetExplosionShake);
-            CreateToggleRow(settingsVideoPage.transform, "TREMBLEMENT EN VOL", 0.12f, GamePreferences.FlightShake, GamePreferences.SetFlightShake);
-            CreateToggleRow(settingsVideoPage.transform, "CAMÉRA STABLE", 0f, GamePreferences.FixedCamera, GamePreferences.SetFixedCamera);
-
-            GameObject close = CreateButton(panel.transform, "Close Settings", "FERMER", new Color(0.12f, 0.48f, 0.58f, 0.95f), ToggleSettings);
-            SetRect(close.GetComponent<RectTransform>(), new Vector2(0.27f, 0.035f), new Vector2(0.73f, 0.105f), Vector2.zero, Vector2.zero);
-            ShowSettingsTab(0);
-            return panel;
-        }
-
-        private static GameObject CreateSettingsPage(Transform parent, string name)
-        {
-            var page = new GameObject(name, typeof(RectTransform));
-            page.transform.SetParent(parent, false);
-            SetRect(page.GetComponent<RectTransform>(), new Vector2(0.055f, 0.13f), new Vector2(0.945f, 0.735f), Vector2.zero, Vector2.zero);
-            return page;
-        }
-
-        private void ShowSettingsTab(int index)
-        {
-            if (settingsAudioPage == null) return;
-            settingsAudioPage.SetActive(index == 0);
-            settingsGameplayPage.SetActive(index == 1);
-            settingsVideoPage.SetActive(index == 2);
-            for (int i = 0; i < settingsTabImages.Length; i++)
-            {
-                settingsTabImages[i].color = i == index
-                    ? new Color(0.08f, 0.42f, 0.56f, 1f)
-                    : new Color(0.045f, 0.13f, 0.22f, 1f);
-            }
-        }
-
-        private void CreateFrameRateSelector(Transform parent)
-        {
-            Text label = CreateText(parent, "Frame Rate Label", "FRÉQUENCE D'AFFICHAGE", 20, TextAnchor.MiddleCenter, FontStyle.Bold);
-            label.color = new Color(0.72f, 0.9f, 1f, 1f);
-            SetRect(label.rectTransform, new Vector2(0.06f, 0.88f), new Vector2(0.94f, 0.99f), Vector2.zero, Vector2.zero);
-
-            int[] rates = { 30, 60, 120 };
-            frameRateButtonImages = new Image[rates.Length];
-            for (int i = 0; i < rates.Length; i++)
-            {
-                int rate = rates[i];
-                GameObject button = CreateButton(parent, rate + " FPS", rate.ToString(), new Color(0.045f, 0.13f, 0.22f, 1f), () => SelectFrameRate(rate));
-                float left = 0.12f + i * 0.265f;
-                SetRect(button.GetComponent<RectTransform>(), new Vector2(left, 0.75f), new Vector2(left + 0.23f, 0.865f), Vector2.zero, Vector2.zero);
-                frameRateButtonImages[i] = button.GetComponent<Image>();
-            }
-            RefreshFrameRateSelector();
-        }
-
-        private void SelectFrameRate(int frameRate)
-        {
-            GamePreferences.SetTargetFrameRate(frameRate);
-            RefreshFrameRateSelector();
-        }
-
-        private void RefreshFrameRateSelector()
-        {
-            if (frameRateButtonImages == null) return;
-            int selected = GamePreferences.TargetFrameRate >= 120 ? 2 : GamePreferences.TargetFrameRate >= 60 ? 1 : 0;
-            for (int i = 0; i < frameRateButtonImages.Length; i++)
-            {
-                frameRateButtonImages[i].color = i == selected
-                    ? new Color(0.08f, 0.62f, 0.72f, 1f)
-                    : new Color(0.045f, 0.13f, 0.22f, 1f);
-            }
-        }
-
-        private static void CreateVolumeRow(Transform parent, string label, float centerY, float value, UnityEngine.Events.UnityAction<float> callback)
-        {
-            Text text = CreateText(parent, label, label, 28, TextAnchor.MiddleLeft, FontStyle.Bold);
-            SetRect(text.rectTransform, new Vector2(0.1f, centerY), new Vector2(0.42f, centerY + 0.1f), Vector2.zero, Vector2.zero);
-
-            var sliderObject = new GameObject(label + " Slider", typeof(RectTransform), typeof(Slider));
-            sliderObject.transform.SetParent(parent, false);
-            SetRect(sliderObject.GetComponent<RectTransform>(), new Vector2(0.43f, centerY + 0.015f), new Vector2(0.88f, centerY + 0.085f), Vector2.zero, Vector2.zero);
-            Slider slider = sliderObject.GetComponent<Slider>();
-            slider.minValue = 0f;
-            slider.maxValue = 1f;
-
-            Image background = CreateImage(sliderObject.transform, "Track", new Color(0.12f, 0.24f, 0.35f, 1f));
-            ApplyRounded(background);
-            SetRect(background.rectTransform, new Vector2(0f, 0.37f), new Vector2(1f, 0.63f), Vector2.zero, Vector2.zero);
-            Image fill = CreateImage(background.transform, "Fill", new Color(0.2f, 0.9f, 1f, 1f));
-            ApplyRounded(fill);
-            SetRect(fill.rectTransform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-            Image handle = CreateImage(sliderObject.transform, "Handle", new Color(0.92f, 1f, 1f, 1f));
-            handle.sprite = RuntimeAssets.CircleSprite;
-            SetRect(handle.rectTransform, new Vector2(0f, 0.15f), new Vector2(0.08f, 0.85f), Vector2.zero, Vector2.zero);
-            slider.fillRect = fill.rectTransform;
-            slider.handleRect = handle.rectTransform;
-            slider.targetGraphic = handle;
-            slider.value = value;
-            slider.onValueChanged.AddListener(callback);
-        }
-
-        private static void CreateToggleRow(Transform parent, string label, float bottom, bool value, UnityEngine.Events.UnityAction<bool> callback)
-        {
-            Text text = CreateText(parent, label + " Label", label, 22, TextAnchor.MiddleLeft, FontStyle.Bold);
-            text.color = new Color(0.72f, 0.9f, 1f, 1f);
-            SetRect(text.rectTransform, new Vector2(0.06f, bottom), new Vector2(0.72f, bottom + 0.12f), Vector2.zero, Vector2.zero);
-
-            var toggleObject = new GameObject(label + " Toggle", typeof(RectTransform), typeof(Image), typeof(Toggle));
-            toggleObject.transform.SetParent(parent, false);
-            SetRect(toggleObject.GetComponent<RectTransform>(), new Vector2(0.76f, bottom + 0.025f), new Vector2(0.94f, bottom + 0.095f), Vector2.zero, Vector2.zero);
-            Image background = toggleObject.GetComponent<Image>();
-            background.sprite = RuntimeAssets.RoundedRectSprite;
-            background.type = Image.Type.Sliced;
-            background.color = new Color(0.06f, 0.16f, 0.24f, 1f);
-
-            Image check = CreateImage(toggleObject.transform, "Knob", new Color(0.9f, 1f, 1f, 1f));
-            check.sprite = RuntimeAssets.CircleSprite;
-            check.preserveAspect = true;
-            check.raycastTarget = false;
-            Toggle toggle = toggleObject.GetComponent<Toggle>();
-            toggle.targetGraphic = background;
-            toggle.transition = Selectable.Transition.None;
-            toggle.SetIsOnWithoutNotify(value);
-            ToggleSwitchVisual visual = toggleObject.AddComponent<ToggleSwitchVisual>();
-            visual.Initialize(background, check.rectTransform, value);
-            toggle.onValueChanged.AddListener(visual.SetValue);
-            toggle.onValueChanged.AddListener(callback);
-        }
 
         private static GameObject CreateButton(Transform parent, string name, string label, Color color, UnityEngine.Events.UnityAction callback)
         {
@@ -1927,328 +1398,6 @@ namespace OrbitBreaker
             rect.pivot = Vector2.one * 0.5f;
             rect.anchoredPosition = Vector2.zero;
             rect.sizeDelta = Vector2.one * size;
-        }
-    }
-
-    public sealed class OrbitFeedback : MonoBehaviour
-    {
-        private const string MasterVolumeKey = "OrbitBreaker.Audio.Master";
-        private const string MusicVolumeKey = "OrbitBreaker.Audio.Music";
-        private const string EffectsVolumeKey = "OrbitBreaker.Audio.Effects";
-        private AudioSource audioSource;
-        private AudioSource musicSource;
-        private AudioSource chargeSource;
-        private AudioSource skipSource;
-        private AudioSource warpSource;
-        private AudioClip launchClip;
-        private AudioClip captureClip;
-        private AudioClip perfectClip;
-        private AudioClip synchronizationMissClip;
-        private AudioClip deathClip;
-        private AudioClip skipClip;
-        private AudioClip nearMissClip;
-        private AudioClip materialClip;
-        private AudioClip challengeCompleteClip;
-        private AudioClip challengeRewardClip;
-        private AudioClip powerUpClip;
-
-        public float MasterVolume { get; private set; }
-        public float MusicVolume { get; private set; }
-        public float EffectsVolume { get; private set; }
-
-        public void Initialize()
-        {
-            audioSource = gameObject.AddComponent<AudioSource>();
-            audioSource.playOnAwake = false;
-            musicSource = gameObject.AddComponent<AudioSource>();
-            musicSource.playOnAwake = false;
-            musicSource.loop = true;
-            musicSource.clip = RuntimeAssets.CreateChiptuneLoop();
-            chargeSource = gameObject.AddComponent<AudioSource>();
-            chargeSource.playOnAwake = false;
-            chargeSource.loop = true;
-            chargeSource.clip = RuntimeAssets.CreateChargeLoop();
-            skipSource = gameObject.AddComponent<AudioSource>();
-            skipSource.playOnAwake = false;
-            warpSource = gameObject.AddComponent<AudioSource>();
-            warpSource.playOnAwake = false;
-            warpSource.loop = true;
-            warpSource.clip = RuntimeAssets.CreateChargeLoop();
-            launchClip = RuntimeAssets.CreateTone("Launch", 340f, 0.09f, 0.32f);
-            captureClip = RuntimeAssets.CreateTone("Capture", 620f, 0.12f, 0.34f);
-            perfectClip = RuntimeAssets.CreateTone("Perfect", 880f, 0.16f, 0.34f);
-            synchronizationMissClip = RuntimeAssets.CreateTone("Synchronization Miss", 245f, 0.12f, 0.22f);
-            deathClip = RuntimeAssets.CreateTone("Break", 115f, 0.32f, 0.44f);
-            skipClip = RuntimeAssets.CreateSkipStinger();
-            nearMissClip = RuntimeAssets.CreateTone("Near Miss", 1120f, 0.11f, 0.3f);
-            materialClip = RuntimeAssets.CreateTone("Material", 1320f, 0.13f, 0.32f);
-            challengeCompleteClip = RuntimeAssets.CreateTone("Challenge Complete", 940f, 0.2f, 0.3f);
-            challengeRewardClip = RuntimeAssets.CreateSkipStinger();
-            powerUpClip = RuntimeAssets.CreateTone("Power Up", 740f, 0.22f, 0.34f);
-            MasterVolume = PlayerPrefs.GetFloat(MasterVolumeKey, 0.85f);
-            MusicVolume = PlayerPrefs.GetFloat(MusicVolumeKey, 0.55f);
-            EffectsVolume = PlayerPrefs.GetFloat(EffectsVolumeKey, 0.8f);
-            ApplyVolumes();
-            musicSource.Play();
-        }
-
-        public void SetMasterVolume(float value)
-        {
-            MasterVolume = Mathf.Clamp01(value);
-            PlayerPrefs.SetFloat(MasterVolumeKey, MasterVolume);
-            ApplyVolumes();
-        }
-
-        public void UpdateWarpAudio(float intensity)
-        {
-            if (warpSource == null) return;
-            if (intensity <= 0.001f) { warpSource.Stop(); return; }
-            UpdateCharge(1f, false);
-            warpSource.volume = EffectsVolume * intensity * 0.3f;
-            warpSource.pitch = Mathf.Lerp(0.55f, 1.8f, intensity);
-            if (!warpSource.isPlaying) warpSource.Play();
-        }
-
-        public void SetMusicVolume(float value)
-        {
-            MusicVolume = Mathf.Clamp01(value);
-            PlayerPrefs.SetFloat(MusicVolumeKey, MusicVolume);
-            ApplyVolumes();
-        }
-
-        public void SetEffectsVolume(float value)
-        {
-            EffectsVolume = Mathf.Clamp01(value);
-            PlayerPrefs.SetFloat(EffectsVolumeKey, EffectsVolume);
-            ApplyVolumes();
-        }
-
-        private void ApplyVolumes()
-        {
-            AudioListener.volume = MasterVolume;
-            if (musicSource != null) musicSource.volume = MusicVolume;
-            if (audioSource != null) audioSource.volume = EffectsVolume;
-            if (chargeSource != null) chargeSource.volume = EffectsVolume * 0.42f;
-            if (skipSource != null) skipSource.volume = EffectsVolume * 0.9f;
-        }
-
-        public void Launch(Vector2 position)
-        {
-            audioSource.PlayOneShot(launchClip);
-            StartCoroutine(Pulse(position, new Color(0.25f, 0.9f, 1f, 0.8f), 0.28f, 0.7f));
-        }
-
-        public void Capture(Vector2 position, bool perfect, int skippedAnchors)
-        {
-            UpdateCharge(1f, false);
-            audioSource.PlayOneShot(perfect ? perfectClip : captureClip);
-            if (skippedAnchors > 0)
-            {
-                skipSource.pitch = Mathf.Clamp(0.96f + (skippedAnchors - 1) * 0.08f, 0.96f, 1.28f);
-                skipSource.PlayOneShot(skipClip);
-                if (skippedAnchors >= 2) StartCoroutine(DoubleSkipHaptic());
-                else TriggerHaptic(46L, 115);
-            }
-            else TriggerHaptic(22L, 42);
-            StartCoroutine(Pulse(position, perfect ? new Color(1f, 0.72f, 0.2f, 0.9f) : new Color(0.2f, 1f, 0.75f, 0.85f), 0.4f, perfect ? 1.5f : 1.05f));
-        }
-
-        public void SynchronizationMiss(Vector2 position)
-        {
-            audioSource.PlayOneShot(synchronizationMissClip, 0.72f);
-            StartCoroutine(Pulse(position, new Color(0.35f, 0.65f, 1f, 0.58f), 0.22f, 0.72f));
-        }
-
-        public void UpdateCharge(float multiplier, bool flying)
-        {
-            if (chargeSource == null) return;
-            if (!flying)
-            {
-                if (chargeSource.isPlaying) chargeSource.Stop();
-                return;
-            }
-            float normalized = Mathf.InverseLerp(1f, GameTuning.MaxDistanceMultiplier, multiplier);
-            chargeSource.pitch = Mathf.Lerp(0.82f, 1.85f, normalized);
-            chargeSource.volume = EffectsVolume * Mathf.Lerp(0.18f, 0.48f, normalized);
-            if (!chargeSource.isPlaying) chargeSource.Play();
-        }
-
-        public void NearMiss(Vector2 position, int chain)
-        {
-            audioSource.pitch = Mathf.Clamp(1f + (chain - 1) * 0.08f, 1f, 1.35f);
-            audioSource.PlayOneShot(nearMissClip);
-            audioSource.pitch = 1f;
-            TriggerHaptic(18L, 55);
-            StartCoroutine(Pulse(position, new Color(1f, 0.7f, 0.2f, 0.9f), 0.24f, 0.85f));
-        }
-
-        public void Material(Vector2 position, int value)
-        {
-            audioSource.pitch = value >= 7 ? 1.35f : value >= 3 ? 1.16f : 1f;
-            audioSource.PlayOneShot(materialClip);
-            audioSource.pitch = 1f;
-            TriggerHaptic(value >= 7 ? 45L : 20L, value >= 7 ? 120 : 52);
-            StartCoroutine(Pulse(position, value >= 7 ? new Color(1f, 0.72f, 0.2f, 0.95f) : new Color(0.25f, 0.95f, 1f, 0.9f), 0.24f, value >= 7 ? 1.25f : 0.8f));
-        }
-
-        public void ChallengeCompleted()
-        {
-            audioSource.pitch = 1.08f;
-            audioSource.PlayOneShot(challengeCompleteClip, 0.7f);
-            audioSource.pitch = 1f;
-            TriggerHaptic(28L, 70);
-        }
-
-        public void ChallengeRewardClaimed()
-        {
-            audioSource.pitch = 1.22f;
-            audioSource.PlayOneShot(challengeRewardClip, 0.78f);
-            audioSource.pitch = 1f;
-            TriggerHaptic(48L, 120);
-        }
-
-        public void PowerUp(Vector2 position, PowerUpType type, bool success)
-        {
-            PowerUpDefinition definition = PowerUpProgression.Definition(type);
-            audioSource.pitch = success ? 1f + (int)type * 0.08f : 0.7f;
-            audioSource.PlayOneShot(powerUpClip, success ? 0.9f : 0.45f);
-            audioSource.pitch = 1f;
-            if (success) TriggerHaptic(30L, 85);
-            StartCoroutine(Pulse(position, success ? definition.Color : new Color(1f, 0.28f, 0.3f), 0.3f, success ? 1.15f : 0.6f));
-        }
-
-        public void Death(Vector2 position, DeathReason reason)
-        {
-            UpdateCharge(1f, false);
-            audioSource.PlayOneShot(deathClip);
-            if (reason == DeathReason.Breaker)
-            {
-                StartCoroutine(Pulse(position, new Color(1f, 0.15f, 0.35f, 0.92f), 0.58f, 1.8f));
-                StartCoroutine(Explosion(position));
-            }
-            else
-            {
-                StartCoroutine(Pulse(position, new Color(0.22f, 0.68f, 1f, 0.82f), 0.85f, 3.1f));
-                StartCoroutine(PulseDelayed(position, new Color(0.55f, 0.3f, 1f, 0.55f), 0.16f));
-            }
-            TriggerHaptic(135L, 210);
-        }
-
-        private IEnumerator DoubleSkipHaptic()
-        {
-            TriggerHaptic(38L, 125);
-            float elapsed = 0f;
-            while (elapsed < 0.095f)
-            {
-                elapsed += Time.unscaledDeltaTime;
-                yield return null;
-            }
-            TriggerHaptic(58L, 175);
-        }
-
-        private static void TriggerHaptic(long durationMilliseconds, int amplitude)
-        {
-            if (!GamePreferences.Haptics) return;
-#if UNITY_ANDROID && !UNITY_EDITOR
-            try
-            {
-                using var unityPlayer = new AndroidJavaClass("com.unity3d.player.UnityPlayer");
-                using AndroidJavaObject activity = unityPlayer.GetStatic<AndroidJavaObject>("currentActivity");
-                using AndroidJavaObject vibrator = activity.Call<AndroidJavaObject>("getSystemService", "vibrator");
-                using var version = new AndroidJavaClass("android.os.Build$VERSION");
-                int sdk = version.GetStatic<int>("SDK_INT");
-                if (sdk >= 26)
-                {
-                    using var vibrationEffect = new AndroidJavaClass("android.os.VibrationEffect");
-                    using AndroidJavaObject effect = vibrationEffect.CallStatic<AndroidJavaObject>("createOneShot", durationMilliseconds, Mathf.Clamp(amplitude, 1, 255));
-                    vibrator.Call("vibrate", effect);
-                }
-                else vibrator.Call("vibrate", durationMilliseconds);
-            }
-            catch (System.Exception exception)
-            {
-                Debug.LogWarning("Haptic feedback unavailable: " + exception.Message);
-            }
-#elif UNITY_IOS && !UNITY_EDITOR
-            Handheld.Vibrate();
-#endif
-        }
-
-        private IEnumerator PulseDelayed(Vector2 position, Color color, float delay)
-        {
-            float elapsed = 0f;
-            while (elapsed < delay)
-            {
-                elapsed += Time.unscaledDeltaTime;
-                yield return null;
-            }
-            yield return Pulse(position, color, 0.9f, 4.2f);
-        }
-
-        private IEnumerator Explosion(Vector2 position)
-        {
-            int count = GamePreferences.EnhancedEffects ? 12 : 6;
-            var shards = new GameObject[count];
-            var renderers = new SpriteRenderer[count];
-            for (int i = 0; i < count; i++)
-            {
-                float angle = i / (float)count * Mathf.PI * 2f + 0.13f;
-                shards[i] = new GameObject("Explosion Shard");
-                shards[i].transform.position = position;
-                shards[i].transform.rotation = Quaternion.Euler(0f, 0f, angle * Mathf.Rad2Deg + 45f);
-                shards[i].transform.localScale = new Vector3(0.08f, 0.22f, 1f);
-                renderers[i] = shards[i].AddComponent<SpriteRenderer>();
-                renderers[i].sprite = RuntimeAssets.SquareSprite;
-                renderers[i].sortingOrder = 22;
-            }
-            float elapsed = 0f;
-            const float duration = 0.62f;
-            while (elapsed < duration)
-            {
-                elapsed += Time.unscaledDeltaTime;
-                float t = Mathf.Clamp01(elapsed / duration);
-                for (int i = 0; i < count; i++)
-                {
-                    float angle = i / (float)count * Mathf.PI * 2f + 0.13f;
-                    Vector2 direction = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
-                    shards[i].transform.position = position + direction * (2.2f * (1f - Mathf.Pow(1f - t, 2f)));
-                    shards[i].transform.Rotate(0f, 0f, 420f * Time.unscaledDeltaTime);
-                    renderers[i].color = new Color(1f, Mathf.Lerp(0.75f, 0.12f, t), 0.2f, 1f - t);
-                }
-                yield return null;
-            }
-            for (int i = 0; i < count; i++) Destroy(shards[i]);
-        }
-
-        private IEnumerator Pulse(Vector2 position, Color color, float duration, float finalScale)
-        {
-            var instance = new GameObject("Feedback Pulse");
-            instance.transform.position = position;
-            var line = instance.AddComponent<LineRenderer>();
-            line.useWorldSpace = false;
-            line.loop = true;
-            line.positionCount = 48;
-            line.widthMultiplier = 0.08f;
-            line.sharedMaterial = RuntimeAssets.SpriteMaterial;
-            line.sortingOrder = 20;
-            for (int i = 0; i < line.positionCount; i++)
-            {
-                float angle = i / (float)line.positionCount * Mathf.PI * 2f;
-                line.SetPosition(i, new Vector3(Mathf.Cos(angle), Mathf.Sin(angle)) * 0.34f);
-            }
-
-            float elapsed = 0f;
-            while (elapsed < duration)
-            {
-                elapsed += Time.unscaledDeltaTime;
-                float t = Mathf.Clamp01(elapsed / duration);
-                instance.transform.localScale = Vector3.one * Mathf.Lerp(0.5f, finalScale, 1f - Mathf.Pow(1f - t, 3f));
-                Color faded = new Color(color.r, color.g, color.b, color.a * (1f - t));
-                line.startColor = faded;
-                line.endColor = faded;
-                yield return null;
-            }
-            Destroy(instance);
         }
     }
 }

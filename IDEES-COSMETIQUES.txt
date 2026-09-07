@@ -1,0 +1,72 @@
+ORBIT BREAKER — CATALOGUE D'IDEES
+50 propositions cosmétiques, sans avantage de collision, vitesse ou score.
+Conserver les silhouettes lisibles, les textures transparentes et un budget de particules mobile. Ce document est un catalogue, pas une liste d'assets déjà réalisés.
+
+VAISSEAUX (1–15)
+01. Luciole — Capsule ronde noire, hublot jaune et deux petites ailes lumineuses; battement discret des panneaux.
+02. Origami — Fusée en papier ivoire à plis bleus; ailes qui vibrent légèrement au lancement.
+03. Sardine cosmique — Boîte de conserve chromée avec ailerons et petit hublot; rivets lisibles.
+04. Scarabée — Coque émeraude segmentée, ailes dorées et lumière centrale turquoise.
+05. Théière orbitale — Théière blanche à motifs cobalt; bec orienté vers l'avant, moteur sous l'anse.
+06. Taxi lunaire — Navette jaune, damier noir et enseigne TAXI; lampes blanches à l'avant.
+07. Manta — Vaisseau aplati bleu profond, grandes ailes courbes et cœur cyan.
+08. Comète vintage — Fusée rétro rouge et crème, trois ailerons et hublot rond.
+09. Méduse — Capsule translucide violette, tentacules courts animés sans agrandir la collision.
+10. Cactus — Fusée verte cannelée, petites épines douces et fleur rose au sommet.
+11. Sous-marin — Coque laiton, hublots ronds et périscope; ambiance exploration ancienne.
+12. Geode — Coque rocheuse sombre fendue par des cristaux magenta pulsants.
+13. Skate spatial — Planche futuriste avec cockpit miniature et deux moteurs symétriques.
+14. Abeille — Corps jaune et noir, antennes et ailettes translucides; moteur miel doré.
+15. Capsule arctique — Fusée blanche et bleu glacier, verrière givrée, détails orange de secours.
+
+TRAINEES / PROPULSEURS (16–30)
+16. Poussière lunaire — Petits grains argentés qui s'éteignent rapidement; silhouette sobre.
+17. Ruban pastel — Bande rose, menthe et lavande, souple et courte pour garder la lisibilité.
+18. Pixels perdus — Carrés bleus et blancs qui se désagrègent en deux tailles.
+19. Miel solaire — Gouttes ambrées et flamme jaune chaude aux contours ronds.
+20. Aurore polaire — Ruban vert turquoise avec liseré violet, oscillation lente.
+21. Étincelles de forge — Cœur orange, étincelles rouges courtes et rares points blancs.
+22. Bulles cosmiques — Bulles transparentes cyan qui gonflent puis éclatent silencieusement.
+23. Encre stellaire — Petites volutes mauves semi-transparentes, aucune fumée opaque.
+24. Notes de vol — Quelques notes musicales dorées alternées avec des points; emission plafonnée.
+25. Cristaux de givre — Éclats hexagonaux pâles qui tournent puis fondent.
+26. Circuit imprimé — Segments verts anguleux et petits nœuds lumineux.
+27. Queue de paon — Trois filets bleu, vert et or, largeur limitée à celle du propulseur.
+28. Confettis — Triangles multicolores ponctuels; densité réduite au repos.
+29. Étoiles filantes — Petites étoiles blanches à quatre branches et halo pêche.
+30. Onde sonar — Arcs concentriques bleus se dissipant derrière le moteur.
+
+PACKS DE PLANETES (31–40)
+31. Jardin céleste — Mondes forêt, mousse, fleurs, marais et bambou; nuages pastel.
+32. Archipel océan — Planètes lagon, tempête, corail, abysses et banquise; continents minuscules.
+33. Atelier mécanique — Mondes engrenages, cuivre, rouille, acier et horlogerie; rotations lentes.
+34. Confiserie — Planètes chocolat, bonbon, glace, caramel et sucre filé; reliefs clairement ronds.
+35. Cristallines — Mondes améthyste, quartz, émeraude, saphir et opale avec bords complets.
+36. Civilisations miniatures — Mondes ville néon, villages, citadelles et jardins suspendus; détails légers.
+37. Saisons — Printemps fleuri, été océan, automne orange, hiver blanc et crépuscule violet.
+38. Papier découpé — Continents en couches de papier coloré avec ombres internes douces.
+39. Volcans endormis — Mondes basalte, obsidienne, cendres, lave et geysers; pulsations lentes.
+40. Mondes champignons — Planètes couvertes de chapeaux turquoise, corail, mauves et luminescents.
+
+FONDS (41–50)
+41. Mer de nébuleuses — Nuages bleu pétrole et corail, trois couches de parallaxe douces.
+42. Nuit polaire — Aurores vertes fines sur fond presque noir; centre du jeu dégagé.
+43. Archives stellaires — Constellations et cartes astronomiques discrètes, lignes très transparentes.
+44. Poussière d'or — Champ d'étoiles ambrées et nappes brunes, contraste élevé avec la fusée.
+45. Océan cosmique — Ondulations indigo et particules semblables à du plancton lumineux.
+46. Cité lointaine — Silhouettes de stations spatiales très éloignées, sans confusion avec les obstacles.
+47. Crépuscule binaire — Deux halos solaires diffus orange et violet sur les bords de l'écran.
+48. Rêve monochrome — Noir, bleu nuit et étoiles ivoire; ambiance minimaliste et reposante.
+49. Cathédrale de glace — Cristaux flous très éloignés et halos bleus; aucune forme opaque au centre.
+50. Festival orbital — Petits lampions éloignés et brume prune; couleurs festives à faible luminosité.
+
+PROPOSITIONS MUSICALES FUTURES (hors des 50 cosmétiques)
+M01. Lunar Lounge — 108 BPM, basse triangulaire ronde, arpèges majeurs; exploration tranquille.
+M02. Asteroid Funk — 126 BPM, basse syncopée, caisse claire bruitée; groove dansant.
+M03. Binary Chase — 152 BPM, motif mineur tendu et réponses en octave; poursuite arcade.
+M04. Aurora Dream — 118 BPM, arpèges cristallins et accords suspendus; émerveillement.
+M05. Rusty Station — 112 BPM, timbres métalliques et percussion sèche; station abandonnée.
+M06. Solar Carnival — 136 BPM, thème joyeux à réponses et basse rebondissante; fête solaire.
+M07. Deep Blue — 100 BPM, pulsations graves et mélodie espacée; plongée cosmique.
+M08. Pocket Galaxy — 128 BPM, mélodie courte mémorisable et pont léger; générique de poche.
+Chaque piste : composition originale, boucle raccordée, volume homogène, effets de gameplay toujours audibles.

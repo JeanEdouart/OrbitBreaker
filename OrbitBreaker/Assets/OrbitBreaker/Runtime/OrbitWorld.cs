@@ -228,6 +228,12 @@ namespace OrbitBreaker
             transform.localScale = Vector3.one * scale;
             transform.Rotate(0f, 0f, 46f * Time.deltaTime);
             diamond.color = new Color(1f, Mathf.Lerp(0.55f, 1f, activation), Mathf.Lerp(0.62f, 1f, activation), Mathf.Lerp(0.25f, 1f, activation));
+            outline.enabled = GamePreferences.HighContrastDebris;
+            if (outline.enabled)
+            {
+                outline.startColor = outline.endColor = new Color(1f, 0.88f, 0.28f, Mathf.Lerp(0.3f, 1f, activation));
+                diamond.color = new Color(1f, 1f, 1f, Mathf.Lerp(0.25f, 1f, activation));
+            }
         }
 
         private Vector2 PositionOnOrbit()
@@ -265,6 +271,7 @@ namespace OrbitBreaker
     public sealed class FreeDebris : MonoBehaviour
     {
         private SpriteRenderer body;
+        private LineRenderer warningOutline;
         private Vector2 origin;
         private Vector2 axis;
         private float amplitude;
@@ -297,6 +304,8 @@ namespace OrbitBreaker
             transform.Rotate(0f, 0f, (65f + speed * 18f) * Time.deltaTime);
             float pulse = 1f + Mathf.Sin(Time.unscaledTime * 5f + Id) * 0.06f;
             transform.localScale = Vector3.one * CollisionRadius * 4.4f * pulse;
+            warningOutline.enabled = GamePreferences.HighContrastDebris;
+            body.color = GamePreferences.HighContrastDebris ? Color.white : new Color(1f, 0.76f, 0.42f, 0.96f);
         }
 
         private void EnsureVisuals()
@@ -305,6 +314,21 @@ namespace OrbitBreaker
             body = gameObject.AddComponent<SpriteRenderer>();
             body.sortingOrder = 6;
             body.color = new Color(1f, 0.76f, 0.42f, 0.96f);
+            var outlineObject = new GameObject("Accessibility Warning Outline");
+            outlineObject.transform.SetParent(transform, false);
+            warningOutline = outlineObject.AddComponent<LineRenderer>();
+            warningOutline.useWorldSpace = false;
+            warningOutline.loop = true;
+            warningOutline.positionCount = 4;
+            warningOutline.sharedMaterial = RuntimeAssets.SpriteMaterial;
+            warningOutline.widthMultiplier = 0.065f;
+            warningOutline.startColor = warningOutline.endColor = new Color(1f, 0.88f, 0.28f, 1f);
+            warningOutline.sortingOrder = 7;
+            warningOutline.enabled = GamePreferences.HighContrastDebris;
+            warningOutline.SetPosition(0, new Vector3(-0.65f, -0.65f));
+            warningOutline.SetPosition(1, new Vector3(-0.65f, 0.65f));
+            warningOutline.SetPosition(2, new Vector3(0.65f, 0.65f));
+            warningOutline.SetPosition(3, new Vector3(0.65f, -0.65f));
         }
     }
 
@@ -443,7 +467,7 @@ namespace OrbitBreaker
 
         public void SetDifficultyDistance(int distance) => difficultyDistance = Mathf.Max(difficultyDistance, Mathf.Clamp(distance, 0, GameTuning.DifficultyCapDistance));
 
-        public OrbitAnchor ResetWorld()
+        public OrbitAnchor ResetWorld(int? seed = null)
         {
             EnsureRoots();
             foreach (OrbitAnchor anchor in anchors) Recycle(anchor);
@@ -456,7 +480,7 @@ namespace OrbitBreaker
             freeDebris.Clear();
             materials.Clear();
             powerUps.Clear();
-            random = new System.Random(Environment.TickCount);
+            random = new System.Random(seed ?? Environment.TickCount);
             nextSequence = 0;
             difficultyDistance = 0;
             hazardBudget = 0f;
@@ -636,32 +660,69 @@ namespace OrbitBreaker
 
             if (score >= 11 && !GameTuning.IsBreatherOrbit(score) && NextFloat() < GameTuning.SkipHazardChance(difficultyDistance))
             {
-                OrbitAnchor skipSource = FindAnchor(score - 2);
-                OrbitAnchor bypassed = FindAnchor(score - 1);
-                if (skipSource != null && bypassed != null)
+                // Bounded search: two- to five-orbit transfers, always in the real rotation direction.
+                for (int separation = 2; separation <= 5; separation++)
                 {
+                    OrbitAnchor skipSource = FindAnchor(score - separation);
+                    if (skipSource == null) continue;
                     int skipSamples = GameTuning.CountReachableLaunchSamples(
                         skipSource.transform.position, skipSource.Radius, skipSource.Direction,
                         anchor.transform.position, anchor.Radius, difficultyDistance);
                     if (GameTuning.CanAddSkipChallenge(skipSamples, score, difficultyDistance))
                     {
                         Vector2 challengePosition;
-                        float bypassClearance;
-                        if (GameTuning.TryFindSkipChallengePoint(
-                            skipSource.transform.position, skipSource.Radius, skipSource.Direction,
-                            bypassed.transform.position, bypassed.Radius,
-                            anchor.transform.position, anchor.Radius, difficultyDistance,
-                            out challengePosition, out bypassClearance)
-                            && IsClearOfEveryOrbit(challengePosition, skipSource.Sequence, anchor.Sequence, score))
+                        if (TryFindClearSkipPoint(skipSource, anchor, out challengePosition))
                         {
                             Vector2 skipRoute = (Vector2)anchor.transform.position - (Vector2)skipSource.transform.position;
                             Vector2 movementAxis = skipRoute.sqrMagnitude > 0.01f
                                 ? new Vector2(-skipRoute.y, skipRoute.x).normalized : Vector2.right;
                             freeDebris.Add(GetFreeDebris(score, challengePosition, movementAxis));
+                            break;
                         }
                     }
                 }
             }
+        }
+
+        private bool TryFindClearSkipPoint(OrbitAnchor source, OrbitAnchor target, out Vector2 point)
+        {
+            point = Vector2.zero;
+            float maximumTravel = GameTuning.LaunchSpeed(difficultyDistance) * Mathf.Max(0.1f, GameTuning.MaxFlightTime - GameTuning.FlightTimeReserve);
+            float radius = target.Radius + GameTuning.CaptureBand;
+            float requiredClearance = GameTuning.CaptureBand + 0.46f + GameTuning.HazardCollisionRadius(difficultyDistance) + 0.12f;
+            for (int sample = 0; sample < GameTuning.ReachabilitySamples; sample++)
+            {
+                float angle = sample * Mathf.PI * 2f / GameTuning.ReachabilitySamples;
+                Vector2 radial = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
+                Vector2 origin = (Vector2)source.transform.position + radial * source.Radius;
+                Vector2 direction = source.Direction > 0 ? new Vector2(-radial.y, radial.x) : new Vector2(radial.y, -radial.x);
+                Vector2 relative = origin - (Vector2)target.transform.position;
+                float b = Vector2.Dot(relative, direction);
+                float discriminant = b * b - relative.sqrMagnitude + radius * radius;
+                if (discriminant < 0f) continue;
+                float travel = -b - Mathf.Sqrt(discriminant);
+                if (travel <= 0.001f || travel > maximumTravel) continue;
+                if (Mathf.Abs((origin + direction * travel).x) > GameTuning.HorizontalLimit - GameTuning.PlayerCollisionRadius) continue;
+                bool clearRoute = true;
+                foreach (OrbitAnchor other in anchors)
+                {
+                    if (other == source || other == target) continue;
+                    float progress = Mathf.Clamp(Vector2.Dot((Vector2)other.transform.position - origin, direction), 0f, travel);
+                    if (Vector2.Distance(origin + direction * progress, other.transform.position) <= other.Radius + GameTuning.CaptureBand + 0.08f)
+                    { clearRoute = false; break; }
+                }
+                if (!clearRoute) continue;
+                for (int placement = 0; placement < 4; placement++)
+                {
+                    Vector2 candidate = origin + direction * (travel * (0.38f + placement * 0.08f));
+                    if (Vector2.Distance(candidate, source.transform.position) - source.Radius < requiredClearance
+                        || Vector2.Distance(candidate, target.transform.position) - target.Radius < requiredClearance) continue;
+                    if (!IsClearOfEveryOrbit(candidate, source.Sequence, target.Sequence, target.Sequence)) continue;
+                    point = candidate;
+                    return true;
+                }
+            }
+            return false;
         }
 
         private bool IsClearOfEveryOrbit(Vector2 point, int sourceSequence, int targetSequence, int sequence)

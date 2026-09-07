@@ -9,6 +9,7 @@ namespace OrbitBreaker
     {
         private const string Prefix = "OrbitBreaker.Progress.";
         private static readonly int[] UnlockDistances = { 0, 500, 1800, 4500 };
+        private static readonly Color[] TrailPalette = { new Color(0.25f, 0.9f, 1f), new Color(1f, 0.33f, 0.65f), new Color(0.54f, 1f, 0.4f), new Color(1f, 0.72f, 0.18f), new Color(0.2f, 1f, 0.76f), new Color(0.7f, 0.4f, 1f) };
 
         public static int LifetimeDistance => PlayerPrefs.GetInt(Prefix + "LifetimeDistance", 0);
         public static int Runs => PlayerPrefs.GetInt(Prefix + "Runs", 0);
@@ -77,8 +78,8 @@ namespace OrbitBreaker
 
         public static Color TrailColor(int style)
         {
-            Color[] colors = { new Color(0.25f, 0.9f, 1f), new Color(1f, 0.33f, 0.65f), new Color(0.54f, 1f, 0.4f), new Color(1f, 0.72f, 0.18f), new Color(0.2f, 1f, 0.76f), new Color(0.7f, 0.4f, 1f) };
-            return colors[Mathf.Clamp(style, 0, colors.Length - 1)];
+            if (style >= 6) return ExpandedCosmetics.TrailColor(style);
+            return TrailPalette[Mathf.Clamp(style, 0, TrailPalette.Length - 1)];
         }
 
         public static string StyleName(int style)
