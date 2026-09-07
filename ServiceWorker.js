@@ -1,4 +1,4 @@
-const CACHE = "orbit-breaker-0.2.0";
+const CACHE = "orbit-breaker-0.3.0";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./orbit-breaker-icon.png"];
 
 self.addEventListener("install", event => {
