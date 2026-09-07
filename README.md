@@ -25,7 +25,9 @@ Le joueur tourne automatiquement autour d'une ancre. Une pression le propulse se
 - Mission quotidienne locale et récapitulatif des performances de chaque partie
 - Transitions progressives de couleur du décor tous les 500 UA de score, y compris avec les fonds du hangar ; notification de nouveau secteur.
 - Distance affichée en UA (unités astronomiques, unité de jeu ; valeurs des sauvegardes et du classement inchangées).
-- Difficulté linéaire jusqu'à 3 000 UA puis plafonnée : rotation de 158 à 222 degrés/s, immunité de capture de 0,80 à 0,52 s, débris possibles dès la quatrième orbite, fenêtres de sécurité et orbites de répit conservées. Les orbites déjà générées ne changent pas brutalement et un retour arrière ne réduit pas la difficulté atteinte.
+- Rythme 0.3.0 : distance de base doublée, séries de skips avec bonus ×1,25 au deuxième skip puis +0,25 jusqu'à ×2,5. Une capture normale, un retour, un checkpoint revisité ou un trou de ver remet la série à zéro. Aucun changement aux records existants.
+- Difficulté progressive jusqu'à 900 UA puis plafonnée : rotation de 158 à 230 degrés/s. Débris orbitaux à partir de 100 UA (cible 1/6, puis 40 % à 300 UA), débris de skip à partir de 300 UA (12 à 45 % des occasions jusqu'à 600 UA). Les placements dangereux restent exclus et les orbites de répit conservées ; les taux réellement observés dépendent des trajectoires sûres disponibles.
+- Répartition absolue gauche/centre/droite des planètes pour éviter l'accumulation d'orbites contre un seul bord. Les orbites déjà générées ne changent pas brutalement et un retour arrière ne réduit pas la difficulté atteinte.
 - Bonus persistants : 5 charges **par type**, soit 25 au total ; icônes dédiées et compteurs `0/5` à `5/5` dans le HUD et le menu.
 - Musique chiptune originale en boucle et mixage séparé général/musique/effets
 - Menu audio accessible depuis l'accueil et l'écran de fin

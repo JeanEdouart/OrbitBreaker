@@ -6,6 +6,61 @@ namespace OrbitBreaker.Tests
     public sealed class GameTuningTests
     {
         [Test]
+        public void SkipSeries_RewardsConsecutiveSkipsAndResets()
+        {
+            int chain = 0;
+            for (int i = 1; i <= 20; i++)
+            {
+                chain = GameTuning.NextSkipChain(chain, true);
+                Assert.That(GameTuning.SkipChainMultiplier(chain), Is.EqualTo(1f + Mathf.Min(i - 1, 6) * 0.25f));
+            }
+            Assert.That(GameTuning.NextSkipChain(chain, false), Is.Zero);
+            Assert.That(GameTuning.SkipChainMultiplier(0), Is.EqualTo(1f));
+            Assert.That(GameTuning.BankedDistance(0f, 4f, 1f), Is.EqualTo(8));
+            Assert.That(GameTuning.BankedDistance(0f, 4f, 2f * GameTuning.SkipChainMultiplier(3)), Is.EqualTo(24));
+        }
+
+        [Test]
+        public void HazardStages_RespectDistanceThresholdsAndCaps()
+        {
+            Assert.That(GameTuning.OrbitHazardChance(99), Is.Zero);
+            Assert.That(GameTuning.OrbitHazardChance(100), Is.EqualTo(1f / 6f).Within(0.001f));
+            Assert.That(GameTuning.OrbitHazardChance(300), Is.EqualTo(0.4f));
+            Assert.That(GameTuning.OrbitHazardChance(9000), Is.EqualTo(0.4f));
+            Assert.That(GameTuning.SkipHazardChance(299), Is.Zero);
+            Assert.That(GameTuning.SkipHazardChance(300), Is.EqualTo(0.12f));
+            Assert.That(GameTuning.SkipHazardChance(600), Is.EqualTo(0.45f));
+        }
+
+        [Test]
+        public void GeneratedWorld_UsesBothSidesAndKeepsEarlyFlightsSafe()
+        {
+            var root = new GameObject("Lateral Generation Test");
+            try
+            {
+                var world = root.AddComponent<OrbitWorld>();
+                world.ResetWorld(); world.SetDifficultyDistance(99); world.EnsureAhead(100);
+                int left = 0, right = 0;
+                foreach (var anchor in world.Anchors)
+                {
+                    if (anchor.transform.position.x < -0.8f) left++;
+                    if (anchor.transform.position.x > 0.8f) right++;
+                    Assert.That(Mathf.Abs(anchor.transform.position.x), Is.LessThanOrEqualTo(1.6f));
+                }
+                Assert.That(left, Is.GreaterThan(15)); Assert.That(right, Is.GreaterThan(15));
+                Assert.That(world.Hazards.Count, Is.Zero); Assert.That(world.FreeDebris.Count, Is.Zero);
+                world.SetDifficultyDistance(299); world.EnsureAhead(200);
+                Assert.That(world.Hazards.Count, Is.GreaterThan(5)); Assert.That(world.FreeDebris.Count, Is.Zero);
+                foreach (var hazard in world.Hazards)
+                {
+                    var anchor = world.FindAnchor(hazard.Sequence);
+                    Assert.That(GameTuning.IsOrbitFullyVisibleForHazard(anchor.transform.position.x, anchor.Radius), Is.True);
+                }
+            }
+            finally { Object.DestroyImmediate(root); }
+        }
+
+        [Test]
         public void WorldDifficulty_UsesDistanceAndDoesNotMutateExistingOrbits()
         {
             var root = new GameObject("Difficulty Test World");
@@ -13,16 +68,16 @@ namespace OrbitBreaker.Tests
             {
                 var world = root.AddComponent<OrbitWorld>();
                 OrbitAnchor first = world.ResetWorld();
-                world.SetDifficultyDistance(1500);
+                world.SetDifficultyDistance(450);
                 world.EnsureAhead(20);
                 Assert.That(first.DifficultyDistance, Is.Zero);
-                Assert.That(world.FindAnchor(20).DifficultyDistance, Is.EqualTo(1500));
+                Assert.That(world.FindAnchor(20).DifficultyDistance, Is.EqualTo(450));
                 world.SetDifficultyDistance(300);
                 world.EnsureAhead(40);
-                Assert.That(world.FindAnchor(40).DifficultyDistance, Is.EqualTo(1500));
+                Assert.That(world.FindAnchor(40).DifficultyDistance, Is.EqualTo(450));
                 world.SetDifficultyDistance(6000);
                 world.EnsureAhead(60);
-                Assert.That(world.FindAnchor(60).DifficultyDistance, Is.EqualTo(3000));
+                Assert.That(world.FindAnchor(60).DifficultyDistance, Is.EqualTo(GameTuning.DifficultyCapDistance));
                 Assert.That(world.ResetWorld().DifficultyDistance, Is.Zero);
             }
             finally { Object.DestroyImmediate(root); }
@@ -58,8 +113,8 @@ namespace OrbitBreaker.Tests
         public void Difficulty_ReachesTheNewLongRunMilestonesGradually()
         {
             Assert.That(GameTuning.Difficulty01(0), Is.Zero);
-            Assert.That(GameTuning.Difficulty01(300), Is.EqualTo(0.1f).Within(0.001f));
-            Assert.That(GameTuning.Difficulty01(1500), Is.EqualTo(0.5f).Within(0.001f));
+            Assert.That(GameTuning.Difficulty01(300), Is.EqualTo(1f / 3f).Within(0.001f));
+            Assert.That(GameTuning.Difficulty01(450), Is.EqualTo(0.5f).Within(0.001f));
             Assert.That(GameTuning.Difficulty01(3000), Is.EqualTo(1f));
             Assert.That(GameTuning.Difficulty01(6000), Is.EqualTo(1f));
             Assert.That(GameTuning.AngularSpeed(10000), Is.LessThanOrEqualTo(GameTuning.MaxAngularSpeed));

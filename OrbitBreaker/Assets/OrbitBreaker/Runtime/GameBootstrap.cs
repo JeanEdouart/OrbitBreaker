@@ -34,6 +34,7 @@ namespace OrbitBreaker
         private float bestRunMultiplier;
         private int runMaterials;
         private int runSkips;
+        private int skipChain;
         private readonly bool[] challengeCompletionNotified = new bool[3];
         private readonly int[] powerUpInventory = new int[5];
         private int powerUpInventoryCount;
@@ -162,6 +163,7 @@ namespace OrbitBreaker
             bestRunMultiplier = 1f;
             runMaterials = 0;
             runSkips = 0;
+            skipChain = 0;
             spaceBackground.SetDistance(0, true);
             powerUpInventoryCount = PowerUpProgression.TotalStored();
             warpInProgress = false;
@@ -182,13 +184,17 @@ namespace OrbitBreaker
             player.SetScore(0);
             cameraRig.Snap(first.transform.position);
             hud.ShowPlaying(distanceScore, bestScore, tutorialVisible);
-            hud.UpdatePowerUpInventory(powerUpInventory, true);
+            // Les boutons d'inventaire restent masqués sur l'écran de préparation;
+            // ils apparaissent au premier lancement via HideTutorial().
+            hud.UpdatePowerUpInventory(powerUpInventory, false);
         }
 
         private void HandleCaptured(CaptureResult result)
         {
             int previousScore = distanceScore;
             bool revisited = checkpointScores.TryGetValue(result.Anchor.Sequence, out int savedScore);
+            bool qualifyingSkip = !revisited && !result.IsBacktrack && !warpInProgress && result.Anchor.Sequence > furthestSequence && result.SkippedAnchors > 0;
+            skipChain = GameTuning.NextSkipChain(skipChain, qualifyingSkip);
             if (revisited)
             {
                 distanceScore = savedScore;
@@ -196,7 +202,7 @@ namespace OrbitBreaker
             }
             else
             {
-                int reward = GameTuning.BankedDistance(bankedHeight, result.Anchor.transform.position.y, result.Multiplier);
+                int reward = GameTuning.BankedDistance(bankedHeight, result.Anchor.transform.position.y, result.Multiplier * GameTuning.SkipChainMultiplier(skipChain));
                 distanceScore += reward;
                 bankedHeight = Mathf.Max(bankedHeight, result.Anchor.transform.position.y);
                 checkpointScores[result.Anchor.Sequence] = distanceScore;
@@ -228,7 +234,7 @@ namespace OrbitBreaker
                 feedback.SynchronizationMiss(player.transform.position);
             cameraRig.ShakeCapture();
             UpdateBestScore(distanceScore);
-            hud.ShowLanding(distanceScore, bestScore, scoreDelta, result.Multiplier, rewardedSkips, result.IsBacktrack, revisited && !result.IsBacktrack, result.Synchronization);
+            hud.ShowLanding(distanceScore, bestScore, scoreDelta, result.Multiplier, rewardedSkips, result.IsBacktrack, revisited && !result.IsBacktrack, result.Synchronization, skipChain);
             CheckChallengeCompletions();
         }
 

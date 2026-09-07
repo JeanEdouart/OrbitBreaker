@@ -420,6 +420,7 @@ namespace OrbitBreaker
         private Vector2 lastPosition;
         private OrbitAnchor lastAnchor;
         private int lastPowerUpSequence = -10;
+        private float hazardBudget;
 
         public IReadOnlyList<OrbitAnchor> Anchors => anchors;
         public IReadOnlyList<OrbitHazard> Hazards => hazards;
@@ -458,6 +459,7 @@ namespace OrbitBreaker
             random = new System.Random(Environment.TickCount);
             nextSequence = 0;
             difficultyDistance = 0;
+            hazardBudget = 0f;
             lastPosition = new Vector2(0f, GameTuning.StartingHeight);
             lastPowerUpSequence = -10;
             OrbitAnchor first = SpawnAnchor(lastPosition, 1.25f, 1);
@@ -536,8 +538,7 @@ namespace OrbitBreaker
             for (int attempt = 0; attempt < GameTuning.GenerationAttempts; attempt++)
             {
                 float gap = GameTuning.AnchorGap(difficultyDistance, GameTuning.IsBreatherOrbit(score) ? NextFloat() * 0.35f : NextFloat());
-                float horizontalStep = GameTuning.PatternHorizontalStep(score, NextFloat());
-                float x = Mathf.Clamp(lastPosition.x + horizontalStep, -2.45f, 2.45f);
+                float x = GameTuning.OrbitHorizontalPosition(score, NextFloat());
                 candidatePosition = new Vector2(x, lastPosition.y + gap);
                 candidateRadius = Mathf.Lerp(1.02f, 1.38f, NextFloat());
                 candidateDirection = NextFloat() > 0.5f ? 1 : -1;
@@ -623,13 +624,17 @@ namespace OrbitBreaker
             }
 
             bool orbitFullyVisible = GameTuning.IsOrbitFullyVisibleForHazard(anchor.transform.position.x, anchor.Radius);
-            if (orbitFullyVisible && !GameTuning.IsBreatherOrbit(score) && GameTuning.HasHazard(score, difficultyDistance) && GameTuning.CanAddHazardToLayout(reachableSamples, difficultyDistance))
+            // Carry a small density budget past unsafe layouts instead of silently losing
+            // almost every hazard roll on the wide lanes. Never relax the safety checks.
+            hazardBudget = Mathf.Min(2f, hazardBudget + GameTuning.OrbitHazardChance(difficultyDistance));
+            if (hazardBudget >= 1f && orbitFullyVisible && !GameTuning.IsBreatherOrbit(score) && GameTuning.CanAddHazardToLayout(reachableSamples, difficultyDistance))
             {
+                hazardBudget -= 1f;
                 float angle = Mathf.Repeat(score * 0.381966f, 1f) * Mathf.PI * 2f;
                 hazards.Add(GetHazard(anchor, angle));
             }
 
-            if (score >= 11 && !GameTuning.IsBreatherOrbit(score) && NextFloat() < Mathf.Lerp(0.38f, 0.65f, GameTuning.Difficulty01(difficultyDistance)))
+            if (score >= 11 && !GameTuning.IsBreatherOrbit(score) && NextFloat() < GameTuning.SkipHazardChance(difficultyDistance))
             {
                 OrbitAnchor skipSource = FindAnchor(score - 2);
                 OrbitAnchor bypassed = FindAnchor(score - 1);

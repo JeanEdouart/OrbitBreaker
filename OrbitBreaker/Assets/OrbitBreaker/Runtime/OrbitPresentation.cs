@@ -358,7 +358,10 @@ namespace OrbitBreaker
         private Text playerNameStatus;
         private InputField leaderboardSearchInput;
         private Text leaderboardStatus;
-        private readonly Text[] leaderboardRows = new Text[10];
+        private readonly Text[] leaderboardRows = new Text[100];
+        private ScrollRect leaderboardScroll;
+        private RectTransform leaderboardContent;
+        private bool leaderboardLoading;
         private OnlineLeaderboard onlineLeaderboard;
         private Action identityAccepted;
         private GameObject missionsPanel;
@@ -497,7 +500,10 @@ namespace OrbitBreaker
             sectorText.color = new Color(0.6f, 1f, 0.95f);
             SetRect(sectorText.rectTransform, new Vector2(0.15f, 0.855f), new Vector2(0.85f, 0.9f), Vector2.zero, Vector2.zero);
             comboText.color = new Color(1f, 0.72f, 0.24f, 1f);
-            SetRect(comboText.rectTransform, new Vector2(0.06f, 0.87f), new Vector2(0.45f, 0.97f), Vector2.zero, Vector2.zero);
+            comboText.fontSize = 30;
+            comboText.resizeTextForBestFit = false;
+            comboText.gameObject.AddComponent<Outline>().effectColor = new Color(0.02f, 0.04f, 0.1f, 0.9f);
+            SetRect(comboText.rectTransform, new Vector2(0.06f, 0.79f), new Vector2(0.65f, 0.85f), Vector2.zero, Vector2.zero);
 
             stuntText = CreateText(floatingHud, "Stunt", string.Empty, 34, TextAnchor.MiddleLeft, FontStyle.Bold);
             stuntText.color = new Color(1f, 0.72f, 0.24f, 1f);
@@ -516,9 +522,10 @@ namespace OrbitBreaker
 
             Image materialToastImage = CreateImage(safe, "Material Toast", new Color(0.025f, 0.12f, 0.18f, 0.94f));
             materialToast = materialToastImage.gameObject;
+            materialToast.transform.SetParent(floatingHud, false);
             ApplyRounded(materialToastImage);
             materialToastImage.raycastTarget = false;
-            SetRect(materialToastImage.rectTransform, new Vector2(0.32f, 0.805f), new Vector2(0.68f, 0.855f), Vector2.zero, Vector2.zero);
+            SetRect(materialToastImage.rectTransform, new Vector2(0.02f, 1.1f), new Vector2(0.98f, 1.34f), Vector2.zero, Vector2.zero);
             materialToastText = CreateText(materialToast.transform, "Material Value", string.Empty, 23, TextAnchor.MiddleCenter, FontStyle.Bold);
             materialToastText.color = new Color(0.35f, 0.95f, 1f);
             SetRect(materialToastText.rectTransform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
@@ -566,7 +573,7 @@ namespace OrbitBreaker
             Text tipsLabel = CreateText(tipsPanel.transform, "Tips Label", "TIPS", 20, TextAnchor.MiddleLeft, FontStyle.Bold);
             tipsLabel.color = new Color(1f, 0.72f, 0.24f, 1f);
             SetRect(tipsLabel.rectTransform, new Vector2(0.06f, 0.6f), new Vector2(0.25f, 0.94f), Vector2.zero, Vector2.zero);
-            Text tipsText = CreateText(tipsPanel.transform, "Tips", "VISE LA PORTE COLORÉE DANS SON SENS POUR UN BONUS SYNCHRO\nELLE EST OPTIONNELLE : TOUTE L'ORBITE PEUT TE CAPTURER\nSKIP PLUSIEURS ORBITES POUR MULTIPLIER TA DISTANCE", 17, TextAnchor.MiddleLeft, FontStyle.Normal);
+            Text tipsText = CreateText(tipsPanel.transform, "Tips", "VISE LA PORTE COLORÉE DANS SON SENS POUR UN BONUS SYNCHRO\nELLE EST OPTIONNELLE : TOUTE L'ORBITE PEUT TE CAPTURER\nENCHAÎNE LES SKIPS : BONUS DE DISTANCE JUSQU'À ×2,5", 17, TextAnchor.MiddleLeft, FontStyle.Normal);
             tipsText.color = new Color(0.68f, 0.88f, 1f, 0.95f);
             tipsText.lineSpacing = 1.15f;
             SetRect(tipsText.rectTransform, new Vector2(0.06f, 0.06f), new Vector2(0.95f, 0.66f), Vector2.zero, Vector2.zero);
@@ -706,7 +713,9 @@ namespace OrbitBreaker
             settingsButton.SetActive(tutorial);
             infoButton.SetActive(tutorial);
             styleButton.SetActive(tutorial);
-            powerUpButton.SetActive(tutorial);
+            // Le bouton d'amélioration reste accessible depuis le menu principal;
+            // seuls les boutons d'inventaire en partie sont masqués avant le lancement.
+            powerUpButton.SetActive(true);
             missionsButton.SetActive(tutorial);
             leaderboardButton.SetActive(tutorial);
             pauseButton.SetActive(!tutorial);
@@ -761,7 +770,7 @@ namespace OrbitBreaker
                         SetRect(stuntText.rectTransform, new Vector2(0.88f, 0.25f), new Vector2(1.85f, 0.72f), new Vector2(16f, 0f), Vector2.zero);
                     stuntText.alignment = local.x > 0f ? TextAnchor.MiddleRight : TextAnchor.MiddleLeft;
                     local.x = Mathf.Clamp(local.x, bounds.xMin + 205f, bounds.xMax - 205f);
-                    local.y = Mathf.Clamp(local.y + 105f, bounds.yMin + 100f, bounds.yMax - 235f);
+                    local.y = Mathf.Clamp(local.y + 105f, bounds.yMin + 100f, bounds.yMax - 370f);
                     floatingHud.anchoredPosition = Vector2.Lerp(floatingHud.anchoredPosition, local, 1f - Mathf.Exp(-Time.unscaledDeltaTime * 13f));
                 }
             }
@@ -781,9 +790,17 @@ namespace OrbitBreaker
             multiplierFill.color = Color.Lerp(new Color(0.2f, 0.88f, 1f, 0.35f), new Color(1f, 0.2f, 0.5f, 0.55f), intensity);
         }
 
-        public void ShowLanding(int distance, int best, int gainedDistance, float multiplier, int skippedAnchors, bool backtrack, bool revisited, SynchronizationResult synchronization)
+        public void ShowLanding(int distance, int best, int gainedDistance, float multiplier, int skippedAnchors, bool backtrack, bool revisited, SynchronizationResult synchronization, int skipChain = 0)
         {
             UpdateProgress(distance, best);
+            if (skipChain >= 2)
+                comboText.text = "SÉRIE DE SKIPS " + skipChain + "\nBONUS ×" + GameTuning.SkipChainMultiplier(skipChain).ToString("0.##");
+            if (skipChain >= 2)
+            {
+                comboText.transform.SetParent(floatingHud, false);
+                SetRect(comboText.rectTransform, new Vector2(0f, 1.44f), new Vector2(1f, 1.84f), Vector2.zero, Vector2.zero);
+                comboText.alignment = TextAnchor.MiddleCenter;
+            }
             multiplierBadge.SetActive(false);
             settingsButton.SetActive(false);
             pauseButton.SetActive(true);
@@ -1025,7 +1042,7 @@ namespace OrbitBreaker
             identityAccepted = null;
         }
 
-        private async void ToggleLeaderboard()
+        private void ToggleLeaderboard()
         {
             bool opening = !leaderboardPanel.activeSelf;
             settingsPanel.SetActive(false);
@@ -1039,11 +1056,7 @@ namespace OrbitBreaker
             leaderboardSearchInput.SetTextWithoutNotify(string.Empty);
             leaderboardStatus.text = "CHARGEMENT DU CLASSEMENT...";
             RenderLeaderboardRows(Array.Empty<OrbitLeaderboardEntry>());
-            IReadOnlyList<OrbitLeaderboardEntry> entries = await onlineLeaderboard.RefreshAsync();
-            leaderboardStatus.text = entries.Count > 0
-                ? "TOP 100 · " + onlineLeaderboard.PlayerName.ToUpperInvariant()
-                : onlineLeaderboard.LastError;
-            RenderLeaderboardRows(entries);
+            RefreshLeaderboard();
         }
 
         private void SearchLeaderboard(string query)
@@ -1055,11 +1068,30 @@ namespace OrbitBreaker
 
         private void RenderLeaderboardRows(IReadOnlyList<OrbitLeaderboardEntry> entries)
         {
+            Canvas.ForceUpdateCanvases();
+            int visibleCount = Mathf.Min(entries.Count, leaderboardRows.Length);
+            float rowHeight = leaderboardScroll.viewport.rect.height / 10f;
+            if (leaderboardContent != null)
+            {
+                // Une fenêtre affiche environ 10 lignes; au-delà, le contenu devient
+                // naturellement scrollable jusqu'à la 100e place.
+                leaderboardScroll.StopMovement();
+                leaderboardContent.sizeDelta = new Vector2(0f, visibleCount * rowHeight);
+                leaderboardContent.anchoredPosition = new Vector2(0f, 0f);
+            }
             for (int i = 0; i < leaderboardRows.Length; i++)
             {
                 Text row = leaderboardRows[i];
                 bool visible = i < entries.Count;
                 row.gameObject.SetActive(visible);
+                if (leaderboardContent != null && visible)
+                {
+                    row.rectTransform.anchorMin = new Vector2(0.03f, 1f);
+                    row.rectTransform.anchorMax = new Vector2(0.97f, 1f);
+                    row.rectTransform.pivot = new Vector2(0.5f, 1f);
+                    row.rectTransform.sizeDelta = new Vector2(0f, rowHeight - 4f);
+                    row.rectTransform.anchoredPosition = new Vector2(0f, -i * rowHeight - 2f);
+                }
                 if (!visible) continue;
                 OrbitLeaderboardEntry entry = entries[i];
                 row.text = entry.Rank.ToString().PadLeft(3) + "    " + entry.PlayerName.ToUpperInvariant() + "    " + entry.Score + " UA";
@@ -1101,12 +1133,27 @@ namespace OrbitBreaker
             leaderboardSearchInput.onValueChanged.AddListener(SearchLeaderboard);
             leaderboardStatus = CreateText(card.transform, "Status", string.Empty, 17, TextAnchor.MiddleCenter, FontStyle.Bold);
             leaderboardStatus.color = new Color(1f, 0.72f, 0.24f); SetRect(leaderboardStatus.rectTransform, new Vector2(0.06f, 0.705f), new Vector2(0.94f, 0.765f), Vector2.zero, Vector2.zero);
+            GameObject viewportObject = new GameObject("Leaderboard Scroll Viewport", typeof(RectTransform), typeof(RectMask2D), typeof(Image));
+            viewportObject.transform.SetParent(card.transform, false);
+            Image viewportImage = viewportObject.GetComponent<Image>(); viewportImage.color = new Color(0f, 0f, 0f, 0.001f); viewportImage.raycastTarget = true;
+            RectTransform viewport = viewportObject.GetComponent<RectTransform>();
+            SetRect(viewport, new Vector2(0.06f, 0.17f), new Vector2(0.94f, 0.70f), Vector2.zero, Vector2.zero);
+            GameObject contentObject = new GameObject("Leaderboard Scroll Content", typeof(RectTransform));
+            contentObject.transform.SetParent(viewportObject.transform, false);
+            RectTransform content = contentObject.GetComponent<RectTransform>();
+            leaderboardContent = content;
+            content.anchorMin = new Vector2(0f, 1f); content.anchorMax = new Vector2(1f, 1f); content.pivot = new Vector2(0.5f, 1f);
+            content.anchoredPosition = Vector2.zero; content.sizeDelta = new Vector2(0f, 620f);
+            leaderboardScroll = viewportObject.AddComponent<ScrollRect>();
+            leaderboardScroll.viewport = viewport; leaderboardScroll.content = content;
+            leaderboardScroll.horizontal = false; leaderboardScroll.vertical = true; leaderboardScroll.movementType = ScrollRect.MovementType.Clamped;
+            leaderboardScroll.scrollSensitivity = 48f; leaderboardScroll.inertia = true; leaderboardScroll.decelerationRate = 0.12f;
             for (int i = 0; i < leaderboardRows.Length; i++)
             {
-                float top = 0.69f - i * 0.057f;
-                Text row = CreateText(card.transform, "Rank " + (i + 1), string.Empty, 23, TextAnchor.MiddleLeft, FontStyle.Bold);
+                float top = 1f - i * 0.1f;
+                Text row = CreateText(content, "Rank " + (i + 1), string.Empty, 23, TextAnchor.MiddleLeft, FontStyle.Bold);
                 row.resizeTextForBestFit = true; row.resizeTextMinSize = 14; row.horizontalOverflow = HorizontalWrapMode.Wrap;
-                SetRect(row.rectTransform, new Vector2(0.09f, top - 0.05f), new Vector2(0.91f, top), Vector2.zero, Vector2.zero);
+                SetRect(row.rectTransform, new Vector2(0.03f, top - 0.085f), new Vector2(0.97f, top), Vector2.zero, Vector2.zero);
                 leaderboardRows[i] = row;
             }
             GameObject refresh = CreateButton(card.transform, "Refresh", "ACTUALISER", new Color(0.08f, 0.36f, 0.48f), ToggleLeaderboard);
@@ -1119,10 +1166,16 @@ namespace OrbitBreaker
 
         private async void RefreshLeaderboard()
         {
+            if (leaderboardLoading) return;
+            leaderboardLoading = true;
+            try
+            {
             leaderboardStatus.text = "ACTUALISATION...";
             IReadOnlyList<OrbitLeaderboardEntry> entries = await onlineLeaderboard.RefreshAsync(leaderboardSearchInput.text);
             leaderboardStatus.text = entries.Count > 0 ? "CLASSEMENT À JOUR" : onlineLeaderboard.LastError;
-            RenderLeaderboardRows(entries);
+            RenderLeaderboardRows(onlineLeaderboard.Filter(leaderboardSearchInput.text));
+            }
+            finally { leaderboardLoading = false; }
         }
 
         public void PauseGame()

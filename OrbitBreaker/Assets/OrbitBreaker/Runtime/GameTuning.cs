@@ -5,7 +5,7 @@ namespace OrbitBreaker
     public static class GameTuning
     {
         public const float BaseAngularSpeed = 158f;
-        public const float MaxAngularSpeed = 222f;
+        public const float MaxAngularSpeed = 230f;
         public const float BaseLaunchSpeed = 7.4f;
         public const float MaxLaunchSpeed = 9.55f;
         public const float CaptureBand = 0.34f;
@@ -15,7 +15,21 @@ namespace OrbitBreaker
         public const int AnchorsAhead = 9;
         public const int BackwardOrbitRetention = 8;
         public const int HazardIntroductionSequence = 4;
-        public const int DifficultyCapDistance = 3000;
+        public const int DifficultyCapDistance = 900;
+        public const float DistanceScale = 2f;
+        private static readonly float[] HorizontalLanes = { 0f, -1.4f, -0.45f, 1.4f, 0.45f, -1.25f, 0f, 1.4f, 0.55f, -1.4f, -0.4f, 1.25f };
+
+        public static int NextSkipChain(int current, bool qualifyingSkip) => qualifyingSkip ? Mathf.Min(7, current + 1) : 0;
+        public static float SkipChainMultiplier(int chain) => 1f + Mathf.Clamp(chain - 1, 0, 6) * 0.25f;
+        public static float OrbitHazardChance(int distance) => distance < 100 ? 0f : Mathf.Lerp(1f / 6f, 0.4f, Mathf.InverseLerp(100f, 300f, distance));
+        public static float SkipHazardChance(int distance) => distance < 300 ? 0f : Mathf.Lerp(0.12f, 0.45f, Mathf.InverseLerp(300f, 600f, distance));
+
+        public static float OrbitHorizontalPosition(int sequence, float random01)
+        {
+            // Absolute lanes avoid accumulating a random walk against one screen edge.
+            float lane = HorizontalLanes[Mathf.Abs(sequence % HorizontalLanes.Length)];
+            return Mathf.Clamp(lane + Mathf.Lerp(-0.2f, 0.2f, Mathf.Clamp01(random01)), -1.6f, 1.6f);
+        }
         public const float StartingHeight = -2.1f;
         public const float MultiplierStepDuration = 0.12f;
         public const float MaxDistanceMultiplier = 6f;
@@ -53,8 +67,7 @@ namespace OrbitBreaker
         public static bool HasHazard(int sequence, int distance = 0)
         {
             if (sequence < HazardIntroductionSequence) return false;
-            // Stable per-orbit roll, with density rising smoothly from 55% to 85%.
-            return Mathf.Repeat(sequence * 0.6180339f, 1f) < Mathf.Lerp(0.55f, 0.85f, Difficulty01(distance));
+            return Mathf.Repeat(sequence * 0.6180339f, 1f) < OrbitHazardChance(distance);
         }
 
         public static float HazardCollisionRadius(int sequence)
@@ -355,7 +368,7 @@ namespace OrbitBreaker
         public static int BankedDistance(float startHeight, float endHeight, float multiplier)
         {
             float climbed = Mathf.Max(0f, endHeight - startHeight);
-            return Mathf.Max(0, Mathf.RoundToInt(climbed * Mathf.Max(1f, multiplier)));
+            return Mathf.Max(0, Mathf.RoundToInt(climbed * DistanceScale * Mathf.Max(1f, multiplier)));
         }
     }
 }
