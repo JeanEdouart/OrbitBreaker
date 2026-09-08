@@ -48,6 +48,12 @@ namespace OrbitBreaker
         private DailyCourseDefinition dailyCourse;
         private DailyCourseProgress dailyProgress;
         private bool currentRunOwnsDailyAttempt;
+        private const float DeathReplayDuration = 3f;
+        private readonly List<DeathReplayFrame> deathReplayFrames = new List<DeathReplayFrame>(200);
+        private bool deathReplayInProgress;
+        private bool deathReplaySkipRequested;
+        private float deathReplaySkippableAt;
+        private int activeParisDayKey;
         public RunMode CurrentRunMode { get; private set; }
         public float RunElapsedSeconds => runElapsed;
         public float SprintRemainingSeconds => Mathf.Max(0f, 90f - runElapsed);
@@ -131,6 +137,18 @@ namespace OrbitBreaker
                 hud.RefreshMetaPanels();
             }
 #endif
+            if (deathReplayInProgress)
+            {
+                if (Time.unscaledTime >= deathReplaySkippableAt && WasGameplayPressedThisFrame()) deathReplaySkipRequested = true;
+                return;
+            }
+
+            int parisDayKey = FrenchGameClock.ParisDayKey(System.DateTime.UtcNow);
+            if (CurrentRunMode == RunMode.Daily && tutorialVisible && activeParisDayKey != parisDayKey)
+            {
+                StartRun();
+                return;
+            }
             if (hud.IsPaused)
             {
                 MetaProgression.FlushCollectedMaterials(true);
@@ -178,6 +196,7 @@ namespace OrbitBreaker
                 Vector2 anchorPosition = player.CurrentAnchor != null ? player.CurrentAnchor.transform.position : player.transform.position + (Vector3)player.Velocity.normalized * 2f;
                 cameraRig.SetTarget(player.transform.position, anchorPosition);
                 cameraRig.SetFlightShake(player.FlightDanger01, player.State == PlayerOrbitState.Flying);
+                RecordDeathReplayFrame();
                 world.RecycleBehind(cameraRig.CameraY, player.LastSequence);
             }
             else if (!hud.SettingsOpen && Time.unscaledTime >= restartAvailableAt && WasGameplayPressedThisFrame())
@@ -222,8 +241,9 @@ namespace OrbitBreaker
             LastRunDailyCompleted = false;
             LastDailyReward = 0;
             LastDailyUnlock = string.Empty;
-            dailySeed = LocalRunStats.DailySeed(System.DateTime.UtcNow);
+            dailySeed = FrenchGameClock.ParisDayKey(System.DateTime.UtcNow);
             dailyCourse = DailyCourse.ForDate(System.DateTime.UtcNow);
+            activeParisDayKey = dailyCourse.DayKey;
             currentRunOwnsDailyAttempt = false;
             bestScore = CurrentRunMode == RunMode.Endless ? PlayerPrefs.GetInt(BestScoreKey, 0) : LocalRunStats.Best(CurrentRunMode, dailySeed);
             spaceBackground.SetDistance(0, true);
@@ -247,6 +267,10 @@ namespace OrbitBreaker
             player.ResetTo(first);
             player.SetScore(0);
             cameraRig.Snap(first.transform.position);
+            deathReplayInProgress = false;
+            deathReplaySkipRequested = false;
+            deathReplayFrames.Clear();
+            RecordDeathReplayFrame();
             hud.ShowPlaying(distanceScore, bestScore, tutorialVisible);
             if (CurrentRunMode == RunMode.Daily)
                 hud.ShowDailyAvailability(DailyCourse.IsAttempted(dailyCourse.DayKey), DailyCourse.IsClaimed(dailyCourse.DayKey));
@@ -487,9 +511,7 @@ namespace OrbitBreaker
             if (!runActive) return;
             MetaProgression.FlushCollectedMaterials(true);
             runActive = false;
-            restartAvailableAt = Time.unscaledTime + 0.55f;
-            if (!LastRunDailyCompleted) feedback.Death(player.transform.position, reason);
-            if (reason == DeathReason.Breaker && !LastRunDailyCompleted) cameraRig.ShakeExplosion();
+            restartAvailableAt = float.PositiveInfinity;
             cameraRig.SetFlightShake(0f, false);
             feedback.UpdateCharge(1f, false);
             if (CurrentRunMode == RunMode.Endless)
@@ -506,7 +528,67 @@ namespace OrbitBreaker
                 if (CurrentRunMode == RunMode.Sprint) _ = onlineLeaderboard.SubmitSprintScoreAsync(bestScore);
             }
             hud.UpdatePowerUpInventory(powerUpInventory, false);
+            if (LastRunDailyCompleted || deathReplayFrames.Count < 2)
+            {
+                FinishDeath(reason);
+                return;
+            }
+            StartCoroutine(PlayDeathReplay(reason));
+        }
+
+        private void RecordDeathReplayFrame()
+        {
+            if (player == null || cameraRig == null || player.State == PlayerOrbitState.Dead) return;
+            float now = Time.unscaledTime;
+            deathReplayFrames.Add(player.CaptureReplayFrame(now, cameraRig.CameraPosition));
+            float oldest = now - DeathReplayDuration - 0.15f;
+            int remove = 0;
+            while (remove < deathReplayFrames.Count - 2 && deathReplayFrames[remove].Time < oldest) remove++;
+            if (remove > 0) deathReplayFrames.RemoveRange(0, remove);
+        }
+
+        private IEnumerator PlayDeathReplay(DeathReason reason)
+        {
+            deathReplayInProgress = true;
+            deathReplaySkipRequested = false;
+            deathReplaySkippableAt = Time.unscaledTime + 0.3f;
+            hud.ShowDeathReplay();
+
+            float firstTime = deathReplayFrames[0].Time;
+            float lastTime = deathReplayFrames[deathReplayFrames.Count - 1].Time;
+            float recordedDuration = Mathf.Max(0.05f, lastTime - firstTime);
+            float playbackStart = Time.unscaledTime;
+            int cursor = 0;
+            while (!deathReplaySkipRequested)
+            {
+                float elapsed = Time.unscaledTime - playbackStart;
+                if (elapsed >= recordedDuration) break;
+                float sampleTime = firstTime + elapsed;
+                while (cursor + 1 < deathReplayFrames.Count && deathReplayFrames[cursor + 1].Time < sampleTime) cursor++;
+                DeathReplayFrame a = deathReplayFrames[cursor];
+                DeathReplayFrame b = deathReplayFrames[Mathf.Min(cursor + 1, deathReplayFrames.Count - 1)];
+                float t = Mathf.InverseLerp(a.Time, b.Time, sampleTime);
+                var blended = new DeathReplayFrame(sampleTime,
+                    Vector3.Lerp(a.PlayerPosition, b.PlayerPosition, t), Quaternion.Slerp(a.PlayerRotation, b.PlayerRotation, t),
+                    Vector3.Lerp(a.PlayerScale, b.PlayerScale, t), Vector3.Lerp(a.CameraPosition, b.CameraPosition, t),
+                    t < 0.5f ? a.BodyVisible : b.BodyVisible, t < 0.5f ? a.EngineVisible : b.EngineVisible,
+                    t < 0.5f ? a.ShieldVisible : b.ShieldVisible, Mathf.Lerp(a.Fuel, b.Fuel, t));
+                player.ApplyReplayFrame(blended);
+                cameraRig.ApplyReplayPosition(blended.CameraPosition);
+                yield return null;
+            }
+            deathReplayInProgress = false;
+            hud.HideDeathReplay();
+            FinishDeath(reason);
+        }
+
+        private void FinishDeath(DeathReason reason)
+        {
+            player.RestoreDeathVisual(reason);
+            if (!LastRunDailyCompleted) feedback.Death(player.transform.position, reason);
+            if (reason == DeathReason.Breaker && !LastRunDailyCompleted) cameraRig.ShakeExplosion();
             hud.ShowGameOver(distanceScore, bestScore, anchorsCaptured, reason, runSynchronizations, runNearMisses, bestRunSkip, bestRunMultiplier, runMaterials);
+            restartAvailableAt = Time.unscaledTime + 0.55f;
         }
 
         private void UpdateBestScore(int currentScore)

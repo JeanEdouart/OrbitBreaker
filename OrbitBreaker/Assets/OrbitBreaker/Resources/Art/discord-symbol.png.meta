@@ -1,16 +1,10 @@
 fileFormatVersion: 2
-guid: 2a1f3dfe4ff826841a8620b38946271f
+guid: 68e5b78f10a1ee04b99d5056a958febb
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: 7729526463301672050
-    second: expanded-planets-b-generated_0
-  - first:
-      213: 7987249296768501637
-    second: expanded-planets-b-generated_1
-  - first:
-      213: 2859521888312080875
-    second: expanded-planets-b-generated_2
+      213: 8781081937810946123
+    second: discord-symbol_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -30,7 +24,7 @@ TextureImporter:
     heightScale: 0.25
     normalMapFilter: 0
     flipGreenChannel: 0
-  isReadable: 1
+  isReadable: 0
   streamingMipmaps: 0
   streamingMipmapsPriority: 0
   vTOnly: 0
@@ -132,13 +126,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: expanded-planets-b-generated_0
+      name: discord-symbol_0
       rect:
         serializedVersion: 2
         x: 0
         y: 0
-        width: 1000
-        height: 1252
+        width: 255
+        height: 192
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -147,52 +141,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 27cd3179d5bc44b60800000000000000
-      internalID: 7729526463301672050
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: expanded-planets-b-generated_1
-      rect:
-        serializedVersion: 2
-        x: 346
-        y: 1247
-        width: 8
-        height: 7
-      alignment: 0
-      pivot: {x: 0, y: 0}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      customData: 
-      outline: []
-      physicsShape: []
-      tessellationDetail: -1
-      bones: []
-      spriteID: 587006acae868de60800000000000000
-      internalID: 7987249296768501637
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: expanded-planets-b-generated_2
-      rect:
-        serializedVersion: 2
-        x: 989
-        y: 30
-        width: 253
-        height: 1216
-      alignment: 0
-      pivot: {x: 0, y: 0}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      customData: 
-      outline: []
-      physicsShape: []
-      tessellationDetail: -1
-      bones: []
-      spriteID: be9bb4cc1001fa720800000000000000
-      internalID: 2859521888312080875
+      spriteID: b48f1de8f7bacd970800000000000000
+      internalID: 8781081937810946123
       vertices: []
       indices: 
       edges: []
@@ -211,9 +161,7 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      expanded-planets-b-generated_0: 7729526463301672050
-      expanded-planets-b-generated_1: 7987249296768501637
-      expanded-planets-b-generated_2: 2859521888312080875
+      discord-symbol_0: 8781081937810946123
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

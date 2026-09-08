@@ -22,7 +22,7 @@ namespace OrbitBreaker
             ChallengeKind.Synchronizations => "RÉUSSIR " + Target + " SYNCHRONISATIONS",
             ChallengeKind.NearMisses => "RÉUSSIR " + Target + " FRÔLEMENTS",
             ChallengeKind.Materials => "RÉCUPÉRER " + Target + " MATÉRIAUX",
-            ChallengeKind.Multiplier => "ATTEINDRE UN MULTIPLICATEUR x" + (Target/10f).ToString("0.0"),
+            ChallengeKind.Multiplier => "ATTEINDRE x" + (Target/10f).ToString("0.0") + " EN VOL (FRÔLEMENTS + SYNCHRO)",
             ChallengeKind.RunMaterials => "COLLECTER " + Target + " MAT EN UNE PARTIE",
             ChallengeKind.LongSkip => "SAUTER " + Target + " ORBITES EN UN VOL",
             ChallengeKind.TacticalReturns => "REVENIR SUR " + Target + " ORBITES DISTINCTES EN UNE PARTIE",

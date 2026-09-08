@@ -43,5 +43,14 @@ namespace OrbitBreaker.Tests
                 Assert.That(item.Price, Is.EqualTo(50), id);
             }
         }
+
+        [Test]
+        public void HighestMultiplierChallenge_ExplainsItsRequiredBonuses()
+        {
+            ChallengeDefinition challenge = Enumerable.Range(0, 100).Select(MetaProgression.Challenge)
+                .Where(item => item.Kind == ChallengeKind.Multiplier).OrderByDescending(item => item.Target).First();
+            Assert.That(challenge.Target, Is.EqualTo(40));
+            Assert.That(challenge.Label, Does.Contain("FRÔLEMENTS").And.Contain("SYNCHRO"));
+        }
     }
 }

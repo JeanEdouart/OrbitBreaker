@@ -88,7 +88,7 @@ namespace OrbitBreaker
             return names[Mathf.Clamp(style, 0, names.Length - 1)];
         }
 
-        private static int TodayId() => (int)(DateTime.UtcNow.Date - new DateTime(2025, 1, 1)).TotalDays;
+        private static int TodayId() => (int)(FrenchGameClock.ParisDate(DateTime.UtcNow) - new DateTime(2025, 1, 1)).TotalDays;
 
         private static void EnsureMissionDate()
         {

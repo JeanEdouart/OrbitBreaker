@@ -4,10 +4,10 @@ Jeu mobile 2D à un doigt développé avec Unity, avec progression cosmétique e
 
 ## État de cette mise à jour
 
-Les modifications décrites ci-dessous sont intégrées au projet source et livrées en Android/WebGL. La version de configuration reste `0.3.0` (Android code `3`). Les résultats de validation et de build de cette passe sont consignés dans `IMPLEMENTATION-REVIEW.md`.
+Les modifications décrites ci-dessous sont intégrées au projet source et livrées en Android/WebGL. La version de configuration est `0.4.0` (Android code `4`). Les résultats de validation et de build de cette passe sont consignés dans `IMPLEMENTATION-REVIEW.md`.
 
 - Le mode Entraînement a été retiré. Infini conserve la progression principale et son classement mondial ; Sprint possède désormais un classement mondial séparé.
-- Le parcours quotidien utilise la date UTC comme graine : 12 à 20 captures inédites selon un niveau quotidien de 1 à 5, puis une récompense unique de 90 à 320 matériaux. Une seule tentative est disponible par date UTC, consommée au premier décollage et signalée clairement sur l'écran principal après utilisation. Il ne possède volontairement aucun classement : l'objectif est de terminer le trajet du jour.
+- Le parcours quotidien utilise la date civile française comme graine et change exactement à minuit heure de Paris (été comme hiver) : 12 à 20 captures inédites selon un niveau quotidien de 1 à 5, puis une récompense unique de 90 à 320 matériaux. Une seule tentative est disponible par jour, consommée au premier décollage et signalée clairement sur l'écran principal après utilisation. Il ne possède volontairement aucun classement : l'objectif est de terminer le trajet du jour.
 - Les 3e, 7e et 14e parcours quotidiens terminés débloquent chacun une fusée exclusive impossible à acheter. Le claim est idempotent et conserve les anciennes sauvegardes.
 - Le Sprint dure 90 secondes de jeu actif. Une animation de trou de ver déjà lancée termine son arrivée avant d'afficher le résultat, puis le meilleur score est envoyé au classement Sprint.
 - Les musiques s'achètent et s'équipent dans l'onglet Musique du hangar. Neon Orbit reste gratuite et sélectionnée par défaut ; Son conserve le mixage général/musique/effets.
@@ -35,10 +35,11 @@ Le joueur tourne automatiquement autour d'une ancre. Une pression le propulse se
 - Motifs procéduraux et phases de respiration répartis sur des cycles de difficulté
 - Cosmétiques de fusée, traînée, planètes, fond et musique débloqués contre des matériaux
 - Trois défis actifs simultanément, récapitulatif de partie et écran Statistiques dédié : records Infini/Sprint, carrière, exploration, tentatives et parcours quotidiens terminés, causes de mort
+- Replay local et skippable des trois dernières secondes après une mort, avant l’écran de résultats
 - Cartes stellaires avec compteurs global et par pack
 - Transitions progressives de couleur du décor tous les 500 UA de score, y compris avec les fonds du hangar ; notification de nouveau secteur.
 - Distance affichée en UA (unités astronomiques, unité de jeu ; valeurs des sauvegardes et du classement inchangées).
-- Rythme 0.3.0 : distance de base doublée, séries de skips avec bonus ×1,25 au deuxième skip puis +0,25 jusqu'à ×2,5. Une capture normale, un retour, un checkpoint revisité ou un trou de ver remet la série à zéro. Aucun changement aux records existants.
+- Rythme 0.4.0 : distance de base doublée, séries de skips avec bonus ×1,25 au deuxième skip puis +0,25 jusqu'à ×2,5. Une capture normale, un retour, un checkpoint revisité ou un trou de ver remet la série à zéro. Aucun changement aux records existants.
 - Difficulté progressive jusqu'à 900 UA puis plafonnée : rotation de 158 à 230 degrés/s. Débris orbitaux à partir de 100 UA (cible 1/6, puis 40 % à 300 UA), débris de skip à partir de 300 UA (12 à 45 % des occasions jusqu'à 600 UA). Les placements dangereux restent exclus et les orbites de répit conservées ; les taux réellement observés dépendent des trajectoires sûres disponibles.
 - Répartition absolue gauche/centre/droite des planètes pour éviter l'accumulation d'orbites contre un seul bord. Les orbites déjà générées ne changent pas brutalement et un retour arrière ne réduit pas la difficulté atteinte.
 - Bonus persistants : 5 charges **par type**, soit 25 au total ; icônes dédiées et compteurs `0/5` à `5/5` dans le HUD et le menu.
@@ -149,7 +150,7 @@ Configuration actuelle :
 
 - identifiant : `com.orbitbreaker.game`
 - orientation : portrait
-- version : `0.3.0` ; code Android : `3`
+- version : `0.4.0` ; code Android : `4`
 - backend : IL2CPP
 - API Android minimale : 26
 

@@ -222,18 +222,7 @@ namespace OrbitBreaker
             || (x > -.09f && x < -.01f && y > -.22f && y < .4f)
             || (x > -.09f && x < .34f && y > .26f && y < .39f));
 
-        public static Sprite DiscordIcon => discordIcon != null ? discordIcon : discordIcon = CreateIcon("Discord Icon", (x, y) =>
-        {
-            // Silhouette générique "bulle à oreilles" évoquant une messagerie communautaire,
-            // dessinée en interne comme les autres icônes (pas de logo tiers importé).
-            float bx = x / 0.40f, by = (y - 0.03f) / 0.32f;
-            bool body = Mathf.Pow(Mathf.Abs(bx), 4f) + Mathf.Pow(Mathf.Abs(by), 4f) < 1f;
-            bool earL = (x + 0.27f) * (x + 0.27f) / 0.028f + (y - 0.24f) * (y - 0.24f) / 0.024f < 1f;
-            bool earR = (x - 0.27f) * (x - 0.27f) / 0.028f + (y - 0.24f) * (y - 0.24f) / 0.024f < 1f;
-            bool eyeL = (x + 0.145f) * (x + 0.145f) / 0.016f + (y - 0.02f) * (y - 0.02f) / 0.026f < 1f;
-            bool eyeR = (x - 0.145f) * (x - 0.145f) / 0.016f + (y - 0.02f) * (y - 0.02f) / 0.026f < 1f;
-            return (body || earL || earR) && !(eyeL || eyeR);
-        });
+        public static Sprite DiscordIcon => discordIcon != null ? discordIcon : discordIcon = LoadSingleSprite("Art/discord-symbol", "Discord Official Symbol");
 
         public static Sprite GetRocketSprite(int index)
         {
@@ -253,14 +242,14 @@ namespace OrbitBreaker
             }
             if (index >= 11)
             {
-                if (generatedRockets == null) generatedRockets = LoadGridSprites("Art/expanded-rockets-generated", 4, 4, "Generated Rocket");
+                if (!SpritesReady(generatedRockets)) generatedRockets = LoadGridSprites("Art/expanded-rockets-generated", 4, 4, "Generated Rocket", false, true);
                 int variant = Mathf.Clamp(index - 11, 0, 15);
                 int generatedAtlasIndex = (3 - variant / 4) * 4 + variant % 4;
                 return generatedRockets.Length > generatedAtlasIndex ? generatedRockets[generatedAtlasIndex] : ExpandedCosmetics.Rocket(variant);
             }
             if (index == 10) return auroraRocket != null ? auroraRocket : auroraRocket = LoadSingleSprite("Art/aurora-rocket", "Aurore");
             if (index <= 0) return RocketSprite;
-            if (cosmeticRockets == null) cosmeticRockets = LoadGridSprites("Art/cosmetics-rockets-atlas", 5, 2, "Rocket Cosmetic");
+            if (!SpritesReady(cosmeticRockets)) cosmeticRockets = LoadGridSprites("Art/cosmetics-rockets-atlas", 5, 2, "Rocket Cosmetic");
             // Sprite.Create uses texture coordinates from the bottom row upward.
             // Catalog order: interceptor, miner, retro, crystal, bio, banana, stealth, lunar, gold.
             int[] atlasByCatalog = { 0, 6, 7, 8, 9, 0, 1, 2, 3, 4 };
@@ -331,14 +320,14 @@ namespace OrbitBreaker
                 return herbalBackground != null ? herbalBackground : herbalBackground = LoadSingleSprite("Art/herbal-background", "Brume Herbal");
             if (index >= 4)
             {
-                if (generatedBackgrounds == null) generatedBackgrounds = LoadGridSprites("Art/expanded-backgrounds-generated", 4, 3, "Generated Background");
+                if (!SpritesReady(generatedBackgrounds)) generatedBackgrounds = LoadGridSprites("Art/expanded-backgrounds-generated", 4, 3, "Generated Background");
                 int variant = Mathf.Clamp(index - 4, 0, 10);
                 int atlasIndex = (2 - variant / 4) * 4 + variant % 4;
                 return generatedBackgrounds.Length > atlasIndex ? generatedBackgrounds[atlasIndex] : ExpandedCosmetics.Background(variant);
             }
             if (index == 3) return auroraBackground != null ? auroraBackground : auroraBackground = LoadSingleSprite("Art/aurora-background", "Voile Boreal");
             if (index <= 0) return SpaceBackgroundSprite;
-            if (cosmeticBackgrounds == null) cosmeticBackgrounds = LoadGridSprites("Art/cosmetics-backgrounds-atlas", 2, 1, "Background Cosmetic");
+            if (!SpritesReady(cosmeticBackgrounds)) cosmeticBackgrounds = LoadGridSprites("Art/cosmetics-backgrounds-atlas", 2, 1, "Background Cosmetic");
             return cosmeticBackgrounds.Length > 0 ? cosmeticBackgrounds[Mathf.Clamp(index - 1, 0, cosmeticBackgrounds.Length - 1)] : SpaceBackgroundSprite;
         }
 
@@ -357,7 +346,7 @@ namespace OrbitBreaker
         {
             if (pack == 15)
             {
-                if (herbalPlanets == null) herbalPlanets = LoadGridSprites("Art/herbal-planets", 3, 2, "Monde Herbal");
+                if (!SpritesReady(herbalPlanets)) herbalPlanets = LoadGridSprites("Art/herbal-planets", 3, 2, "Monde Herbal");
                 int[] atlasByVariant = { 3, 4, 5, 0, 1 };
                 int atlasIndex = atlasByVariant[Mathf.Abs(sequence % atlasByVariant.Length)];
                 return herbalPlanets.Length > atlasIndex ? herbalPlanets[atlasIndex] : CircleSprite;
@@ -368,36 +357,36 @@ namespace OrbitBreaker
                 int packOffset = pack - 4;
                 if (packOffset < 6)
                 {
-                    if (generatedPlanetsA == null) generatedPlanetsA = LoadGridSprites("Art/expanded-planets-a-generated", 5, 6, "Generated Planet A");
+                    if (!SpritesReady(generatedPlanetsA)) generatedPlanetsA = LoadGridSprites("Art/expanded-planets-a-generated", 5, 6, "Generated Planet A", false, true);
                     int atlasIndex = (5 - packOffset) * 5 + variant;
                     return generatedPlanetsA.Length > atlasIndex ? generatedPlanetsA[atlasIndex] : ExpandedCosmetics.Planet(packOffset, sequence);
                 }
-                if (generatedPlanetsB == null) generatedPlanetsB = LoadGridSprites("Art/expanded-planets-b-generated", 5, 5, "Generated Planet B");
+                if (!SpritesReady(generatedPlanetsB)) generatedPlanetsB = LoadGridSprites("Art/expanded-planets-b-generated", 5, 5, "Generated Planet B", false, true);
                 int row = packOffset - 6;
                 int generatedIndex = (4 - row) * 5 + variant;
                 return generatedPlanetsB.Length > generatedIndex ? generatedPlanetsB[generatedIndex] : ExpandedCosmetics.Planet(packOffset, sequence);
             }
             if (pack == 3)
             {
-                if (auroraPlanets == null) auroraPlanets = LoadGridSprites("Art/aurora-planets", 2, 2, "Mondes Aurore");
+                if (!SpritesReady(auroraPlanets)) auroraPlanets = LoadGridSprites("Art/aurora-planets", 2, 2, "Mondes Aurore");
                 if (auroraPlanets.Length == 4) return auroraPlanets[Mathf.Abs(sequence % 4)];
             }
             if (pack > 0)
             {
-                if (cosmeticPlanets == null) cosmeticPlanets = LoadGridSprites("Art/cosmetics-planets-atlas", 4, 2, "Planet Cosmetic", true);
+                if (!SpritesReady(cosmeticPlanets)) cosmeticPlanets = LoadGridSprites("Art/cosmetics-planets-atlas", 4, 2, "Planet Cosmetic", true);
                 if (cosmeticPlanets.Length > 0)
                 {
                     int offset = pack == 1 ? 4 : 0;
                     return cosmeticPlanets[offset + Mathf.Abs(sequence) % 4];
                 }
             }
-            if (planetSprites == null) planetSprites = LoadGridSprites("Art/planets-sheet", 3, 2, "Planet");
+            if (!SpritesReady(planetSprites)) planetSprites = LoadGridSprites("Art/planets-sheet", 3, 2, "Planet");
             return planetSprites.Length > 0 ? planetSprites[Mathf.Abs(sequence) % planetSprites.Length] : CircleSprite;
         }
 
         public static Sprite GetDebrisSprite(int sequence)
         {
-            if (debrisSprites == null) debrisSprites = LoadGridSprites("Art/debris-sheet", 3, 2, "Debris");
+            if (!SpritesReady(debrisSprites)) debrisSprites = LoadGridSprites("Art/debris-sheet", 3, 2, "Debris");
             return debrisSprites.Length > 0 ? debrisSprites[Mathf.Abs(sequence * 5 + 3) % debrisSprites.Length] : SquareSprite;
         }
 
@@ -410,7 +399,7 @@ namespace OrbitBreaker
             return sprite;
         }
 
-        private static Sprite[] LoadGridSprites(string resourcePath, int columns, int rows, string prefix, bool removeLightEdgeBackdrop = false)
+        private static Sprite[] LoadGridSprites(string resourcePath, int columns, int rows, string prefix, bool removeLightEdgeBackdrop = false, bool isolateSubject = false)
         {
             Texture2D texture = Resources.Load<Texture2D>(resourcePath);
             if (texture == null) return Array.Empty<Sprite>();
@@ -423,7 +412,7 @@ namespace OrbitBreaker
                 {
                     int index = row * columns + column;
                     Rect rect = new Rect(column * cellWidth, row * cellHeight, cellWidth, cellHeight);
-                    if (removeLightEdgeBackdrop)
+                    if (removeLightEdgeBackdrop || isolateSubject)
                     {
                         int width = Mathf.RoundToInt(cellWidth); int height = Mathf.RoundToInt(cellHeight);
                         Color32[] pixels = texture.GetPixels32(0);
@@ -438,8 +427,8 @@ namespace OrbitBreaker
                         }
                         var cellPixels = new Color32[width * height];
                         for (int y = 0; y < height; y++) Array.Copy(pixels, (originY + y) * texture.width + originX, cellPixels, y * width, width);
-                        RemoveConnectedLightBackdrop(cellPixels, width, height);
-                        if (index == 6) KeepCenterConnectedSubject(cellPixels, width, height);
+                        if (removeLightEdgeBackdrop) RemoveConnectedLightBackdrop(cellPixels, width, height);
+                        KeepCenterConnectedSubject(cellPixels, width, height);
                         var cellTexture = new Texture2D(width, height, TextureFormat.RGBA32, false) { name = prefix + " Texture " + index, filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
                         cellTexture.SetPixels32(cellPixels); cellTexture.Apply(false, true);
                         sprites[index] = Sprite.Create(cellTexture, new Rect(0f, 0f, width, height), Vector2.one * 0.5f, height, 0, SpriteMeshType.FullRect);
@@ -449,6 +438,16 @@ namespace OrbitBreaker
                 }
             }
             return sprites;
+        }
+
+        private static bool SpritesReady(Sprite[] sprites)
+        {
+            if (sprites == null || sprites.Length == 0) return false;
+            for (int i = 0; i < sprites.Length; i++)
+            {
+                if (sprites[i] == null) return false;
+            }
+            return true;
         }
 
         private static void RemoveConnectedLightBackdrop(Color32[] pixels, int width, int height)
@@ -479,7 +478,19 @@ namespace OrbitBreaker
             var kept = new bool[pixels.Length];
             var queue = new System.Collections.Generic.Queue<int>();
             int center = (height / 2) * width + width / 2;
-            if (pixels[center].a == 0) return;
+            if (pixels[center].a == 0)
+            {
+                int best = -1; int bestDistance = int.MaxValue;
+                for (int i = 0; i < pixels.Length; i++)
+                {
+                    if (pixels[i].a == 0) continue;
+                    int dx = i % width - width / 2; int dy = i / width - height / 2;
+                    int distance = dx * dx + dy * dy;
+                    if (distance < bestDistance) { best = i; bestDistance = distance; }
+                }
+                if (best < 0) return;
+                center = best;
+            }
             kept[center] = true; queue.Enqueue(center);
             void Visit(int index) { if (!kept[index] && pixels[index].a > 0) { kept[index] = true; queue.Enqueue(index); } }
             while (queue.Count > 0)

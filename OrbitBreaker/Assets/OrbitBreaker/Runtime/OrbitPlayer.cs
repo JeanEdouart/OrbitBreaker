@@ -79,6 +79,8 @@ namespace OrbitBreaker
         private float extraFlightTime;
         private float extractorRadius;
         private int extractorMultiplier = 1;
+        private float currentFuel = 1f;
+        private bool replayVisualActive;
 
         public PlayerOrbitState State { get; private set; }
         public OrbitAnchor CurrentAnchor { get; private set; }
@@ -103,6 +105,38 @@ namespace OrbitBreaker
         public event Action<NearMissResult> NearMissed;
         public event Action<int, Vector2> MaterialCollected;
         public event Action<PowerUpType, Vector2> PowerUpCollected;
+
+        public DeathReplayFrame CaptureReplayFrame(float sampleTime, Vector3 cameraPosition)
+        {
+            return new DeathReplayFrame(sampleTime, transform.position, transform.rotation, transform.localScale,
+                cameraPosition, body != null && body.enabled,
+                outerFlame != null && outerFlame.gameObject.activeSelf,
+                shield != null && shield.enabled, currentFuel);
+        }
+
+        public void ApplyReplayFrame(DeathReplayFrame frame)
+        {
+            replayVisualActive = true;
+            transform.SetPositionAndRotation(frame.PlayerPosition, frame.PlayerRotation);
+            transform.localScale = frame.PlayerScale;
+            if (body != null) { body.enabled = frame.BodyVisible; body.color = Color.white; }
+            SetEngine(frame.EngineVisible);
+            SetShield(frame.ShieldVisible);
+            SetFuel(frame.Fuel);
+            if (trail != null) { trail.emitting = false; trail.Clear(); }
+            cosmeticTrail?.Clear();
+        }
+
+        public void RestoreDeathVisual(DeathReason reason)
+        {
+            replayVisualActive = false;
+            SetEngine(false);
+            SetShield(false);
+            SetFuel(0f);
+            if (body == null) return;
+            body.enabled = reason != DeathReason.Breaker;
+            body.color = new Color(1f, 0.22f, 0.38f, 1f);
+        }
 
         public void Initialize()
         {
@@ -604,11 +638,12 @@ namespace OrbitBreaker
 
         private void SetFuel(float amount)
         {
+            currentFuel = Mathf.Clamp01(amount);
             if (fuelFill == null) return;
-            bool visible = GamePreferences.FlightGauges && State != PlayerOrbitState.Dead;
+            bool visible = GamePreferences.FlightGauges && (State != PlayerOrbitState.Dead || replayVisualActive);
             fuelTrack.enabled = visible;
             fuelFill.enabled = visible;
-            float fuel = Mathf.Clamp01(amount);
+            float fuel = currentFuel;
             const float height = 0.42f;
             float filledHeight = Mathf.Max(0.015f, height * fuel);
             fuelFill.transform.localScale = new Vector3(0.045f, filledHeight, 1f);

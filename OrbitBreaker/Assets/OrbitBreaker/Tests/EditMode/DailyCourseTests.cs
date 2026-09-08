@@ -45,9 +45,9 @@ namespace OrbitBreaker.Tests
             int[] rewards = { 90, 130, 180, 240, 320 };
             for (int day = 0; day < 120; day++)
             {
-                DateTime date = new DateTime(2026, 1, 1).AddDays(day);
+                DateTime date = new DateTime(2026, 1, 1, 2, 0, 0, DateTimeKind.Utc).AddDays(day);
                 DailyCourseDefinition morning = DailyCourse.ForDate(date);
-                DailyCourseDefinition evening = DailyCourse.ForDate(date.AddHours(23));
+                DailyCourseDefinition evening = DailyCourse.ForDate(date.AddHours(19));
                 Assert.That(evening.Seed, Is.EqualTo(morning.Seed));
                 Assert.That(evening.Tier, Is.EqualTo(morning.Tier));
                 Assert.That(morning.Tier, Is.InRange(1, 5));
@@ -57,6 +57,15 @@ namespace OrbitBreaker.Tests
                 tiers.Add(morning.Tier);
             }
             Assert.That(tiers.Count, Is.EqualTo(5));
+        }
+
+        [Test]
+        public void DailyCourse_ChangesAtFrenchMidnight_InWinterAndSummer()
+        {
+            Assert.That(FrenchGameClock.ParisDayKey(new DateTime(2026, 1, 4, 22, 59, 59, DateTimeKind.Utc)), Is.EqualTo(20260104));
+            Assert.That(FrenchGameClock.ParisDayKey(new DateTime(2026, 1, 4, 23, 0, 0, DateTimeKind.Utc)), Is.EqualTo(20260105));
+            Assert.That(FrenchGameClock.ParisDayKey(new DateTime(2026, 7, 4, 21, 59, 59, DateTimeKind.Utc)), Is.EqualTo(20260704));
+            Assert.That(FrenchGameClock.ParisDayKey(new DateTime(2026, 7, 4, 22, 0, 0, DateTimeKind.Utc)), Is.EqualTo(20260705));
         }
 
         [Test]

@@ -32,6 +32,8 @@ namespace OrbitBreaker
         private Text gameOverRecord;
         private Text gameOverSummary;
         private GameObject gameOverPanel;
+        private GameObject deathReplayOverlay;
+        private Text deathReplayLabel;
         private GameObject settingsPanel;
         private GameObject settingsButton;
         private GameObject infoButton;
@@ -306,6 +308,18 @@ namespace OrbitBreaker
             SetRect(retry.rectTransform, new Vector2(0.08f, 0.02f), new Vector2(0.92f, 0.15f), Vector2.zero, Vector2.zero);
             gameOverPanel.SetActive(false);
 
+            deathReplayOverlay = new GameObject("Death Replay Overlay", typeof(RectTransform), typeof(Image));
+            deathReplayOverlay.transform.SetParent(safe, false);
+            SetRect(deathReplayOverlay.GetComponent<RectTransform>(), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            Image replayVeil = deathReplayOverlay.GetComponent<Image>();
+            replayVeil.color = new Color(0.005f, 0.015f, 0.045f, 0.16f);
+            replayVeil.raycastTarget = false;
+            deathReplayLabel = CreateText(deathReplayOverlay.transform, "Replay Label", "REPLAY  ·  APPUIE POUR PASSER", 25, TextAnchor.LowerCenter, FontStyle.Bold);
+            deathReplayLabel.color = new Color(0.72f, 0.94f, 1f, 0.58f);
+            deathReplayLabel.gameObject.AddComponent<Outline>().effectColor = new Color(0f, 0.03f, 0.08f, 0.45f);
+            SetRect(deathReplayLabel.rectTransform, new Vector2(0.08f, 0.075f), new Vector2(0.92f, 0.16f), Vector2.zero, Vector2.zero);
+            deathReplayOverlay.SetActive(false);
+
             settingsButton = CreateIconButton(safe, "Settings Button", RuntimeAssets.SettingsIcon, ToggleSettings);
             SetSquareRect(settingsButton.GetComponent<RectTransform>(), new Vector2(0.91f, 0.5f), 112f);
 
@@ -430,6 +444,7 @@ namespace OrbitBreaker
             if (statisticsPanel != null) statisticsPanel.SetActive(false);
             gameOverPanel.SetActive(false);
             gameOverVisible = false;
+            if (deathReplayOverlay != null) deathReplayOverlay.SetActive(false);
             if (materialToast != null) materialToast.SetActive(false);
             if (challengeToast != null) challengeToast.SetActive(false);
             if (nearMissText != null) nearMissText.text = string.Empty;
@@ -677,6 +692,29 @@ namespace OrbitBreaker
             statisticsButton.SetActive(true);
             pauseButton.SetActive(false);
             gameOverVisible = true;
+        }
+
+        public void ShowDeathReplay()
+        {
+            gameOverPanel.SetActive(false);
+            gameOverVisible = false;
+            titleText.gameObject.SetActive(false);
+            hintGroup.gameObject.SetActive(false);
+            tutorialTips.SetActive(false);
+            pauseButton.SetActive(false);
+            settingsButton.SetActive(false);
+            infoButton.SetActive(false);
+            styleButton.SetActive(false);
+            powerUpButton.SetActive(false);
+            missionsButton.SetActive(false);
+            leaderboardButton.SetActive(false);
+            for (int i = 0; i < powerUpInventoryButtons.Length; i++) powerUpInventoryButtons[i].SetActive(false);
+            deathReplayOverlay.SetActive(true);
+        }
+
+        public void HideDeathReplay()
+        {
+            if (deathReplayOverlay != null) deathReplayOverlay.SetActive(false);
         }
 
         public void ShowDailyProgress(int captures, int target, int tier)

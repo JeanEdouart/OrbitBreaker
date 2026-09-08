@@ -68,10 +68,10 @@ namespace OrbitBreaker
         public static int CompletedDays => Mathf.Max(0, PlayerPrefs.GetInt(Prefix + "CompletedDays", 0));
         public static int AttemptedDays => Mathf.Max(CompletedDays, Mathf.Max(0, PlayerPrefs.GetInt(Prefix + "AttemptedDays", 0)));
 
-        public static DailyCourseDefinition ForDate(DateTime utcDate)
+        public static DailyCourseDefinition ForDate(DateTime utcInstant)
         {
             // Integer-only mixing is stable between Mono, IL2CPP, WebGL and process launches.
-            int dayKey = LocalRunStats.DailySeed(utcDate);
+            int dayKey = FrenchGameClock.ParisDayKey(utcInstant);
             uint mixed = unchecked((uint)dayKey * 2654435761u);
             mixed ^= mixed >> 16;
             return new DailyCourseDefinition(dayKey, 1 + (int)(mixed % 5u));

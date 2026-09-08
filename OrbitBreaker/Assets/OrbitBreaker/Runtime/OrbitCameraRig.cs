@@ -21,6 +21,19 @@ namespace OrbitBreaker
         private float flightShakeStrength;
 
         public float CameraY => targetCamera != null ? targetCamera.transform.position.y : 0f;
+        public Vector3 CameraPosition => targetCamera != null ? targetCamera.transform.position : Vector3.zero;
+
+        public void ApplyReplayPosition(Vector3 position)
+        {
+            if (targetCamera == null) return;
+            targetX = position.x;
+            targetY = position.y;
+            basePosition = position;
+            velocity = Vector3.zero;
+            impactShakeRemaining = 0f;
+            flightShakeStrength = 0f;
+            targetCamera.transform.position = position;
+        }
 
         public void Initialize(Camera camera)
         {
