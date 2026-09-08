@@ -14,7 +14,8 @@ const tracks=[
  ['rusty_station',112,[40,43,38,41],[64,-1,-1,71,67,-1,66,-1,62,-1,69,-1,65,64,-1,59]],
  ['solar_carnival',136,[53,58,55,60],[77,81,84,-1,82,81,79,77,79,82,86,-1,84,82,81,79]],
  ['deep_blue',100,[38,34,41,36],[62,-1,-1,69,-1,-1,65,-1,60,-1,67,-1,-1,65,62,-1]],
- ['pocket_galaxy',128,[48,55,57,53],[72,76,79,76,74,-1,71,74,76,79,81,79,77,76,74,-1]]];
+ ['pocket_galaxy',128,[48,55,57,53],[72,76,79,76,74,-1,71,74,76,79,81,79,77,76,74,-1]],
+ ['cyberpunk',140,[43,38,39,41],[67,70,74,79,74,70,67,74,79,82,79,74,70,67,63,-1]]];
 const frac=x=>x-Math.floor(x),freq=n=>440*Math.pow(2,(n-69)/12),sq=p=>Math.sin(2*Math.PI*p)>=0?1:-1,tri=p=>1-4*Math.abs(frac(p)-.5);
 function old(i,id,track){
  const [,bpm,roots,melody]=track,t=i/sr,b=t/(60/bpm),beat=Math.floor(b),p=frac(b),half=Math.floor(b*2),hp=frac(b*2),rf=freq(roots[Math.floor(beat/8)%4]),nf=freq(melody[half%16]),env=Math.exp(-hp*4);

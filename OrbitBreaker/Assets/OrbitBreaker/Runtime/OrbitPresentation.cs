@@ -34,6 +34,15 @@ namespace OrbitBreaker
         private GameObject gameOverPanel;
         private GameObject deathReplayOverlay;
         private Text deathReplayLabel;
+        private readonly Image[] deathReplayCorners = new Image[8];
+        private Image deathReplayRecDot;
+        private Text deathReplayTimeText;
+        private Image deathReplayTimeBarFill;
+        private Coroutine deathReplayPulse;
+        private float deathReplayTotalDuration = 1f;
+        private GameObject sixtySevenOverlay;
+        private readonly Text[] sixtySevenBursts = new Text[40];
+        private readonly List<GameObject> resurrectionHiddenHud = new List<GameObject>();
         private GameObject settingsPanel;
         private GameObject settingsButton;
         private GameObject infoButton;
@@ -314,11 +323,72 @@ namespace OrbitBreaker
             Image replayVeil = deathReplayOverlay.GetComponent<Image>();
             replayVeil.color = new Color(0.005f, 0.015f, 0.045f, 0.16f);
             replayVeil.raycastTarget = false;
+            // Plus de cadre traversant tout l'écran : seuls les 4 coins de viseur marquent le replay.
             deathReplayLabel = CreateText(deathReplayOverlay.transform, "Replay Label", "REPLAY  ·  APPUIE POUR PASSER", 25, TextAnchor.LowerCenter, FontStyle.Bold);
             deathReplayLabel.color = new Color(0.72f, 0.94f, 1f, 0.58f);
             deathReplayLabel.gameObject.AddComponent<Outline>().effectColor = new Color(0f, 0.03f, 0.08f, 0.45f);
             SetRect(deathReplayLabel.rectTransform, new Vector2(0.08f, 0.075f), new Vector2(0.92f, 0.16f), Vector2.zero, Vector2.zero);
+
+            // Effet "caméra HUD" : coins de viseur + bandeau REC/temps restant en haut de l'écran,
+            // pour que le replay se distingue clairement du jeu normal et affiche le temps restant.
+            for (int corner = 0; corner < 4; corner++)
+            {
+                CreateReplayCornerBracket(deathReplayOverlay.transform, corner, corner == 1 || corner == 3, corner < 2);
+            }
+
+            GameObject replayTopBar = new GameObject("Replay Top Bar", typeof(RectTransform), typeof(Image));
+            replayTopBar.transform.SetParent(deathReplayOverlay.transform, false);
+            Image replayTopBarBg = replayTopBar.GetComponent<Image>();
+            replayTopBarBg.color = new Color(0.01f, 0.04f, 0.09f, 0.55f);
+            replayTopBarBg.raycastTarget = false;
+            SetRect(replayTopBar.GetComponent<RectTransform>(), new Vector2(0.065f, 0.905f), new Vector2(0.935f, 0.955f), Vector2.zero, Vector2.zero);
+
+            GameObject recDotGo = new GameObject("Replay Rec Dot", typeof(RectTransform), typeof(Image));
+            recDotGo.transform.SetParent(replayTopBar.transform, false);
+            deathReplayRecDot = recDotGo.GetComponent<Image>();
+            deathReplayRecDot.raycastTarget = false;
+            deathReplayRecDot.color = new Color(1f, 0.25f, 0.32f, 1f);
+            SetRect(recDotGo.GetComponent<RectTransform>(), new Vector2(0.02f, 0.3f), new Vector2(0.075f, 0.7f), Vector2.zero, Vector2.zero);
+
+            Text recLabel = CreateText(replayTopBar.transform, "Replay Rec Label", "REC · REPLAY", 20, TextAnchor.MiddleLeft, FontStyle.Bold);
+            recLabel.color = new Color(0.78f, 0.95f, 1f, 0.92f);
+            SetRect(recLabel.rectTransform, new Vector2(0.11f, 0f), new Vector2(0.62f, 1f), Vector2.zero, Vector2.zero);
+
+            deathReplayTimeText = CreateText(replayTopBar.transform, "Replay Time Text", "0.0 S", 22, TextAnchor.MiddleRight, FontStyle.Bold);
+            deathReplayTimeText.color = new Color(0.72f, 0.94f, 1f, 0.95f);
+            SetRect(deathReplayTimeText.rectTransform, new Vector2(0.62f, 0f), new Vector2(0.98f, 1f), Vector2.zero, Vector2.zero);
+
+            GameObject replayTimeBarBg = new GameObject("Replay Time Bar Background", typeof(RectTransform), typeof(Image));
+            replayTimeBarBg.transform.SetParent(deathReplayOverlay.transform, false);
+            Image replayTimeBarBgImage = replayTimeBarBg.GetComponent<Image>();
+            replayTimeBarBgImage.color = new Color(0.05f, 0.09f, 0.16f, 0.6f);
+            replayTimeBarBgImage.raycastTarget = false;
+            SetRect(replayTimeBarBg.GetComponent<RectTransform>(), new Vector2(0.065f, 0.893f), new Vector2(0.935f, 0.902f), Vector2.zero, Vector2.zero);
+
+            GameObject replayTimeBarFillGo = new GameObject("Replay Time Bar Fill", typeof(RectTransform), typeof(Image));
+            replayTimeBarFillGo.transform.SetParent(replayTimeBarBg.transform, false);
+            deathReplayTimeBarFill = replayTimeBarFillGo.GetComponent<Image>();
+            deathReplayTimeBarFill.raycastTarget = false;
+            deathReplayTimeBarFill.color = new Color(0.24f, 0.86f, 1f, 0.92f);
+            SetRect(replayTimeBarFillGo.GetComponent<RectTransform>(), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+
             deathReplayOverlay.SetActive(false);
+
+            // A pooled, full-screen typographic resurrection. The transparent image blocks
+            // menu/power-up input for the cinematic without hiding the world or the ship.
+            sixtySevenOverlay = new GameObject("Sixty Seven Overlay", typeof(RectTransform), typeof(Image));
+            sixtySevenOverlay.GetComponent<Image>().color = new Color(0.015f, 0.01f, 0.065f, 0.18f);
+            sixtySevenOverlay.transform.SetParent(safe, false);
+            SetRect(sixtySevenOverlay.GetComponent<RectTransform>(), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            for (int i = 0; i < sixtySevenBursts.Length; i++)
+            {
+                Text label = CreateText(sixtySevenOverlay.transform, "Sixty Seven Burst " + i, "67", 30, TextAnchor.MiddleCenter, FontStyle.Bold);
+                label.color = new Color(1f, 1f, 1f, 0f);
+                label.gameObject.AddComponent<Outline>().effectColor = new Color(0.1f, 0f, 0.2f, 0.6f);
+                SetSquareRect(label.rectTransform, new Vector2(0.5f, 0.5f), 90f);
+                sixtySevenBursts[i] = label;
+            }
+            sixtySevenOverlay.SetActive(false);
 
             settingsButton = CreateIconButton(safe, "Settings Button", RuntimeAssets.SettingsIcon, ToggleSettings);
             SetSquareRect(settingsButton.GetComponent<RectTransform>(), new Vector2(0.91f, 0.5f), 112f);
@@ -694,7 +764,7 @@ namespace OrbitBreaker
             gameOverVisible = true;
         }
 
-        public void ShowDeathReplay()
+        public void ShowDeathReplay(float duration)
         {
             gameOverPanel.SetActive(false);
             gameOverVisible = false;
@@ -709,12 +779,141 @@ namespace OrbitBreaker
             missionsButton.SetActive(false);
             leaderboardButton.SetActive(false);
             for (int i = 0; i < powerUpInventoryButtons.Length; i++) powerUpInventoryButtons[i].SetActive(false);
+            deathReplayTotalDuration = Mathf.Max(0.05f, duration);
+            if (deathReplayTimeBarFill != null) deathReplayTimeBarFill.rectTransform.anchorMax = new Vector2(1f, 1f);
+            if (deathReplayTimeText != null) deathReplayTimeText.text = deathReplayTotalDuration.ToString("0.0") + " S";
             deathReplayOverlay.SetActive(true);
+            if (deathReplayPulse != null) StopCoroutine(deathReplayPulse);
+            deathReplayPulse = StartCoroutine(PulseDeathReplayFrame());
+        }
+
+        public void UpdateDeathReplayCountdown(float remaining)
+        {
+            float clamped = Mathf.Clamp(remaining, 0f, deathReplayTotalDuration);
+            if (deathReplayTimeText != null) deathReplayTimeText.text = clamped.ToString("0.0") + " S";
+            if (deathReplayTimeBarFill != null)
+            {
+                float fraction = deathReplayTotalDuration > 0f ? clamped / deathReplayTotalDuration : 0f;
+                deathReplayTimeBarFill.rectTransform.anchorMax = new Vector2(fraction, 1f);
+            }
         }
 
         public void HideDeathReplay()
         {
+            if (deathReplayPulse != null)
+            {
+                StopCoroutine(deathReplayPulse);
+                deathReplayPulse = null;
+            }
             if (deathReplayOverlay != null) deathReplayOverlay.SetActive(false);
+        }
+
+        public void PlaySixtySevenRevive()
+        {
+            if (sixtySevenOverlay == null) return;
+            resurrectionHiddenHud.Clear();
+            HideForResurrection(scoreText.gameObject);
+            HideForResurrection(bestText.gameObject);
+            HideForResurrection(pauseButton);
+            HideForResurrection(multiplierBadge);
+            foreach (GameObject button in powerUpInventoryButtons) HideForResurrection(button);
+            foreach (GameObject row in activePowerRows) HideForResurrection(row);
+            sixtySevenOverlay.transform.SetAsLastSibling();
+            sixtySevenOverlay.SetActive(true);
+            UpdateSixtySevenRevive(0f);
+        }
+
+        public void UpdateSixtySevenRevive(float elapsed)
+        {
+            float envelope = Mathf.SmoothStep(0f, 1f, elapsed / 1.2f) * (1f - Mathf.SmoothStep(0f, 1f, (elapsed - 6.1f) / 1.7f));
+            sixtySevenOverlay.GetComponent<Image>().color = new Color(0.015f, 0.01f, 0.065f, envelope * 0.22f);
+            for (int i = 0; i < sixtySevenBursts.Length; i++)
+            {
+                Text label = sixtySevenBursts[i];
+                float travel = (elapsed - 0.65f - (i / 4) * 0.32f) / (3.2f + (i % 3) * 0.35f);
+                float lane = 0.09f + ((i / 4) % 5) * 0.205f;
+                // Keep the focal point clear: the ship owns the middle of the composition.
+                if (Mathf.Abs(lane - 0.5f) < 0.13f) lane += (i % 2 == 0 ? -0.16f : 0.16f);
+                float along = Mathf.Lerp(-0.2f, 1.2f, Mathf.Clamp01(travel));
+                Vector2 anchor = i % 4 == 0 ? new Vector2(along, lane)
+                    : i % 4 == 1 ? new Vector2(1f - along, lane)
+                    : i % 4 == 2 ? new Vector2(lane, along) : new Vector2(lane, 1f - along);
+                label.rectTransform.anchorMin = label.rectTransform.anchorMax = anchor;
+                label.rectTransform.anchoredPosition = Vector2.zero;
+                label.rectTransform.sizeDelta = new Vector2(180f, 110f);
+                label.fontSize = 42 + i % 4 * 10;
+                label.transform.localRotation = Quaternion.Euler(0f, 0f, Mathf.Sin(elapsed * 0.7f + i) * 8f);
+                float visibility = Mathf.SmoothStep(0f, 1f, travel * 7f) * (1f - Mathf.SmoothStep(0f, 1f, (travel - 0.8f) * 5f));
+                Color tint = i % 2 == 0 ? new Color(1f, 0.3f, 0.82f) : new Color(0.3f, 0.95f, 1f);
+                tint.a = envelope * visibility * (0.55f + i % 3 * 0.15f);
+                label.color = tint;
+            }
+        }
+
+        private void HideForResurrection(GameObject item)
+        {
+            if (item == null || !item.activeSelf) return;
+            resurrectionHiddenHud.Add(item);
+            item.SetActive(false);
+        }
+
+        public void EndSixtySevenRevive()
+        {
+            sixtySevenOverlay.SetActive(false);
+            foreach (GameObject item in resurrectionHiddenHud)
+                if (item != null) item.SetActive(true);
+            resurrectionHiddenHud.Clear();
+        }
+
+        private void CreateReplayCornerBracket(Transform parent, int index, bool right, bool top)
+        {
+            const float margin = 0.032f;
+            const float armX = 0.085f;
+            const float armY = 0.05f;
+            const float thickX = 0.016f;
+            const float thickY = 0.011f;
+            float xEdge = right ? 1f - margin : margin;
+            float yEdge = top ? 1f - margin : margin;
+            float xInner = right ? xEdge - armX : xEdge + armX;
+            float yInner = top ? yEdge - armY : yEdge + armY;
+
+            var h = new GameObject("Replay Corner H " + index, typeof(RectTransform), typeof(Image));
+            h.transform.SetParent(parent, false);
+            Image hImage = h.GetComponent<Image>();
+            hImage.raycastTarget = false;
+            deathReplayCorners[index * 2] = hImage;
+            Vector2 hMin = new Vector2(Mathf.Min(xEdge, xInner), top ? yEdge - thickY : yEdge);
+            Vector2 hMax = new Vector2(Mathf.Max(xEdge, xInner), top ? yEdge : yEdge + thickY);
+            SetRect(h.GetComponent<RectTransform>(), hMin, hMax, Vector2.zero, Vector2.zero);
+
+            var v = new GameObject("Replay Corner V " + index, typeof(RectTransform), typeof(Image));
+            v.transform.SetParent(parent, false);
+            Image vImage = v.GetComponent<Image>();
+            vImage.raycastTarget = false;
+            deathReplayCorners[index * 2 + 1] = vImage;
+            Vector2 vMin = new Vector2(right ? xEdge - thickX : xEdge, Mathf.Min(yEdge, yInner));
+            Vector2 vMax = new Vector2(right ? xEdge : xEdge + thickX, Mathf.Max(yEdge, yInner));
+            SetRect(v.GetComponent<RectTransform>(), vMin, vMax, Vector2.zero, Vector2.zero);
+        }
+
+        private IEnumerator PulseDeathReplayFrame()
+        {
+            while (deathReplayOverlay != null && deathReplayOverlay.activeSelf)
+            {
+                float pulse = 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * 4.2f);
+                for (int i = 0; i < deathReplayCorners.Length; i++)
+                {
+                    if (deathReplayCorners[i] != null)
+                        deathReplayCorners[i].color = new Color(0.2f, 0.94f, 1f, Mathf.Lerp(0.65f, 1f, pulse));
+                }
+                if (deathReplayRecDot != null)
+                {
+                    float recPulse = 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * 6.5f);
+                    deathReplayRecDot.color = new Color(1f, 0.25f, 0.32f, Mathf.Lerp(0.45f, 1f, recPulse));
+                }
+                yield return null;
+            }
+            deathReplayPulse = null;
         }
 
         public void ShowDailyProgress(int captures, int target, int tier)

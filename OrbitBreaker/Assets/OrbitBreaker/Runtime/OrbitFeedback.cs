@@ -84,6 +84,8 @@ namespace OrbitBreaker
         private AudioClip challengeCompleteClip;
         private AudioClip challengeRewardClip;
         private AudioClip powerUpClip;
+        private AudioClip reviveClip;
+        private AudioClip reviveIntroClip;
 
         public float MasterVolume { get; private set; }
         public float MusicVolume { get; private set; }
@@ -119,6 +121,8 @@ namespace OrbitBreaker
             challengeCompleteClip = RuntimeAssets.CreateTone("Challenge Complete", 940f, 0.2f, 0.3f);
             challengeRewardClip = RuntimeAssets.CreateSkipStinger();
             powerUpClip = RuntimeAssets.CreateTone("Power Up", 740f, 0.22f, 0.34f);
+            reviveClip = RuntimeAssets.CreateReviveFanfare();
+            reviveIntroClip = RuntimeAssets.CreateEpicRevive();
             MasterVolume = PlayerPrefs.GetFloat(MasterVolumeKey, 0.85f);
             MusicVolume = PlayerPrefs.GetFloat(MusicVolumeKey, 0.55f);
             EffectsVolume = PlayerPrefs.GetFloat(EffectsVolumeKey, 0.8f);
@@ -249,6 +253,22 @@ namespace OrbitBreaker
             audioSource.pitch = 1f;
             if (success) TriggerHaptic(30L, 85);
             StartCoroutine(Pulse(position, success ? definition.Color : new Color(1f, 0.28f, 0.3f), 0.3f, success ? 1.15f : 0.6f));
+        }
+
+        public void SixtySevenReviveBegin()
+        {
+            audioSource.pitch = 1f;
+            audioSource.PlayOneShot(reviveIntroClip, 0.55f);
+        }
+
+        public void SixtySevenRevive(Vector2 position)
+        {
+            audioSource.pitch = 1f;
+            audioSource.PlayOneShot(reviveClip, 1f);
+            StartCoroutine(Pulse(position, Color.white, 0.7f, 2.6f));
+            StartCoroutine(PulseDelayed(position, new Color(1f, 0.25f, 0.85f, 0.7f), 0.12f));
+            StartCoroutine(PulseDelayed(position, new Color(0.25f, 0.95f, 1f, 0.6f), 0.24f));
+            TriggerHaptic(70L, 180);
         }
 
         public void Death(Vector2 position, DeathReason reason)

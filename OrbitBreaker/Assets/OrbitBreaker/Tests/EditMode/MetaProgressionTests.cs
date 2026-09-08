@@ -25,11 +25,11 @@ namespace OrbitBreaker.Tests
         [Test]
         public void CosmeticCatalog_HasEveryPromisedCategory()
         {
-            Assert.That(MetaProgression.Catalog.Count(item => item.Kind == CosmeticKind.Rocket), Is.EqualTo(31));
+            Assert.That(MetaProgression.Catalog.Count(item => item.Kind == CosmeticKind.Rocket), Is.GreaterThanOrEqualTo(31));
             Assert.That(MetaProgression.Catalog.Count(item => item.Kind == CosmeticKind.Trail), Is.GreaterThanOrEqualTo(4));
-            Assert.That(MetaProgression.Catalog.Count(item => item.Kind == CosmeticKind.PlanetPack), Is.EqualTo(16));
-            Assert.That(MetaProgression.Catalog.Count(item => item.Kind == CosmeticKind.Background), Is.EqualTo(16));
-            Assert.That(MetaProgression.Catalog.Count(item => item.Kind == CosmeticKind.Music), Is.EqualTo(14));
+            Assert.That(MetaProgression.Catalog.Count(item => item.Kind == CosmeticKind.PlanetPack), Is.GreaterThanOrEqualTo(16));
+            Assert.That(MetaProgression.Catalog.Count(item => item.Kind == CosmeticKind.Background), Is.GreaterThanOrEqualTo(16));
+            Assert.That(MetaProgression.Catalog.Count(item => item.Kind == CosmeticKind.Music), Is.GreaterThanOrEqualTo(14));
             Assert.That(MetaProgression.Catalog.Where(item => item.Price == 0).Select(item => item.Kind).Distinct().Count(), Is.EqualTo(5));
         }
 

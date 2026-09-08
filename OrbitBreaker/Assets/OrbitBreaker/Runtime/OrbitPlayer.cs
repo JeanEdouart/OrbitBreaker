@@ -106,12 +106,13 @@ namespace OrbitBreaker
         public event Action<int, Vector2> MaterialCollected;
         public event Action<PowerUpType, Vector2> PowerUpCollected;
 
-        public DeathReplayFrame CaptureReplayFrame(float sampleTime, Vector3 cameraPosition)
+        public DeathReplayFrame CaptureReplayFrame(float sampleTime, Vector3 cameraPosition, float warpIntensity,
+            EntityReplaySnapshot[] hazardSnapshots, EntityReplaySnapshot[] debrisSnapshots)
         {
             return new DeathReplayFrame(sampleTime, transform.position, transform.rotation, transform.localScale,
                 cameraPosition, body != null && body.enabled,
                 outerFlame != null && outerFlame.gameObject.activeSelf,
-                shield != null && shield.enabled, currentFuel);
+                shield != null && shield.enabled, currentFuel, warpIntensity, hazardSnapshots, debrisSnapshots);
         }
 
         public void ApplyReplayFrame(DeathReplayFrame frame)
@@ -120,11 +121,20 @@ namespace OrbitBreaker
             transform.SetPositionAndRotation(frame.PlayerPosition, frame.PlayerRotation);
             transform.localScale = frame.PlayerScale;
             if (body != null) { body.enabled = frame.BodyVisible; body.color = Color.white; }
-            SetEngine(frame.EngineVisible);
-            SetShield(frame.ShieldVisible);
-            SetFuel(frame.Fuel);
-            if (trail != null) { trail.emitting = false; trail.Clear(); }
-            cosmeticTrail?.Clear();
+            if (frame.WarpIntensity > 0f)
+            {
+                // Mirrors ActivateWormhole's live look (stretched blue flame, trail on, fuel/shield hidden)
+                // instead of the plain flight visuals, so a wormhole mid-replay doesn't look broken.
+                SetWarpEngine(frame.WarpIntensity);
+            }
+            else
+            {
+                SetEngine(frame.EngineVisible);
+                SetShield(frame.ShieldVisible);
+                SetFuel(frame.Fuel);
+                if (trail != null) { trail.emitting = false; trail.Clear(); }
+                cosmeticTrail?.Clear();
+            }
         }
 
         public void RestoreDeathVisual(DeathReason reason)
@@ -472,6 +482,67 @@ namespace OrbitBreaker
                 if (debris.gameObject.activeInHierarchy && Vector2.Distance(transform.position, debris.transform.position) <= debris.CollisionRadius + GameTuning.PlayerCollisionRadius) return true;
             }
             return false;
+        }
+
+        // Secret "67" easter egg: cancels a death outright and drops the ship back into flight
+        // with a moment of invulnerability, instead of the normal death sequence.
+        public void Revive(Vector2 position)
+        {
+            State = PlayerOrbitState.Flying;
+            CurrentAnchor = null;
+            transform.position = position;
+            transform.localScale = Vector3.one;
+            velocity = Vector2.up * GameTuning.LaunchSpeed(score);
+            transform.up = velocity.normalized;
+            flightTime = 0f;
+            nearMissBoost = 0f;
+            nearMissCount = 0;
+            nearbyFreeDebris.Clear();
+            rewardedFreeDebris.Clear();
+            trail.emitting = true;
+            body.enabled = true;
+            body.color = Color.white;
+            SetEngine(true);
+            SetShield(false);
+            SetFuel(1f);
+            shieldPowerEndsAt = Time.time + 1.6f;
+            ApplyCosmetics();
+        }
+
+        public void BeginResurrection()
+        {
+            body.enabled = true;
+            body.color = new Color(0.35f, 0.75f, 1f, 0.35f);
+            trail.emitting = false;
+            trail.Clear();
+            SetEngine(false);
+            SetShield(false);
+        }
+
+        public void PoseResurrection(Vector2 position, Quaternion rotation, float restoration)
+        {
+            transform.SetPositionAndRotation(position, rotation);
+            transform.localScale = Vector3.one * Mathf.Lerp(1f, 1.45f, Mathf.Sin(Mathf.Clamp01(restoration) * Mathf.PI));
+            body.color = Color.Lerp(new Color(0.35f, 0.75f, 1f, 0.35f), Color.white, restoration);
+            SetFuel(restoration);
+        }
+
+        public void CompleteResurrection(OrbitAnchor anchor)
+        {
+            transform.localScale = Vector3.one;
+            body.enabled = true;
+            body.color = Color.white;
+            velocity = Vector2.zero;
+            flightTime = 0f;
+            nearMissBoost = 0f;
+            nearMissCount = 0;
+            nearbyFreeDebris.Clear();
+            rewardedFreeDebris.Clear();
+            Capture(anchor); // Deliberately no Captured event: no free score, mission or materials.
+            shieldPowerEndsAt = Mathf.Max(shieldPowerEndsAt, Time.time + 2f);
+            Vector2 radial = ((Vector2)transform.position - (Vector2)anchor.transform.position).normalized;
+            transform.up = new Vector2(-radial.y, radial.x) * anchor.Direction;
+            trail.Clear();
         }
 
         private void Die(DeathReason reason)

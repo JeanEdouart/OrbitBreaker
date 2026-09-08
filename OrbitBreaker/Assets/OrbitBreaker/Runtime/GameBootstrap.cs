@@ -41,14 +41,26 @@ namespace OrbitBreaker
         private readonly int[] powerUpInventory = new int[5];
         private int powerUpInventoryCount;
         private bool warpInProgress;
+        private float currentWarpIntensity;
         private int pendingWarpDistance;
+        // A wormhole jump skips the player far ahead in sequence, which would normally make
+        // OrbitWorld.RecycleBehind immediately destroy/pool the anchors near the wormhole's
+        // start once gameplay resumes -- so a death replay shortly after warping would show an
+        // empty void where the orbits at the beginning of the wormhole used to be. Suspend
+        // recycling for a window at least as long as the death-replay buffer after every warp.
+        private float worldRecycleSuspendedUntil;
+        // Secret "67" easter egg: once per run, dying with a score ending in 67 revives the ship
+        // instead of ending the run, with a flashy overlay and a moment of invulnerability.
+        private bool sixtySevenRevivedThisRun;
+        private bool resurrectionInProgress;
+        private float resurrectionPreviousTimeScale = 1f;
         private int bestRunChain;
         private float runElapsed;
         private int dailySeed;
         private DailyCourseDefinition dailyCourse;
         private DailyCourseProgress dailyProgress;
         private bool currentRunOwnsDailyAttempt;
-        private const float DeathReplayDuration = 3f;
+        private const float DeathReplayDuration = 5f;
         private readonly List<DeathReplayFrame> deathReplayFrames = new List<DeathReplayFrame>(200);
         private bool deathReplayInProgress;
         private bool deathReplaySkipRequested;
@@ -127,6 +139,7 @@ namespace OrbitBreaker
 
         private void Update()
         {
+            if (resurrectionInProgress) return;
             if (!identityReady) return;
             MetaProgression.FlushCollectedMaterials();
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
@@ -188,6 +201,7 @@ namespace OrbitBreaker
                 }
 
                 player.Tick(deltaTime, world.Anchors, world.Hazards, world.FreeDebris, world.Materials, world.PowerUps, cameraRig.CameraY);
+                if (resurrectionInProgress) return;
                 hud.UpdateFlightDisplay(player.transform.position, player.FlightMultiplier, player.FlightDanger01, player.State == PlayerOrbitState.Flying);
                 hud.UpdateActivePowerUps(player);
                 feedback.UpdateCharge(player.FlightMultiplier, player.State == PlayerOrbitState.Flying);
@@ -197,7 +211,7 @@ namespace OrbitBreaker
                 cameraRig.SetTarget(player.transform.position, anchorPosition);
                 cameraRig.SetFlightShake(player.FlightDanger01, player.State == PlayerOrbitState.Flying);
                 RecordDeathReplayFrame();
-                world.RecycleBehind(cameraRig.CameraY, player.LastSequence);
+                if (Time.unscaledTime >= worldRecycleSuspendedUntil) world.RecycleBehind(cameraRig.CameraY, player.LastSequence);
             }
             else if (!hud.SettingsOpen && Time.unscaledTime >= restartAvailableAt && WasGameplayPressedThisFrame())
             {
@@ -207,6 +221,7 @@ namespace OrbitBreaker
 
         private void OnDestroy()
         {
+            if (resurrectionInProgress) Time.timeScale = resurrectionPreviousTimeScale;
             MetaProgression.FlushCollectedMaterials(true);
             if (player == null) return;
             player.Captured -= HandleCaptured;
@@ -249,6 +264,11 @@ namespace OrbitBreaker
             spaceBackground.SetDistance(0, true);
             powerUpInventoryCount = PowerUpProgression.TotalStored();
             warpInProgress = false;
+            currentWarpIntensity = 0f;
+            worldRecycleSuspendedUntil = 0f;
+            sixtySevenRevivedThisRun = false;
+            deathReplayInProgress = false;
+            DeathReplayMotion.Frozen = false;
             pendingWarpDistance = 0;
             for (int i = 0; i < powerUpInventory.Length; i++) powerUpInventory[i] = PowerUpProgression.StoredCount((PowerUpType)i);
             for (int i = 0; i < challengeCompletionNotified.Length; i++)
@@ -445,7 +465,13 @@ namespace OrbitBreaker
                 feedback.UpdateWarpAudio(t * 0.5f);
                 player.transform.localScale = originalScale * Mathf.Lerp(1f, 0.72f, t);
                 player.transform.rotation = Quaternion.Slerp(startRotation, Quaternion.FromToRotation(Vector3.up, destination - startPosition), t);
-                player.SetWarpEngine(t * 0.5f);
+                currentWarpIntensity = t * 0.5f;
+                player.SetWarpEngine(currentWarpIntensity);
+                // Update() bails out early while warpInProgress is true, so the normal
+                // per-frame replay recording never runs during a wormhole warp. Record here
+                // instead, otherwise a run that used a wormhole plays back with a silent gap
+                // where the whole warp sequence (and its visuals) is simply missing.
+                RecordDeathReplayFrame();
                 yield return null;
             }
             elapsed = 0f;
@@ -462,13 +488,17 @@ namespace OrbitBreaker
                 player.transform.position = Vector3.Lerp(startPosition, destination, progress);
                 player.transform.up = (destination - startPosition).normalized;
                 cameraRig.SetCinematicPosition(Vector2.Lerp(cameraStart, cameraDestination, progress));
+                currentWarpIntensity = intensity;
                 player.SetWarpEngine(intensity);
                 player.transform.localScale = Vector3.Scale(originalScale, new Vector3(1f - intensity * 0.12f, 1f + intensity * 0.2f, 1f));
                 hud.UpdateFlightDisplay(player.transform.position, 1f, 0f, false);
+                RecordDeathReplayFrame();
                 yield return null;
             }
             pendingWarpDistance = PowerUpProgression.WormholeDistance(level);
             player.WarpTo(target);
+            worldRecycleSuspendedUntil = Time.unscaledTime + DeathReplayDuration + 0.5f;
+            currentWarpIntensity = 0f;
             player.SetWarpEngine(0f);
             feedback.UpdateWarpAudio(0f);
             Quaternion arrivalRotation = player.transform.rotation;
@@ -481,6 +511,7 @@ namespace OrbitBreaker
                 spaceBackground.SetHyperspace(0f);
                 player.transform.localScale = originalScale;
                 player.transform.rotation = Quaternion.Slerp(arrivalRotation, Quaternion.FromToRotation(Vector3.up, Vector3.right * target.Direction), t);
+                RecordDeathReplayFrame();
                 yield return null;
             }
             player.transform.localScale = originalScale;
@@ -509,6 +540,7 @@ namespace OrbitBreaker
         private void HandleDeath(DeathReason reason)
         {
             if (!runActive) return;
+            if (TryReviveOnSixtySeven()) return;
             MetaProgression.FlushCollectedMaterials(true);
             runActive = false;
             restartAvailableAt = float.PositiveInfinity;
@@ -528,6 +560,7 @@ namespace OrbitBreaker
                 if (CurrentRunMode == RunMode.Sprint) _ = onlineLeaderboard.SubmitSprintScoreAsync(bestScore);
             }
             hud.UpdatePowerUpInventory(powerUpInventory, false);
+            PlayDeathEffect(reason);
             if (LastRunDailyCompleted || deathReplayFrames.Count < 2)
             {
                 FinishDeath(reason);
@@ -536,29 +569,152 @@ namespace OrbitBreaker
             StartCoroutine(PlayDeathReplay(reason));
         }
 
+        private bool TryReviveOnSixtySeven()
+        {
+            if (resurrectionInProgress || sixtySevenRevivedThisRun || LastRunTimedOut || LastRunDailyCompleted || Mathf.Abs(distanceScore) % 100 != 67) return false;
+            OrbitAnchor target = world.PrepareSafeReviveTarget(player.LastSequence);
+            if (target == null) return false;
+            sixtySevenRevivedThisRun = true;
+            StartCoroutine(PlaySixtySevenResurrection(target));
+            return true;
+        }
+
+        private IEnumerator PlaySixtySevenResurrection(OrbitAnchor target)
+        {
+            resurrectionInProgress = true;
+            resurrectionPreviousTimeScale = Time.timeScale;
+            Time.timeScale = 0f;
+            Vector2 start = player.transform.position;
+            Vector2 center = cameraRig.CameraPosition;
+            Quaternion rotation = player.transform.rotation;
+            Vector2 landing = (Vector2)target.transform.position + Vector2.down * target.Radius;
+            Vector2 cameraEnd = (Vector2)target.transform.position;
+            player.BeginResurrection();
+            feedback.SixtySevenReviveBegin();
+            feedback.UpdateCharge(1f, false);
+            hud.PlaySixtySevenRevive();
+            float elapsed = 0f;
+            try
+            {
+                while (elapsed < 8f)
+                {
+                    elapsed += Time.unscaledDeltaTime;
+                    float approach = Mathf.SmoothStep(0f, 1f, (elapsed - 0.4f) / 2.4f);
+                    float returnToOrbit = Mathf.SmoothStep(0f, 1f, (elapsed - 5.8f) / 2.2f);
+                    Vector2 position = Vector2.Lerp(Vector2.Lerp(start, center, approach), landing, returnToOrbit);
+                    cameraRig.SetCinematicPosition(Vector2.Lerp(center, cameraEnd, returnToOrbit));
+                    player.PoseResurrection(position, Quaternion.Slerp(rotation, Quaternion.identity, approach), Mathf.Clamp01(elapsed / 7.8f));
+                    hud.UpdateSixtySevenRevive(elapsed);
+                    yield return null;
+                }
+                player.CompleteResurrection(target);
+                deathReplayFrames.Clear();
+            }
+            finally
+            {
+                Time.timeScale = resurrectionPreviousTimeScale;
+                resurrectionInProgress = false;
+                hud.EndSixtySevenRevive();
+            }
+            feedback.SixtySevenRevive(landing);
+        }
+
         private void RecordDeathReplayFrame()
         {
             if (player == null || cameraRig == null || player.State == PlayerOrbitState.Dead) return;
             float now = Time.unscaledTime;
-            deathReplayFrames.Add(player.CaptureReplayFrame(now, cameraRig.CameraPosition));
+            deathReplayFrames.Add(player.CaptureReplayFrame(now, cameraRig.CameraPosition, currentWarpIntensity,
+                CaptureHazardSnapshots(), CaptureDebrisSnapshots()));
             float oldest = now - DeathReplayDuration - 0.15f;
             int remove = 0;
             while (remove < deathReplayFrames.Count - 2 && deathReplayFrames[remove].Time < oldest) remove++;
             if (remove > 0) deathReplayFrames.RemoveRange(0, remove);
         }
 
+        // Snapshots every currently active hazard/debris so the death replay can move them along
+        // their real recorded path instead of leaving them frozen where they ended up at death.
+        private EntityReplaySnapshot[] CaptureHazardSnapshots()
+        {
+            IReadOnlyList<OrbitHazard> hazards = world.Hazards;
+            if (hazards.Count == 0) return System.Array.Empty<EntityReplaySnapshot>();
+            var snapshots = new EntityReplaySnapshot[hazards.Count];
+            for (int i = 0; i < hazards.Count; i++)
+            {
+                OrbitHazard hazard = hazards[i];
+                snapshots[i] = new EntityReplaySnapshot(hazard.Sequence, hazard.transform.position, hazard.transform.eulerAngles.z);
+            }
+            return snapshots;
+        }
+
+        private EntityReplaySnapshot[] CaptureDebrisSnapshots()
+        {
+            IReadOnlyList<FreeDebris> debris = world.FreeDebris;
+            if (debris.Count == 0) return System.Array.Empty<EntityReplaySnapshot>();
+            var snapshots = new EntityReplaySnapshot[debris.Count];
+            for (int i = 0; i < debris.Count; i++)
+            {
+                FreeDebris item = debris[i];
+                snapshots[i] = new EntityReplaySnapshot(item.Id, item.transform.position, item.transform.eulerAngles.z);
+            }
+            return snapshots;
+        }
+
+        private static bool TryFindEntitySnapshot(EntityReplaySnapshot[] snapshots, int id, out EntityReplaySnapshot match)
+        {
+            for (int i = 0; i < snapshots.Length; i++)
+            {
+                if (snapshots[i].Id == id) { match = snapshots[i]; return true; }
+            }
+            match = default;
+            return false;
+        }
+
+        // Drives every live hazard/debris straight from the recorded frames -- interpolating
+        // between a and b at t -- so during the replay they retrace their true historical path
+        // and rotation instead of staying pinned at their final, death-moment position.
+        private void ApplyReplayEntityTransforms(DeathReplayFrame a, DeathReplayFrame b, float t)
+        {
+            IReadOnlyList<OrbitHazard> hazards = world.Hazards;
+            for (int i = 0; i < hazards.Count; i++)
+            {
+                OrbitHazard hazard = hazards[i];
+                bool hasA = TryFindEntitySnapshot(a.HazardSnapshots, hazard.Sequence, out EntityReplaySnapshot snapA);
+                bool hasB = TryFindEntitySnapshot(b.HazardSnapshots, hazard.Sequence, out EntityReplaySnapshot snapB);
+                if (!hasA && !hasB) continue;
+                EntityReplaySnapshot from = hasA ? snapA : snapB;
+                EntityReplaySnapshot to = hasB ? snapB : snapA;
+                hazard.transform.position = Vector2.Lerp(from.Position, to.Position, t);
+                hazard.transform.rotation = Quaternion.Euler(0f, 0f, Mathf.LerpAngle(from.Rotation, to.Rotation, t));
+            }
+            IReadOnlyList<FreeDebris> debris = world.FreeDebris;
+            for (int i = 0; i < debris.Count; i++)
+            {
+                FreeDebris item = debris[i];
+                bool hasA = TryFindEntitySnapshot(a.DebrisSnapshots, item.Id, out EntityReplaySnapshot snapA);
+                bool hasB = TryFindEntitySnapshot(b.DebrisSnapshots, item.Id, out EntityReplaySnapshot snapB);
+                if (!hasA && !hasB) continue;
+                EntityReplaySnapshot from = hasA ? snapA : snapB;
+                EntityReplaySnapshot to = hasB ? snapB : snapA;
+                item.transform.position = Vector2.Lerp(from.Position, to.Position, t);
+                item.transform.rotation = Quaternion.Euler(0f, 0f, Mathf.LerpAngle(from.Rotation, to.Rotation, t));
+            }
+        }
+
         private IEnumerator PlayDeathReplay(DeathReason reason)
         {
             deathReplayInProgress = true;
+            DeathReplayMotion.Frozen = true;
             deathReplaySkipRequested = false;
             deathReplaySkippableAt = Time.unscaledTime + 0.3f;
-            hud.ShowDeathReplay();
 
             float firstTime = deathReplayFrames[0].Time;
             float lastTime = deathReplayFrames[deathReplayFrames.Count - 1].Time;
             float recordedDuration = Mathf.Max(0.05f, lastTime - firstTime);
+            hud.ShowDeathReplay(recordedDuration);
+
             float playbackStart = Time.unscaledTime;
             int cursor = 0;
+            bool replayHyperspaceActive = false;
             while (!deathReplaySkipRequested)
             {
                 float elapsed = Time.unscaledTime - playbackStart;
@@ -568,25 +724,79 @@ namespace OrbitBreaker
                 DeathReplayFrame a = deathReplayFrames[cursor];
                 DeathReplayFrame b = deathReplayFrames[Mathf.Min(cursor + 1, deathReplayFrames.Count - 1)];
                 float t = Mathf.InverseLerp(a.Time, b.Time, sampleTime);
+                ApplyReplayEntityTransforms(a, b, t);
                 var blended = new DeathReplayFrame(sampleTime,
                     Vector3.Lerp(a.PlayerPosition, b.PlayerPosition, t), Quaternion.Slerp(a.PlayerRotation, b.PlayerRotation, t),
                     Vector3.Lerp(a.PlayerScale, b.PlayerScale, t), Vector3.Lerp(a.CameraPosition, b.CameraPosition, t),
                     t < 0.5f ? a.BodyVisible : b.BodyVisible, t < 0.5f ? a.EngineVisible : b.EngineVisible,
-                    t < 0.5f ? a.ShieldVisible : b.ShieldVisible, Mathf.Lerp(a.Fuel, b.Fuel, t));
+                    t < 0.5f ? a.ShieldVisible : b.ShieldVisible, Mathf.Lerp(a.Fuel, b.Fuel, t),
+                    Mathf.Lerp(a.WarpIntensity, b.WarpIntensity, t), a.HazardSnapshots, a.DebrisSnapshots);
+                // Reproduce the wormhole tunnel/veil overlay during replay too, not just the ship's
+                // pose — otherwise a run that used a wormhole plays back with no warp effect at all.
+                if (blended.WarpIntensity > 0f)
+                {
+                    if (!replayHyperspaceActive) { hud.BeginHyperspace(); replayHyperspaceActive = true; }
+                    hud.UpdateHyperspace(blended.WarpIntensity);
+                    spaceBackground.SetHyperspace(blended.WarpIntensity);
+                }
+                else if (replayHyperspaceActive)
+                {
+                    hud.EndHyperspace();
+                    spaceBackground.SetHyperspace(0f);
+                    replayHyperspaceActive = false;
+                }
                 player.ApplyReplayFrame(blended);
                 cameraRig.ApplyReplayPosition(blended.CameraPosition);
+                hud.UpdateDeathReplayCountdown(Mathf.Max(0f, recordedDuration - elapsed));
                 yield return null;
             }
+            if (deathReplaySkipRequested)
+            {
+                // The death sound/animation already played once, immediately when the player
+                // actually died (see HandleDeath) -- skipping the replay must not trigger it a
+                // second time wherever the ship happens to be mid-trajectory, or the effect and
+                // sound end up in a spot that doesn't match the death. Just snap the ship to its
+                // final recorded frame (the real death pose) so it isn't left frozen mid-flight,
+                // then go straight to the results screen with no extra effect.
+                DeathReplayFrame last = deathReplayFrames[deathReplayFrames.Count - 1];
+                if (last.WarpIntensity > 0f)
+                {
+                    if (!replayHyperspaceActive) { hud.BeginHyperspace(); replayHyperspaceActive = true; }
+                    hud.UpdateHyperspace(last.WarpIntensity);
+                    spaceBackground.SetHyperspace(last.WarpIntensity);
+                }
+                ApplyReplayEntityTransforms(last, last, 0f);
+                player.ApplyReplayFrame(last);
+                cameraRig.ApplyReplayPosition(last.CameraPosition);
+                hud.UpdateDeathReplayCountdown(0f);
+            }
+            else
+            {
+                // Watched through to the end: pin hazards/debris to their true final recorded
+                // rotation too, since the last blended frame in the loop above can land a hair
+                // short of it (the loop breaks before rendering a t == 1 sample).
+                ApplyReplayEntityTransforms(deathReplayFrames[deathReplayFrames.Count - 1], deathReplayFrames[deathReplayFrames.Count - 1], 0f);
+                // Watched through to the end: the replay has just reached the ship's real death
+                // frame, so punctuate it with the same death sound/animation as the original
+                // death, now that it's happening at the right place again.
+                PlayDeathEffect(reason);
+            }
+            if (replayHyperspaceActive) { hud.EndHyperspace(); spaceBackground.SetHyperspace(0f); }
             deathReplayInProgress = false;
+            DeathReplayMotion.Frozen = false;
             hud.HideDeathReplay();
             FinishDeath(reason);
         }
 
-        private void FinishDeath(DeathReason reason)
+        private void PlayDeathEffect(DeathReason reason)
         {
             player.RestoreDeathVisual(reason);
             if (!LastRunDailyCompleted) feedback.Death(player.transform.position, reason);
             if (reason == DeathReason.Breaker && !LastRunDailyCompleted) cameraRig.ShakeExplosion();
+        }
+
+        private void FinishDeath(DeathReason reason)
+        {
             hud.ShowGameOver(distanceScore, bestScore, anchorsCaptured, reason, runSynchronizations, runNearMisses, bestRunSkip, bestRunMultiplier, runMaterials);
             restartAvailableAt = Time.unscaledTime + 0.55f;
         }

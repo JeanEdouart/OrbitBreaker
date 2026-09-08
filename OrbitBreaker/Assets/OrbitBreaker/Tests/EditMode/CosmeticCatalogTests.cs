@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Reflection;
 using NUnit.Framework;
 using UnityEngine;
@@ -99,6 +100,42 @@ namespace OrbitBreaker.Tests
             Assert.That(sprite.rect.height, Is.GreaterThan(0), id);
             Assert.That(sprite.bounds.size.x, Is.GreaterThan(0), id);
             Assert.That(sprite.bounds.size.y, Is.EqualTo(1f).Within(.001f), id);
+        }
+
+        [Test]
+        public void SanitizedAtlases_KeepEverySubjectInsideATransparentSafeArea()
+        {
+            CheckAtlas("expanded-rockets-generated.png", 4, 4);
+            CheckAtlas("expanded-planets-a-generated.png", 5, 6);
+            CheckAtlas("expanded-planets-b-generated.png", 5, 5);
+            CheckAtlas("cosmetics-planets-atlas.png", 4, 2);
+        }
+
+        private static void CheckAtlas(string fileName, int columns, int rows)
+        {
+            string path = Path.Combine(Application.dataPath, "OrbitBreaker", "Resources", "Art", fileName);
+            var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+            Assert.That(texture.LoadImage(File.ReadAllBytes(path), false), Is.True, fileName);
+            Assert.That(texture.width, Is.EqualTo(columns * 256), fileName);
+            Assert.That(texture.height, Is.EqualTo(rows * 256), fileName);
+            Color32[] pixels = texture.GetPixels32();
+            const int safeMargin = 16;
+            for (int row = 0; row < rows; row++)
+            for (int column = 0; column < columns; column++)
+            {
+                int opaque = 0;
+                for (int y = 0; y < 256; y++)
+                for (int x = 0; x < 256; x++)
+                {
+                    byte alpha = pixels[(row * 256 + y) * texture.width + column * 256 + x].a;
+                    if (alpha <= 8) continue;
+                    opaque++;
+                    Assert.That(x, Is.InRange(safeMargin, 255 - safeMargin), fileName + " cell " + (row * columns + column) + " touches a horizontal crop edge");
+                    Assert.That(y, Is.InRange(safeMargin, 255 - safeMargin), fileName + " cell " + (row * columns + column) + " touches a vertical crop edge");
+                }
+                Assert.That(opaque, Is.GreaterThan(1000), fileName + " cell " + (row * columns + column) + " is empty");
+            }
+            UnityEngine.Object.DestroyImmediate(texture);
         }
     }
 }

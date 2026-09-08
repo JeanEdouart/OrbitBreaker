@@ -40,6 +40,9 @@ namespace OrbitBreaker
         private static Sprite herbalRocket;
         private static Sprite[] herbalPlanets;
         private static Sprite herbalBackground;
+        private static Sprite cyberpunkRocket;
+        private static Sprite cyberpunkBackground;
+        private static readonly Sprite[] cyberpunkPlanets = new Sprite[5];
         private static readonly Sprite[] dailyRockets = new Sprite[3];
 
         public static Sprite CircleSprite
@@ -226,6 +229,8 @@ namespace OrbitBreaker
 
         public static Sprite GetRocketSprite(int index)
         {
+            if (index == 31)
+                return cyberpunkRocket != null ? cyberpunkRocket : cyberpunkRocket = LoadSingleSprite("Art/cyberpunk-rocket", "Cyberpunk Rocket");
             if (index == 30)
                 return herbalRocket != null ? herbalRocket : herbalRocket = LoadSingleSprite("Art/herbal-rocket", "Joint Stellaire");
             if (index == 26)
@@ -242,7 +247,7 @@ namespace OrbitBreaker
             }
             if (index >= 11)
             {
-                if (!SpritesReady(generatedRockets)) generatedRockets = LoadGridSprites("Art/expanded-rockets-generated", 4, 4, "Generated Rocket", false, true);
+                if (!SpritesReady(generatedRockets)) generatedRockets = LoadGridSprites("Art/expanded-rockets-generated", 4, 4, "Generated Rocket");
                 int variant = Mathf.Clamp(index - 11, 0, 15);
                 int generatedAtlasIndex = (3 - variant / 4) * 4 + variant % 4;
                 return generatedRockets.Length > generatedAtlasIndex ? generatedRockets[generatedAtlasIndex] : ExpandedCosmetics.Rocket(variant);
@@ -316,6 +321,8 @@ namespace OrbitBreaker
 
         public static Sprite GetBackgroundSprite(int index)
         {
+            if (index == 16)
+                return cyberpunkBackground != null ? cyberpunkBackground : cyberpunkBackground = LoadSingleSprite("Art/cyberpunk-background", "Cyberpunk City");
             if (index == 15)
                 return herbalBackground != null ? herbalBackground : herbalBackground = LoadSingleSprite("Art/herbal-background", "Brume Herbal");
             if (index >= 4)
@@ -344,6 +351,13 @@ namespace OrbitBreaker
 
         public static Sprite GetPlanetPackSprite(int pack, int sequence)
         {
+            if (pack == 16)
+            {
+                int variant = Mathf.Abs(sequence % cyberpunkPlanets.Length);
+                if (cyberpunkPlanets[variant] == null)
+                    cyberpunkPlanets[variant] = LoadSingleSprite("Art/cyberpunk-planet-" + variant, "Cyberpunk World " + variant);
+                return cyberpunkPlanets[variant];
+            }
             if (pack == 15)
             {
                 if (!SpritesReady(herbalPlanets)) herbalPlanets = LoadGridSprites("Art/herbal-planets", 3, 2, "Monde Herbal");
@@ -357,11 +371,11 @@ namespace OrbitBreaker
                 int packOffset = pack - 4;
                 if (packOffset < 6)
                 {
-                    if (!SpritesReady(generatedPlanetsA)) generatedPlanetsA = LoadGridSprites("Art/expanded-planets-a-generated", 5, 6, "Generated Planet A", false, true);
+                    if (!SpritesReady(generatedPlanetsA)) generatedPlanetsA = LoadGridSprites("Art/expanded-planets-a-generated", 5, 6, "Generated Planet A");
                     int atlasIndex = (5 - packOffset) * 5 + variant;
                     return generatedPlanetsA.Length > atlasIndex ? generatedPlanetsA[atlasIndex] : ExpandedCosmetics.Planet(packOffset, sequence);
                 }
-                if (!SpritesReady(generatedPlanetsB)) generatedPlanetsB = LoadGridSprites("Art/expanded-planets-b-generated", 5, 5, "Generated Planet B", false, true);
+                if (!SpritesReady(generatedPlanetsB)) generatedPlanetsB = LoadGridSprites("Art/expanded-planets-b-generated", 5, 5, "Generated Planet B");
                 int row = packOffset - 6;
                 int generatedIndex = (4 - row) * 5 + variant;
                 return generatedPlanetsB.Length > generatedIndex ? generatedPlanetsB[generatedIndex] : ExpandedCosmetics.Planet(packOffset, sequence);
@@ -373,7 +387,7 @@ namespace OrbitBreaker
             }
             if (pack > 0)
             {
-                if (!SpritesReady(cosmeticPlanets)) cosmeticPlanets = LoadGridSprites("Art/cosmetics-planets-atlas", 4, 2, "Planet Cosmetic", true);
+                if (!SpritesReady(cosmeticPlanets)) cosmeticPlanets = LoadGridSprites("Art/cosmetics-planets-atlas", 4, 2, "Planet Cosmetic");
                 if (cosmeticPlanets.Length > 0)
                 {
                     int offset = pack == 1 ? 4 : 0;
@@ -405,6 +419,12 @@ namespace OrbitBreaker
             if (texture == null) return Array.Empty<Sprite>();
             float cellWidth = texture.width / (float)columns;
             float cellHeight = texture.height / (float)rows;
+            Color32[] preparedPixels = null;
+            if (removeLightEdgeBackdrop || isolateSubject)
+            {
+                preparedPixels = texture.GetPixels32(0);
+                if (removeLightEdgeBackdrop) RemoveConnectedLightBackdrop(preparedPixels, texture.width, texture.height);
+            }
             var sprites = new Sprite[columns * rows];
             for (int row = 0; row < rows; row++)
             {
@@ -414,23 +434,10 @@ namespace OrbitBreaker
                     Rect rect = new Rect(column * cellWidth, row * cellHeight, cellWidth, cellHeight);
                     if (removeLightEdgeBackdrop || isolateSubject)
                     {
-                        int width = Mathf.RoundToInt(cellWidth); int height = Mathf.RoundToInt(cellHeight);
-                        Color32[] pixels = texture.GetPixels32(0);
-                        int originX = Mathf.RoundToInt(column * cellWidth); int originY = Mathf.RoundToInt(row * cellHeight);
-                        // Jupiter and Saturn overlap the mathematically even cell boundary.
-                        // Move that one boundary left so Jupiter cannot inherit a ring fragment
-                        // and Saturn keeps the complete left side of its rings.
-                        if (rows == 2 && columns == 4 && row == 1 && column == 3)
-                        {
-                            originX = Mathf.RoundToInt(texture.width * 0.735f);
-                            width = texture.width - originX;
-                        }
-                        var cellPixels = new Color32[width * height];
-                        for (int y = 0; y < height; y++) Array.Copy(pixels, (originY + y) * texture.width + originX, cellPixels, y * width, width);
-                        if (removeLightEdgeBackdrop) RemoveConnectedLightBackdrop(cellPixels, width, height);
-                        KeepCenterConnectedSubject(cellPixels, width, height);
-                        var cellTexture = new Texture2D(width, height, TextureFormat.RGBA32, false) { name = prefix + " Texture " + index, filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
-                        cellTexture.SetPixels32(cellPixels); cellTexture.Apply(false, true);
+                        Color32[] cellPixels = ExtractCompleteGridSubject(preparedPixels, texture.width, texture.height,
+                            column, row, columns, rows, out int width, out int height);
+                        var cellTexture = new Texture2D(width, height, TextureFormat.RGBA32, false) { name = prefix + " Padded Texture " + index, filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
+                        cellTexture.SetPixels32(cellPixels); cellTexture.Apply(false, false);
                         sprites[index] = Sprite.Create(cellTexture, new Rect(0f, 0f, width, height), Vector2.one * 0.5f, height, 0, SpriteMeshType.FullRect);
                     }
                     else sprites[index] = Sprite.Create(texture, rect, Vector2.one * 0.5f, cellHeight, 0, SpriteMeshType.FullRect);
@@ -461,8 +468,13 @@ namespace OrbitBreaker
             {
                 int index = queue.Dequeue(); Color32 color = pixels[index]; color.a = 0; pixels[index] = color;
                 int x = index % width; int y = index / width;
-                if (x > 0) Seed(index - 1); if (x + 1 < width) Seed(index + 1);
-                if (y > 0) Seed(index - width); if (y + 1 < height) Seed(index + width);
+                for (int oy = -1; oy <= 1; oy++)
+                for (int ox = -1; ox <= 1; ox++)
+                {
+                    if (ox == 0 && oy == 0) continue;
+                    int nx = x + ox, ny = y + oy;
+                    if (nx >= 0 && nx < width && ny >= 0 && ny < height) Seed(ny * width + nx);
+                }
             }
         }
 
@@ -473,34 +485,67 @@ namespace OrbitBreaker
             return minimum >= 210 && maximum - minimum <= 20;
         }
 
-        private static void KeepCenterConnectedSubject(Color32[] pixels, int width, int height)
+        private static Color32[] ExtractCompleteGridSubject(Color32[] pixels, int textureWidth, int textureHeight,
+            int column, int row, int columns, int rows, out int outputWidth, out int outputHeight)
         {
+            int nominalXMin = Mathf.RoundToInt(column * textureWidth / (float)columns);
+            int nominalXMax = Mathf.RoundToInt((column + 1) * textureWidth / (float)columns);
+            int nominalYMin = Mathf.RoundToInt(row * textureHeight / (float)rows);
+            int nominalYMax = Mathf.RoundToInt((row + 1) * textureHeight / (float)rows);
+            int centerX = (nominalXMin + nominalXMax) / 2;
+            int centerY = (nominalYMin + nominalYMax) / 2;
+            int seed = -1, bestDistance = int.MaxValue;
+            for (int y = nominalYMin; y < nominalYMax; y++)
+            for (int x = nominalXMin; x < nominalXMax; x++)
+            {
+                int candidate = y * textureWidth + x;
+                if (pixels[candidate].a <= 8) continue;
+                int dx = x - centerX, dy = y - centerY;
+                int distance = dx * dx + dy * dy;
+                if (distance < bestDistance) { seed = candidate; bestDistance = distance; }
+            }
+
+            if (seed < 0)
+            {
+                outputWidth = Mathf.Max(4, nominalXMax - nominalXMin);
+                outputHeight = Mathf.Max(4, nominalYMax - nominalYMin);
+                return new Color32[outputWidth * outputHeight];
+            }
+
             var kept = new bool[pixels.Length];
             var queue = new System.Collections.Generic.Queue<int>();
-            int center = (height / 2) * width + width / 2;
-            if (pixels[center].a == 0)
+            kept[seed] = true; queue.Enqueue(seed);
+            int minX = seed % textureWidth, maxX = minX, minY = seed / textureWidth, maxY = minY;
+            void Visit(int x, int y)
             {
-                int best = -1; int bestDistance = int.MaxValue;
-                for (int i = 0; i < pixels.Length; i++)
-                {
-                    if (pixels[i].a == 0) continue;
-                    int dx = i % width - width / 2; int dy = i / width - height / 2;
-                    int distance = dx * dx + dy * dy;
-                    if (distance < bestDistance) { best = i; bestDistance = distance; }
-                }
-                if (best < 0) return;
-                center = best;
+                if (x < 0 || x >= textureWidth || y < 0 || y >= textureHeight) return;
+                int candidate = y * textureWidth + x;
+                if (kept[candidate] || pixels[candidate].a <= 8) return;
+                kept[candidate] = true; queue.Enqueue(candidate);
             }
-            kept[center] = true; queue.Enqueue(center);
-            void Visit(int index) { if (!kept[index] && pixels[index].a > 0) { kept[index] = true; queue.Enqueue(index); } }
             while (queue.Count > 0)
             {
-                int index = queue.Dequeue(); int x = index % width; int y = index / width;
-                if (x > 0) Visit(index - 1); if (x + 1 < width) Visit(index + 1);
-                if (y > 0) Visit(index - width); if (y + 1 < height) Visit(index + width);
+                int current = queue.Dequeue(); int x = current % textureWidth; int y = current / textureWidth;
+                minX = Mathf.Min(minX, x); maxX = Mathf.Max(maxX, x); minY = Mathf.Min(minY, y); maxY = Mathf.Max(maxY, y);
+                for (int oy = -1; oy <= 1; oy++)
+                for (int ox = -1; ox <= 1; ox++)
+                    if (ox != 0 || oy != 0) Visit(x + ox, y + oy);
             }
-            for (int i = 0; i < pixels.Length; i++)
-                if (!kept[i]) { Color32 color = pixels[i]; color.a = 0; pixels[i] = color; }
+
+            int subjectWidth = maxX - minX + 1, subjectHeight = maxY - minY + 1;
+            int padding = Mathf.Max(4, Mathf.CeilToInt(Mathf.Max(subjectWidth, subjectHeight) * 0.08f));
+            outputWidth = subjectWidth + padding * 2;
+            outputHeight = subjectHeight + padding * 2;
+            var result = new Color32[outputWidth * outputHeight];
+            for (int y = minY; y <= maxY; y++)
+            for (int x = minX; x <= maxX; x++)
+            {
+                int source = y * textureWidth + x;
+                if (!kept[source]) continue;
+                int destination = (y - minY + padding) * outputWidth + x - minX + padding;
+                result[destination] = pixels[source];
+            }
+            return result;
         }
 
 
@@ -636,6 +681,74 @@ namespace OrbitBreaker
                 samples[i] = Mathf.Clamp((square + octave) * envelope * 0.16f + finalChord, -0.8f, 0.8f);
             }
             AudioClip clip = AudioClip.Create("Skip Stinger", sampleCount, 1, sampleRate, false);
+            clip.SetData(samples, 0);
+            return clip;
+        }
+
+        public static AudioClip CreateReviveFanfare()
+        {
+            const int sampleRate = 44100;
+            const float duration = 0.6f;
+            int sampleCount = Mathf.CeilToInt(duration * sampleRate);
+            var samples = new float[sampleCount];
+            float[] notes = { 523.25f, 659.25f, 784f, 1046.5f, 1318.51f };
+            for (int i = 0; i < sampleCount; i++)
+            {
+                float time = i / (float)sampleRate;
+                int step = Mathf.Min(notes.Length - 1, Mathf.FloorToInt(time / 0.09f));
+                float stepPhase = Mathf.Repeat(time, 0.09f) / 0.09f;
+                float envelope = Mathf.Exp(-stepPhase * 3f) * Mathf.Clamp01((duration - time) / 0.1f);
+                float square = Mathf.Sign(Mathf.Sin(2f * Mathf.PI * notes[step] * time));
+                float octave = Mathf.Sign(Mathf.Sin(2f * Mathf.PI * notes[step] * 2f * time)) * 0.2f;
+                float sustain = time > 0.36f
+                    ? (Mathf.Sin(2f * Mathf.PI * 1318.51f * time) + Mathf.Sin(2f * Mathf.PI * 1567.98f * time)) * 0.16f * Mathf.Clamp01((duration - time) / 0.18f)
+                    : 0f;
+                samples[i] = Mathf.Clamp((square + octave) * envelope * 0.18f + sustain, -0.85f, 0.85f);
+            }
+            AudioClip clip = AudioClip.Create("Revive Fanfare", sampleCount, 1, sampleRate, false);
+            clip.SetData(samples, 0);
+            return clip;
+        }
+
+        public static AudioClip CreateEpicRevive()
+        {
+            const int sampleRate = 44100;
+            const float duration = 7.6f;
+            int sampleCount = Mathf.CeilToInt(duration * sampleRate);
+            var samples = new float[sampleCount];
+            // A rising, accelerating chromatic run like a classic power-up "grow" cue,
+            // swelling from silence up to a bright climax (crescendo in both pitch and volume).
+            float[] notes = { 130.81f, 155.56f, 185f, 220f, 261.63f, 311.13f, 369.99f, 440f, 523.25f, 622.25f, 739.99f, 880f, 1046.5f };
+            int noteCount = notes.Length;
+            var noteStart = new float[noteCount + 1];
+            var weights = new float[noteCount];
+            float totalWeight = 0f;
+            for (int n = 0; n < noteCount; n++)
+            {
+                weights[n] = Mathf.Pow(0.82f, n);
+                totalWeight += weights[n];
+            }
+            float cumulative = 0f;
+            for (int n = 0; n < noteCount; n++)
+            {
+                noteStart[n] = cumulative / totalWeight * duration;
+                cumulative += weights[n];
+            }
+            noteStart[noteCount] = duration;
+            for (int i = 0; i < sampleCount; i++)
+            {
+                float time = i / (float)sampleRate;
+                float progress = Mathf.Clamp01(time / duration);
+                int step = 0;
+                while (step < noteCount - 1 && time >= noteStart[step + 1]) step++;
+                float frequency = notes[step];
+                float square = Mathf.Sign(Mathf.Sin(2f * Mathf.PI * frequency * time));
+                float octaveUp = Mathf.Sign(Mathf.Sin(2f * Mathf.PI * frequency * 2f * time)) * 0.22f;
+                float crescendo = Mathf.Pow(progress, 1.3f);
+                float release = time > duration - 0.35f ? Mathf.Clamp01((duration - time) / 0.35f) : 1f;
+                samples[i] = Mathf.Clamp((square + octaveUp) * crescendo * release * 0.55f, -0.9f, 0.9f);
+            }
+            AudioClip clip = AudioClip.Create("Epic Revive", sampleCount, 1, sampleRate, false);
             clip.SetData(samples, 0);
             return clip;
         }

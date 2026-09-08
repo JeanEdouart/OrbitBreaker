@@ -4,6 +4,17 @@ using UnityEngine;
 
 namespace OrbitBreaker
 {
+    /// <summary>Shared pause switch for orbiting hazards and drifting debris. The death replay
+    /// plays back a recorded window of the ship/camera at their own pace in real time, but
+    /// OrbitHazard/FreeDebris drive their own position every frame independent of GameBootstrap --
+    /// left running they keep drifting for the whole replay and end up nowhere near the recorded
+    /// ship path. Freezing them the instant the replay starts keeps them exactly where they were
+    /// at the moment of death instead of sliding out of sync with what's on screen.
+    public static class DeathReplayMotion
+    {
+        public static bool Frozen;
+    }
+
     public sealed class OrbitAnchor : MonoBehaviour
     {
         private LineRenderer ring;
@@ -220,6 +231,7 @@ namespace OrbitBreaker
 
         private void Update()
         {
+            if (DeathReplayMotion.Frozen) return;
             if (anchor == null) return;
             orbitAngle += anchor.Direction * Mathf.Lerp(24f, 42f, GameTuning.Difficulty01(anchor.DifficultyDistance)) * Mathf.Deg2Rad * Time.deltaTime;
             transform.position = PositionOnOrbit();
@@ -299,6 +311,7 @@ namespace OrbitBreaker
 
         private void Update()
         {
+            if (DeathReplayMotion.Frozen) return;
             phase += speed * Time.deltaTime;
             transform.position = origin + axis * Mathf.Sin(phase) * amplitude;
             transform.Rotate(0f, 0f, (65f + speed * 18f) * Time.deltaTime);
@@ -754,6 +767,20 @@ namespace OrbitBreaker
             {
                 if (hazards[i].Sequence != targetSequence) continue;
                 OrbitHazard hazard = hazards[i]; hazards.RemoveAt(i); Recycle(hazard);
+            }
+            return target;
+        }
+
+        public OrbitAnchor PrepareSafeReviveTarget(int sequence)
+        {
+            OrbitAnchor target = FindAnchor(sequence);
+            if (target == null) return null;
+            for (int i = hazards.Count - 1; i >= 0; i--)
+            {
+                if (hazards[i].Sequence != sequence) continue;
+                OrbitHazard hazard = hazards[i];
+                hazards.RemoveAt(i);
+                Recycle(hazard);
             }
             return target;
         }
