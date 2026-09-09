@@ -55,7 +55,7 @@
     const status = document.querySelector("#status");
     const warning = document.querySelector("#warning");
     const buildUrl = "Build";
-    const releaseQuery = "?v=" + encodeURIComponent("0.4.1");
+    const releaseQuery = "?v=" + encodeURIComponent("0.4.2");
     const loaderUrl = buildUrl + "/Web.loader.js" + releaseQuery;
     const config = {
       arguments: [],
@@ -65,7 +65,7 @@
       streamingAssetsUrl: "StreamingAssets",
       companyName: "Orbit Breaker Studio",
       productName: "Orbit Breaker",
-      productVersion: "0.4.1",
+      productVersion: "0.4.2",
       showBanner(message, type) {
         const item = document.createElement("div");
         item.textContent = message;
