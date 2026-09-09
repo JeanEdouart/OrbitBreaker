@@ -43,6 +43,7 @@ namespace OrbitBreaker
         private static Sprite cyberpunkRocket;
         private static Sprite cyberpunkBackground;
         private static readonly Sprite[] cyberpunkPlanets = new Sprite[5];
+        private static Sprite herbalTrailLeaf;
         private static readonly Sprite[] dailyRockets = new Sprite[3];
 
         public static Sprite CircleSprite
@@ -219,7 +220,14 @@ namespace OrbitBreaker
 
         public static Sprite RocketSprite => rocketSprite != null ? rocketSprite : rocketSprite = LoadSingleSprite("Art/rocket", "Player Rocket");
         public static Sprite SpaceBackgroundSprite => spaceBackgroundSprite != null ? spaceBackgroundSprite : spaceBackgroundSprite = LoadSingleSprite("Art/space-background", "Space Background");
-        public static Sprite GetTrailSprite(int index) => index >= 6 ? ExpandedCosmetics.TrailSprite(index) : FlameSprite;
+        public static Sprite GetTrailSprite(int index)
+        {
+            if (index == 21)
+                return herbalTrailLeaf != null
+                    ? herbalTrailLeaf
+                    : herbalTrailLeaf = LoadSingleSprite("Art/herbal-trail-leaf", "Cannabis Leaf Trail");
+            return index >= 6 ? ExpandedCosmetics.TrailSprite(index) : FlameSprite;
+        }
         public static Sprite MusicIcon => musicIcon != null ? musicIcon : musicIcon = CreateIcon("Music Icon", (x,y) =>
             ((x+.18f)*(x+.18f)/.025f+(y+.22f)*(y+.22f)/.017f<1f)
             || (x > -.09f && x < -.01f && y > -.22f && y < .4f)
