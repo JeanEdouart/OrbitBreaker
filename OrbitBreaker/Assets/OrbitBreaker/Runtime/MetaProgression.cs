@@ -74,6 +74,13 @@ namespace OrbitBreaker
             if(!Owned(item)) { if(Materials<item.Price)return false; PlayerPrefs.SetInt(P+"Materials",Materials-item.Price); PlayerPrefs.SetInt(P+"Owned."+item.Id,1); }
             PlayerPrefs.SetInt(P+"Selected."+item.Kind,item.VisualIndex); PlayerPrefs.Save(); return true;
         }
+        public static bool GrantCosmetic(CosmeticDefinition item)
+        {
+            if (DailyCourse.IsExclusiveRocket(item.Id) || Owned(item)) return false;
+            PlayerPrefs.SetInt(P+"Owned."+item.Id,1);
+            PlayerPrefs.Save();
+            return true;
+        }
         public static void AddMaterials(int amount){if(amount<=0)return;PlayerPrefs.SetInt(P+"Materials",(int)Math.Min(int.MaxValue,(long)Materials+amount));PlayerPrefs.Save();}
         // Only run pickups are batched. Purchases, rewards and other wallet mutations save immediately.
         public static void CollectMaterials(int amount)

@@ -4,7 +4,7 @@ Jeu mobile 2D à un doigt développé avec Unity, avec progression cosmétique e
 
 ## État de cette mise à jour
 
-Les modifications décrites ci-dessous sont intégrées au projet source et livrées en Android/WebGL. La version de configuration est `0.4.1` (Android code `5`). Les résultats de validation et de build de cette passe sont consignés dans `IMPLEMENTATION-REVIEW.md`.
+Les modifications décrites ci-dessous sont intégrées au projet source. La version de configuration est `0.4.2` (Android code `6`). Les coffres quotidiens sont documentés dans `COFFRES-QUOTIDIENS.md`.
 
 - Le mode Entraînement a été retiré. Infini conserve la progression principale et son classement mondial ; Sprint possède désormais un classement mondial séparé.
 - Le parcours quotidien utilise la date civile française comme graine et change exactement à minuit heure de Paris (été comme hiver) : 12 à 20 captures inédites selon un niveau quotidien de 1 à 5, puis une récompense unique de 90 à 320 matériaux. Une seule tentative est disponible par jour, consommée au premier décollage et signalée clairement sur l'écran principal après utilisation. Il ne possède volontairement aucun classement : l'objectif est de terminer le trajet du jour.
@@ -150,7 +150,7 @@ Configuration actuelle :
 
 - identifiant : `com.orbitbreaker.game`
 - orientation : portrait
-- version : `0.4.1` ; code Android : `5`
+- version : `0.4.2` ; code Android : `6`
 - backend : IL2CPP
 - API Android minimale : 26
 

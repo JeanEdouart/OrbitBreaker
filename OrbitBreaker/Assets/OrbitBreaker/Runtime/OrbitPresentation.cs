@@ -136,6 +136,7 @@ namespace OrbitBreaker
             || (modePanel != null && modePanel.activeSelf)
             || (journalPanel != null && journalPanel.activeSelf)
             || (statisticsPanel != null && statisticsPanel.activeSelf)
+            || (dailyRewardPanel != null && dailyRewardPanel.activeSelf)
             || (playerNamePanel != null && playerNamePanel.activeSelf);
         public bool IsPaused => pausePanel != null && pausePanel.activeSelf;
         public event Action CosmeticsChanged;
@@ -466,6 +467,7 @@ namespace OrbitBreaker
             playerNamePanel = CreatePlayerNamePanel(safe);
             playerNamePanel.SetActive(false);
             CreateExtraMenus(safe);
+            CreateDailyRewardUi(safe);
         }
 
         public void PreparePlayerIdentity(Action onAccepted)

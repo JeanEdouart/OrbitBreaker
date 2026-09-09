@@ -189,6 +189,11 @@ namespace OrbitBreaker
                 bool dailyLaunchAllowed = CurrentRunMode != RunMode.Daily || currentRunOwnsDailyAttempt || !DailyCourse.IsAttempted(dailyCourse.DayKey);
                 if (dailyLaunchAllowed && !hud.SettingsOpen && WasGameplayPressedThisFrame() && player.Launch())
                 {
+                    if (tutorialVisible && CurrentRunMode == RunMode.Endless)
+                    {
+                        for (int i = 0; i < powerUpInventory.Length; i++) powerUpInventory[i] = PowerUpProgression.StoredCount((PowerUpType)i);
+                        powerUpInventoryCount = PowerUpProgression.TotalStored();
+                    }
                     if (CurrentRunMode == RunMode.Daily && !currentRunOwnsDailyAttempt)
                     {
                         currentRunOwnsDailyAttempt = DailyCourse.TryBeginAttempt(dailyCourse.DayKey);

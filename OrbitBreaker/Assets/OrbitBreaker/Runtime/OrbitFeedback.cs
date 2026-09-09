@@ -86,6 +86,8 @@ namespace OrbitBreaker
         private AudioClip powerUpClip;
         private AudioClip reviveClip;
         private AudioClip reviveIntroClip;
+        private AudioClip dailyRewardTickClip;
+        private AudioClip dailyRewardRevealClip;
 
         public float MasterVolume { get; private set; }
         public float MusicVolume { get; private set; }
@@ -123,6 +125,8 @@ namespace OrbitBreaker
             powerUpClip = RuntimeAssets.CreateTone("Power Up", 740f, 0.22f, 0.34f);
             reviveClip = RuntimeAssets.CreateReviveFanfare();
             reviveIntroClip = RuntimeAssets.CreateEpicRevive();
+            dailyRewardTickClip = RuntimeAssets.CreateTone("Daily Reward Tick", 520f, 0.055f, 0.18f);
+            dailyRewardRevealClip = RuntimeAssets.CreateSkipStinger();
             MasterVolume = PlayerPrefs.GetFloat(MasterVolumeKey, 0.85f);
             MusicVolume = PlayerPrefs.GetFloat(MusicVolumeKey, 0.55f);
             EffectsVolume = PlayerPrefs.GetFloat(EffectsVolumeKey, 0.8f);
@@ -269,6 +273,28 @@ namespace OrbitBreaker
             StartCoroutine(PulseDelayed(position, new Color(1f, 0.25f, 0.85f, 0.7f), 0.12f));
             StartCoroutine(PulseDelayed(position, new Color(0.25f, 0.95f, 1f, 0.6f), 0.24f));
             TriggerHaptic(70L, 180);
+        }
+
+        public void DailyRewardTick(float progress)
+        {
+            if (audioSource == null || dailyRewardTickClip == null) return;
+            audioSource.pitch = Mathf.Lerp(.82f, 1.72f, Mathf.Clamp01(progress));
+            audioSource.PlayOneShot(dailyRewardTickClip, Mathf.Lerp(.28f, .62f, progress));
+            audioSource.pitch = 1f;
+        }
+
+        public void DailyRewardReveal(DailyChestRarity rarity)
+        {
+            if (audioSource == null || dailyRewardRevealClip == null) return;
+            audioSource.pitch = rarity == DailyChestRarity.Rainbow ? 1.32f : rarity == DailyChestRarity.Gold ? 1.18f : rarity == DailyChestRarity.Violet ? 1.08f : 1f;
+            audioSource.PlayOneShot(dailyRewardRevealClip, rarity >= DailyChestRarity.Gold ? 1f : .82f);
+            audioSource.pitch = 1f;
+            TriggerHaptic(rarity >= DailyChestRarity.Gold ? 85L : 52L, rarity == DailyChestRarity.Rainbow ? 220 : 150);
+        }
+
+        public void DailyRewardHaptic(DailyChestRarity rarity)
+        {
+            TriggerHaptic(rarity >= DailyChestRarity.Gold ? 70L : 35L, rarity == DailyChestRarity.Rainbow ? 190 : 110);
         }
 
         public void Death(Vector2 position, DeathReason reason)

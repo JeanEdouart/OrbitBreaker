@@ -126,6 +126,7 @@ namespace OrbitBreaker
         {
             if(game==null)game=FindFirstObjectByType<GameBootstrap>();
             bool menu=(tutorialTips!=null&&tutorialTips.activeSelf)||gameOverVisible;
+            UpdateDailyRewardUi(menu);
             int tip = (int)(Time.unscaledTime / 7f) % Tips.Length;
             if (tipsContent != null && tutorialTips.activeSelf && tip != shownTip)
             { shownTip = tip; tipsContent.text = Tips[tip]; }

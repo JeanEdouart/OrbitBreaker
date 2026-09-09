@@ -16,6 +16,7 @@ namespace OrbitBreaker
         private static Sprite trophyIcon;
         private static Sprite leaderboardIcon;
         private static Sprite statisticsIcon;
+        private static Sprite dailyChestIcon;
         private static Sprite rocketSprite;
         private static Sprite flameSprite;
         private static Sprite[] planetSprites;
@@ -217,6 +218,16 @@ namespace OrbitBreaker
                 || (x > 0.25f && x < 0.42f && y > -0.34f && y < 0.38f);
             return axis || bars;
         });
+
+        public static Sprite DailyChestIcon => dailyChestIcon != null ? dailyChestIcon : dailyChestIcon = CreateIcon("Daily Chest Icon", (x, y) =>
+        {
+            bool body = x > -.39f && x < .39f && y > -.35f && y < .18f;
+            bool lid = x > -.43f && x < .43f && y > .16f && y < .34f;
+            bool rim = x > -.46f && x < .46f && y > .08f && y < .18f;
+            bool lockPlate = Mathf.Abs(x) < .12f && y > -.12f && y < .17f;
+            bool keyHole = Mathf.Abs(x) < .035f && y > -.04f && y < .08f;
+            return (body || lid || rim || lockPlate) && !keyHole;
+        }, 128, 2);
 
         public static Sprite RocketSprite => rocketSprite != null ? rocketSprite : rocketSprite = LoadSingleSprite("Art/rocket", "Player Rocket");
         public static Sprite SpaceBackgroundSprite => spaceBackgroundSprite != null ? spaceBackgroundSprite : spaceBackgroundSprite = LoadSingleSprite("Art/space-background", "Space Background");
